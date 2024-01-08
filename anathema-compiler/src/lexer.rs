@@ -105,6 +105,7 @@ impl<'src, 'consts> Lexer<'src, 'consts> {
             ('%', _) => Ok(Kind::Op(Operator::Mod).to_token(index)),
             ('>', _) => Ok(Kind::Op(Operator::GreaterThan).to_token(index)),
             ('<', _) => Ok(Kind::Op(Operator::LessThan).to_token(index)),
+            ('=', _) => Ok(Kind::Op(Operator::Equal).to_token(index)),
             ('\n', _) => Ok(Kind::Newline.to_token(index)),
             ('@', _) => Ok(Kind::View.to_token(index)),
 
@@ -221,6 +222,8 @@ impl<'src, 'consts> Lexer<'src, 'consts> {
             "else" => Kind::Else,
             "true" => Kind::Value(Value::Bool(true)),
             "false" => Kind::Value(Value::Bool(false)),
+            "global" => Kind::Global,
+            "local" => Kind::Local,
             s => {
                 let string_id = self.consts.store_string(s);
                 Kind::Value(Value::Ident(string_id))

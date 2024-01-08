@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use anathema_values::hashmap::HashMap;
-use anathema_values::{Num, Owned, ValueExpr};
+use anathema_values::{Num, Owned, ValueExpr, Visibility};
 
 use super::Expr;
 use crate::token::Operator;
@@ -26,6 +26,18 @@ pub fn eval(expr: Expr, consts: &Constants) -> ValueExpr {
             let index = eval(*index, consts);
             ValueExpr::Index(lhs.into(), index.into())
         }
+        Expr::Local(assignment) => ValueExpr::Declaration {
+            visibility: Visibility::Local,
+            assignment: eval(*assignment, consts).into(),
+        },
+        Expr::Global(assignment) => ValueExpr::Declaration {
+            visibility: Visibility::Global,
+            assignment: eval(*assignment, consts).into(),
+        },
+        Expr::Assignment { ident, value } => ValueExpr::Assignment {
+            ident: eval(*ident, consts).into(),
+            value: eval(*value, consts).into(),
+        },
         Expr::Binary { op, lhs, rhs } => match op {
             Operator::Dot => ValueExpr::Dot(eval(*lhs, consts).into(), eval(*rhs, consts).into()),
             Operator::Mul | Operator::Plus | Operator::Minus | Operator::Div | Operator::Mod => {

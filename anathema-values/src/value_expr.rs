@@ -6,6 +6,12 @@ use crate::scope::ContextRef;
 use crate::value::{ExpressionMap, Expressions};
 use crate::{Collection, NodeId, Owned, Path, ScopeValue, State, ValueRef};
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum Visibility {
+    Global,
+    Local,
+}
+
 // -----------------------------------------------------------------------------
 //   - Value resolver trait -
 // -----------------------------------------------------------------------------
@@ -202,6 +208,16 @@ pub enum ValueExpr {
         fun: Box<ValueExpr>,
         args: Vec<ValueExpr>,
     },
+
+    Declaration {
+        visibility: Visibility,
+        assignment: Box<ValueExpr>,
+    },
+
+    Assignment {
+        ident: Box<ValueExpr>,
+        value: Box<ValueExpr>,
+    },
 }
 
 impl Display for ValueExpr {
@@ -256,6 +272,8 @@ impl Display for ValueExpr {
                         .join(", ")
                 )
             }
+            Self::Declaration { visibility, assignment } => write!( f, "{visibility:?} {assignment}"),
+            Self::Assignment { ident, value } => write!( f, "{ident} = {value}"),
         }
     }
 }
@@ -446,6 +464,14 @@ impl ValueExpr {
                 let _args = args.iter().map(|expr| expr.eval(resolver));
                 panic!()
             }
+
+            Self::Assignment { .. } => panic!(),
+
+            // -----------------------------------------------------------------------------
+            //   - Declaration and assignment -
+            // -----------------------------------------------------------------------------
+            Self::Declaration { .. } => panic!(),
+            Self::Assignment { .. } => panic!(),
         }
     }
 }

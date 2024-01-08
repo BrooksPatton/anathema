@@ -111,6 +111,9 @@ pub(crate) enum Kind {
     Value(Value),
     Op(Operator),
 
+    Global,
+    Local,
+
     Eof,
 }
 
@@ -132,6 +135,8 @@ impl Display for Kind {
             Self::Indent(s) => write!(f, "<indent {s}>"),
             Self::Value(v) => write!(f, "<value {v}>"),
             Self::Op(o) => write!(f, "<op {o}>"),
+            Self::Global => write!(f, "global"),
+            Self::Local => write!(f, "local"),
             Self::Eof => write!(f, "<Eof>"),
         }
     }

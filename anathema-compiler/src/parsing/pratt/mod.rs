@@ -58,6 +58,12 @@ pub enum Expr {
         fun: Box<Expr>,
         args: Vec<Expr>,
     },
+    Local(Box<Expr>),
+    Global(Box<Expr>),
+    Assignment {
+        ident: Box<Expr>,
+        value: Box<Expr>,
+    },
     Array {
         lhs: Box<Expr>,
         index: Box<Expr>,
@@ -102,6 +108,9 @@ impl Display for Expr {
                     .join(", ");
                 write!(f, "{fun}({s})")
             }
+            Expr::Local(assignment) => write!(f, "local {assignment}"),
+            Expr::Global(assignment) => write!(f, "global {assignment}"),
+            Expr::Assignment { ident, value } => write!(f, "{ident} = {value}"),
         }
     }
 }
@@ -123,6 +132,8 @@ fn expr_bp(tokens: &mut Tokens, precedence: u8) -> Expr {
             ));
             left
         }
+        Kind::Local => return Expr::Local(expr_bp(tokens, precedence).into()),
+        Kind::Global => return Expr::Global(expr_bp(tokens, precedence).into()),
         Kind::Op(op) => Expr::Unary {
             op,
             expr: Box::new(expr_bp(tokens, prec::PREFIX)),
@@ -369,5 +380,19 @@ mod test {
     fn map() {
         let input = "{a: 1, b: c}";
         assert_eq!(parse(input), "{<sid 0>: 1, <sid 1>: <sid 2>}");
+    }
+
+    #[test]
+    fn global_declaration() {
+        let input = "global key = val";
+        let output = parse_expr(input);
+        assert_eq!(parse(input), "global (= <sid 0> <sid 1>)");
+    }
+
+    #[test]
+    fn local_declaration() {
+        let input = "local key = val";
+        let output = parse_expr(input);
+        assert_eq!(parse(input), "local (= <sid 0> <sid 1>)");
     }
 }

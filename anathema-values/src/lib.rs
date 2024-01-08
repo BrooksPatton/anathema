@@ -11,7 +11,7 @@ pub use self::scope::{Context, Scope, ScopeStorage, ScopeValue};
 pub use self::slab::Slab;
 pub use self::state::{Change, State, StateValue};
 pub use self::value::{ExpressionMap, Expressions, Num, Owned, ValueRef};
-pub use self::value_expr::{Deferred, Immediate, Resolver, ValueExpr};
+pub use self::value_expr::{Deferred, Immediate, Resolver, ValueExpr, Visibility};
 
 pub mod hashmap;
 mod path;
