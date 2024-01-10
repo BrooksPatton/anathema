@@ -452,16 +452,6 @@ mod test {
         }
     }
 
-    // #[test]
-    // fn invalid_floats() {
-    //     let inputs = ["0.0.1"];
-
-    //     for input in inputs {
-    //         let actual = Lexer::new(input).next_token().unwrap_err().kind;
-    //         assert_eq!(actual, ErrorKind::InvalidNumber);
-    //     }
-    // }
-
     #[test]
     fn unterminated_string() {
         let inputs = ["'unterminated string", "\'unterminated string", "'", "\""];
@@ -479,5 +469,17 @@ mod test {
 
         let b = token_kind("true");
         assert_eq!(b, Kind::Value(Value::Bool(true)));
+    }
+
+    #[test]
+    fn local() {
+        let local = token_kind("local");
+        assert_eq!(local, Kind::Local);
+    }
+
+    #[test]
+    fn global() {
+        let local = token_kind("global");
+        assert_eq!(local, Kind::Global);
     }
 }

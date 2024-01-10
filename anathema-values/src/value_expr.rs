@@ -6,10 +6,19 @@ use crate::scope::ContextRef;
 use crate::value::{ExpressionMap, Expressions};
 use crate::{Collection, NodeId, Owned, Path, ScopeValue, State, ValueRef};
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Visibility {
     Global,
     Local,
+}
+
+impl Display for Visibility {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Global => write!(f, "global"),
+            Self::Local => write!(f, "local"),
+        }
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -211,12 +220,13 @@ pub enum ValueExpr {
 
     Declaration {
         visibility: Visibility,
-        assignment: Box<ValueExpr>,
+        ident: Rc<str>,
+        value: Box<ValueExpr>,
     },
 
     Assignment {
-        ident: Box<ValueExpr>,
-        value: Box<ValueExpr>,
+        lhs: Box<ValueExpr>,
+        rhs: Box<ValueExpr>,
     },
 }
 
@@ -272,8 +282,12 @@ impl Display for ValueExpr {
                         .join(", ")
                 )
             }
-            Self::Declaration { visibility, assignment } => write!( f, "{visibility:?} {assignment}"),
-            Self::Assignment { ident, value } => write!( f, "{ident} = {value}"),
+            Self::Declaration {
+                visibility,
+                ident,
+                value,
+            } => write!(f, "{visibility} {ident} = {value}"),
+            Self::Assignment { lhs, rhs } => write!(f, "{lhs} = {rhs}"),
         }
     }
 }
@@ -462,16 +476,25 @@ impl ValueExpr {
                     _ => return ValueRef::Empty,
                 };
                 let _args = args.iter().map(|expr| expr.eval(resolver));
+
                 panic!()
             }
-
-            Self::Assignment { .. } => panic!(),
 
             // -----------------------------------------------------------------------------
             //   - Declaration and assignment -
             // -----------------------------------------------------------------------------
-            Self::Declaration { .. } => panic!(),
-            Self::Assignment { .. } => panic!(),
+            Self::Declaration {
+                visibility,
+                ident,
+                value,
+            } => {
+                panic!()
+            }
+
+            Self::Assignment { .. } => {
+                // NO NO NO: assignment to a non-existent value does NOT cause declaration
+                panic!()
+            }
         }
     }
 }

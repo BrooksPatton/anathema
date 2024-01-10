@@ -1,6 +1,7 @@
 use std::io::{stdout, Stdout};
 use std::time::{Duration, Instant};
 
+use anathema::ScopeStorage;
 use anathema_render::{size, Screen, Size};
 use anathema_values::{drain_dirty_nodes, Context};
 use anathema_vm::CompiledTemplates;
@@ -90,6 +91,7 @@ impl<'e> Runtime<'e> {
         let expressions = templates.expressions();
         register_default_widgets()?;
 
+        let mut scope_storage = ScopeStorage::new();
         let nodes = make_it_so(expressions);
 
         let size: Size = size()?.into();

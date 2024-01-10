@@ -58,10 +58,12 @@ pub enum Expr {
         fun: Box<Expr>,
         args: Vec<Expr>,
     },
-    Local(Box<Expr>),
-    Global(Box<Expr>),
-    Assignment {
-        ident: Box<Expr>,
+    Local {
+        ident: StringId,
+        value: Box<Expr>,
+    },
+    Global {
+        ident: StringId,
         value: Box<Expr>,
     },
     Array {
@@ -108,9 +110,8 @@ impl Display for Expr {
                     .join(", ");
                 write!(f, "{fun}({s})")
             }
-            Expr::Local(assignment) => write!(f, "local {assignment}"),
-            Expr::Global(assignment) => write!(f, "global {assignment}"),
-            Expr::Assignment { ident, value } => write!(f, "{ident} = {value}"),
+            Expr::Local { ident, value } => write!(f, "local {ident} = {value}"),
+            Expr::Global { ident, value } => write!(f, "global {ident} = {value}"),
         }
     }
 }
@@ -119,6 +120,8 @@ pub(crate) fn expr(tokens: &mut Tokens) -> Expr {
     expr_bp(tokens, 0)
 }
 
+// TODO: add error handling here,
+//       as some of these experssions can fail
 fn expr_bp(tokens: &mut Tokens, precedence: u8) -> Expr {
     let mut left = match tokens.next_no_indent() {
         Kind::Op(Operator::LBracket) => parse_collection(tokens),
@@ -132,8 +135,21 @@ fn expr_bp(tokens: &mut Tokens, precedence: u8) -> Expr {
             ));
             left
         }
-        Kind::Local => return Expr::Local(expr_bp(tokens, precedence).into()),
-        Kind::Global => return Expr::Global(expr_bp(tokens, precedence).into()),
+        Kind::Local => match expr_bp(tokens, precedence) {
+            Expr::Binary { lhs, rhs, op: Operator::Equal } => match *lhs {
+                Expr::Ident(ident) => return Expr::Local { ident, value: rhs },
+                _ => panic!("invalid identifier"),
+            },
+            _ => panic!("invalid declaration"),
+        },
+        Kind::Global => match expr_bp(tokens, precedence) {
+            Expr::Binary { lhs, rhs, op: Operator::Equal } => match *lhs {
+                Expr::Ident(ident) => return Expr::Global { ident, value: rhs },
+                _ => panic!("invalid identifier"),
+            },
+            w => panic!("{w:#?}"),
+            _ => panic!("invalid declaration"),
+        }
         Kind::Op(op) => Expr::Unary {
             op,
             expr: Box::new(expr_bp(tokens, prec::PREFIX)),
@@ -384,15 +400,27 @@ mod test {
 
     #[test]
     fn global_declaration() {
-        let input = "global key = val";
+        let input = "global key = val + 1";
         let output = parse_expr(input);
-        assert_eq!(parse(input), "global (= <sid 0> <sid 1>)");
+        assert_eq!(parse(input), "global <sid 0> = (+ <sid 1> 1)");
     }
 
     #[test]
     fn local_declaration() {
         let input = "local key = val";
         let output = parse_expr(input);
-        assert_eq!(parse(input), "local (= <sid 0> <sid 1>)");
+        assert_eq!(parse(input), "local <sid 0> = <sid 1>");
+    }
+
+    #[test]
+    fn ident_assignment() {
+        let input = "key = val";
+        assert_eq!(parse(input), "(= <sid 0> <sid 1>)");
+    }
+
+    #[test]
+    fn map_assignment() {
+        let input = "key['lol'] = flopp";
+        assert_eq!(parse(input), "(= <sid 0>[\"<sid 1>\"] <sid 2>)");
     }
 }

@@ -1,4 +1,4 @@
-use anathema_values::ValueExpr;
+use anathema_values::{ValueExpr, Visibility};
 
 use super::pratt::{eval, expr};
 use crate::error::{src_line_no, Error, ErrorKind, Result};
@@ -12,6 +12,8 @@ pub enum Expression {
     View(ViewId),
     Node(StringId),
     For { data: ValueId, binding: StringId },
+    Declaration(ValueId),
+    // Assignment(ValueId),
     If(ValueId),
     Else(Option<ValueId>),
     ScopeStart,
@@ -25,6 +27,7 @@ enum State {
     ExitScope,
     ParseFor,
     ParseIf,
+    ParseDeclaration,
     ParseView,
     ParseIdent,
     ParseAttributes,
@@ -105,6 +108,7 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
                 State::EnterScope => self.enter_scope(),
                 State::ParseFor => self.parse_for(),
                 State::ParseIf => self.parse_if(),
+                State::ParseDeclaration => self.parse_declaration(),
                 State::ParseView => self.parse_view(),
                 State::ExitScope => self.exit_scope(),
                 State::ParseIdent => self.parse_ident(),
@@ -131,7 +135,8 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
             State::EnterScope => self.state = State::ExitScope,
             State::ExitScope => self.state = State::ParseFor,
             State::ParseFor => self.state = State::ParseIf,
-            State::ParseIf => self.state = State::ParseView,
+            State::ParseIf => self.state = State::ParseDeclaration,
+            State::ParseDeclaration => self.state = State::ParseView,
             State::ParseView => self.state = State::ParseIdent,
             State::ParseIdent => self.state = State::ParseAttributes,
             State::ParseAttributes => self.state = State::ParseAttribute,
@@ -219,7 +224,7 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
     }
 
     // -----------------------------------------------------------------------------
-    //     - Stage 2: Parse ident, For and If -
+    //     - Stage 2: Parse ident, For, If, declaration and assignment -
     // -----------------------------------------------------------------------------
     fn parse_ident(&mut self) -> Result<Option<Expression>> {
         if Kind::Eof == self.tokens.peek() {
@@ -236,6 +241,13 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
         }
 
         let ident = self.read_ident()?;
+        
+        // NOTE: this doesn't quite work as we need the ident for the binary expr
+        // if the next token is `=` then parse assignment instead
+        // Also note that assignment is an expression not just an ident
+        // if Kind::Newline == self.tokens.peek() {
+        //     return self.parse_assignment(ident);
+        // }
 
         self.tokens.consume_indent();
         self.next_state();
@@ -270,45 +282,71 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
     }
 
     fn parse_if(&mut self) -> Result<Option<Expression>> {
-        if Kind::Else == self.tokens.peek_skip_indent() {
-            self.tokens.consume();
-            let cond = match self.parse_if()? {
-                Some(Expression::If(cond)) => Some(cond),
-                _ => None,
-            };
+        match self.tokens.peek_skip_indent() {
+            Kind::Else => {
+                self.tokens.consume();
+                let cond = match self.parse_if()? {
+                    Some(Expression::If(cond)) => Some(cond),
+                    _ => None,
+                };
 
-            Ok(Some(Expression::Else(cond)))
-        } else if Kind::If == self.tokens.peek_skip_indent() {
-            self.tokens.consume();
-            let expr = expr(&mut self.tokens);
-            let value_expr = eval(expr, self.consts);
-            let value_id = self.consts.store_value(value_expr);
+                Ok(Some(Expression::Else(cond)))
+            }
+            Kind::If => {
+                self.tokens.consume();
+                let expr = expr(&mut self.tokens);
+                let value_expr = eval(expr, self.consts);
+                let value_id = self.consts.store_value(value_expr);
 
-            self.next_state();
-            Ok(Some(Expression::If(value_id)))
-        } else {
-            self.next_state();
-            Ok(None)
+                self.next_state();
+                Ok(Some(Expression::If(value_id)))
+            }
+            _ => {
+                self.next_state();
+                Ok(None)
+            }
         }
     }
 
-    fn parse_view(&mut self) -> Result<Option<Expression>> {
-        if Kind::View == self.tokens.peek_skip_indent() {
-            self.tokens.consume();
-            self.tokens.consume_indent();
-
-            let ident = self.read_ident()?;
-            let ident = self.consts.lookup_string(ident);
-            let view_id = self.consts.store_view(self.views, ident.to_owned());
-            self.tokens.consume_indent();
-
-            self.next_state();
-            self.next_state();
-            Ok(Some(Expression::View(view_id)))
-        } else {
-            self.next_state();
-            Ok(None)
+    fn parse_declaration(&mut self) -> std::result::Result<Option<Expression>, Error> {
+        match self.tokens.peek_skip_indent() {
+            Kind::Local | Kind::Global => {
+                let expr = expr(&mut self.tokens);
+                let value_expr = eval(expr, self.consts);
+                let value_id = self.consts.store_value(value_expr);
+                Ok(Some(Expression::Declaration(value_id)))
+            }
+            _ => {
+                self.next_state();
+                Ok(None)
+            }
         }
+    }
+
+    // fn parse_assignment(&mut self, ident: StringId) -> std::result::Result<Option<Expression>, Error> {
+    //     // local x = 1 <- declr
+    //     // x = 1       <- assignment
+
+    //     panic!()
+    // }
+
+    fn parse_view(&mut self) -> Result<Option<Expression>> {
+        if Kind::View != self.tokens.peek_skip_indent() {
+            self.next_state();
+            return Ok(None);
+        }
+
+        self.tokens.consume();
+        self.tokens.consume_indent();
+
+        let ident = self.read_ident()?;
+        let ident = self.consts.lookup_string(ident);
+        let view_id = self.consts.store_view(self.views, ident.to_owned());
+        self.tokens.consume_indent();
+
+        self.next_state();
+        self.next_state();
+        Ok(Some(Expression::View(view_id)))
     }
 
     // -----------------------------------------------------------------------------
@@ -736,5 +774,12 @@ mod test {
         let mut expressions = parse_ok(src);
         assert_eq!(expressions.remove(0), Expression::Node(0.into()));
         assert_eq!(expressions.remove(0), Expression::LoadValue(0.into()));
+    }
+
+    #[test]
+    fn parse_declaration() {
+        let src = "local x = 1";
+        let mut expressions = parse_ok(src);
+        assert!(matches!(expressions.remove(0), Expression::Declaration(_)));
     }
 }

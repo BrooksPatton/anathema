@@ -1,3 +1,5 @@
+use anathema_values::Visibility;
+
 use crate::parsing::parser::Expression as ParseExpr;
 use crate::{StringId, ValueId, ViewId};
 
@@ -31,6 +33,8 @@ pub(crate) enum Expression {
         ident: StringId,
         scope_size: usize,
     },
+    // Assignment(ValueId),
+    Declaration(ValueId),
 }
 
 pub(crate) struct Optimizer {
@@ -127,6 +131,8 @@ impl Optimizer {
                 &ParseExpr::LoadAttribute { key, value } => {
                     Expression::LoadAttribute { key, value }
                 }
+                &ParseExpr::Declaration(val) => Expression::Declaration(val),
+                // ParseExpr::Assignment { .. } => panic!(),
                 ParseExpr::Eof => continue, // noop, we don't care about EOF
                 ParseExpr::ScopeEnd => unreachable!("scopes are consumed by `opt_scope`"),
             };

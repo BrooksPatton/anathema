@@ -17,12 +17,16 @@ pub enum ScopeValue<'expr> {
     DeferredList(usize, &'expr ValueExpr),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ScopeStorage<'expr>(HashMap<Path, ScopeValue<'expr>>);
 
 impl<'expr> ScopeStorage<'expr> {
     pub fn new() -> Self {
         Self(HashMap::default())
+    }
+
+    pub fn take(&mut self) -> Self {
+        std::mem::take(self)
     }
 
     fn get(&self, lookup_path: &Path) -> Option<ScopeValue<'expr>> {
@@ -157,7 +161,8 @@ impl<'frame, 'expr> ContextRef<'frame, 'expr> {
 
     pub fn scope(&self, path: &Path) -> Option<ScopeValue<'expr>> {
         let scope = self.inner.scope?;
-        scope.get(path)
+        let val = scope.get(path);
+        val
     }
 }
 

@@ -61,13 +61,13 @@ impl<'e> LoopNode<'e> {
 
     pub(super) fn next<F>(
         &mut self,
-        scope: &mut ScopeStorage<'e>,
         context: &Context<'_, 'e>,
         f: &mut F,
     ) -> Result<ControlFlow<(), ()>>
     where
         F: FnMut(&mut WidgetContainer<'e>, &mut Nodes<'e>, &Context<'_, 'e>) -> Result<()>,
     {
+        let mut scope = ScopeStorage::new();
         loop {
             let Some(scope_val) = self.scope_next_value(context) else {
                 return Ok(ControlFlow::Continue(()));
@@ -83,7 +83,7 @@ impl<'e> LoopNode<'e> {
 
             scope.insert(self.binding.clone(), scope_val);
 
-            let scope = context.new_scope(scope);
+            let scope = context.new_scope(&scope);
             let context = context.with_scope(&scope);
 
             let iter = match self.iterations.get_mut(self.current_iteration) {

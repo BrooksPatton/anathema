@@ -1,5 +1,5 @@
 use anathema_compiler::{Constants, Instruction, StringId, ViewId};
-use anathema_values::{Attributes, ValueExpr};
+use anathema_values::{Attributes, ValueExpr, Visibility};
 use anathema_widget_core::expressions::{
     ControlFlow, ElseExpr, Expression, IfExpr, LoopExpr, SingleNodeExpr, ViewExpr,
 };
@@ -95,6 +95,27 @@ impl<'vm> Scope<'vm> {
                 Instruction::LoadAttribute { .. } | Instruction::LoadValue(_) => {
                     unreachable!("these instructions are only executed in the `node` function")
                 }
+                Instruction::Declaration(value_id) => {
+                    let declaration = self.consts.lookup_value(value_id);
+                    match declaration {
+                        ValueExpr::Declaration {
+                            visibility: Visibility::Local,
+                            ..
+                        } => nodes.push(Expression::Declaration(declaration)),
+                        ValueExpr::Declaration {
+                            visibility: Visibility::Global,
+                            ..
+                        } => {
+                            panic!("the globals should probably go somewhere else and be de-duped")
+                        }
+                        // TODO return error
+                        _ => panic!("invalid declaration"),
+                    }
+                } // Instruction::Assignment(value_id) => {
+                  //     let assignment = self.consts.lookup_value(value_id);
+                  //     let expr = Expression::Assignment(assignment);
+                  //     nodes.push(expr);
+                  // }
             }
 
             if self.instructions.is_empty() {

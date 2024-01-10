@@ -1,3 +1,5 @@
+use anathema_values::Visibility;
+
 use self::optimizer::Expression;
 pub(crate) use self::optimizer::Optimizer;
 use super::error::Result;
@@ -30,6 +32,8 @@ pub enum Instruction {
         value: ValueId,
     },
     LoadValue(ValueId),
+    Declaration(ValueId),
+    // Assignment(ValueId),
 }
 
 enum Branch {
@@ -84,8 +88,15 @@ impl Compiler {
                     data,
                     size,
                 } => self.compile_for(*binding, *data, *size),
+                // Expression::Assignment { .. } => panic!(),
+                Expression::Declaration(dec) => self.compile_declaration(*dec),
             }?;
         }
+        Ok(())
+    }
+
+    fn compile_declaration(&mut self, dec: ValueId) -> Result<()> {
+        self.output.push(Instruction::Declaration(dec));
         Ok(())
     }
 

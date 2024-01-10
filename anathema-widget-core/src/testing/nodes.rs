@@ -1,6 +1,6 @@
 use anathema_render::Size;
 use anathema_values::testing::TestState;
-use anathema_values::{Context, State, Value};
+use anathema_values::{Context, State, Value, ScopeStorage};
 
 use crate::contexts::{LayoutCtx, PositionCtx};
 use crate::error::Result;
@@ -104,7 +104,8 @@ impl<S: State> TestExpression<S> {
     }
 
     pub fn eval(&self) -> Result<Node<'_>> {
-        self.expr.eval(&self.ctx(), 0.into())
+        panic!()
+        // self.expr.eval(&self.ctx(), 0.into())
     }
 }
 

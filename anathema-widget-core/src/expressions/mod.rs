@@ -37,17 +37,19 @@ pub struct SingleNodeExpr {
 }
 
 impl SingleNodeExpr {
-    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId) -> Result<Node<'e>> {
-        let scope = context.clone_scope();
+    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId, scope_storage: ScopeStorage<'e>) -> Result<Node<'e>> {
+
+        let scope = context.new_scope(&scope_storage);
+        let context = context.with_scope(&scope);
 
         let text = self
             .text
             .as_ref()
-            .map(|text| String::init_value(context, &node_id, text))
+            .map(|text| String::init_value(&context, &node_id, text))
             .unwrap_or_default();
 
         let context = FactoryContext::new(
-            context,
+            &context,
             node_id.clone(),
             &self.ident,
             &self.attributes,
@@ -71,7 +73,7 @@ impl SingleNodeExpr {
                 ident: &self.ident,
             }),
             node_id,
-            scope,
+            scope_storage,
         };
 
         Ok(node)
@@ -96,7 +98,7 @@ pub struct LoopExpr {
 }
 
 impl LoopExpr {
-    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId) -> Result<Node<'e>> {
+    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId, scope_storage: ScopeStorage<'e>) -> Result<Node<'e>> {
         // Need to know if this is a collection or a path
         let collection = match &self.collection {
             ValueExpr::List(list) => Collection::Static(list),
@@ -136,7 +138,7 @@ impl LoopExpr {
         let node = Node {
             kind: NodeKind::Loop(loop_node),
             node_id,
-            scope: ScopeStorage::new(),
+            scope_storage,
         };
 
         Ok(node)
@@ -153,7 +155,7 @@ pub struct ControlFlow {
 }
 
 impl ControlFlow {
-    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId) -> Result<Node<'e>> {
+    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId, scope_storage: ScopeStorage<'e>) -> Result<Node<'e>> {
         let inner_node_id = node_id.child(0);
         let next_node = NextNodeId::new(node_id.last());
 
@@ -166,7 +168,7 @@ impl ControlFlow {
                 next_node,
             )),
             node_id,
-            scope: ScopeStorage::new(),
+            scope_storage,
         };
         Ok(node)
     }
@@ -188,7 +190,7 @@ pub struct ViewExpr {
 }
 
 impl ViewExpr {
-    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId) -> Result<Node<'e>> {
+    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId, scope_storage: ScopeStorage<'e>) -> Result<Node<'e>> {
         let tabindex = self
             .attributes
             .get("tabindex") // TODO: should be a constant. Look into reserving (more) keywords
@@ -219,7 +221,7 @@ impl ViewExpr {
                 tabindex,
             }),
             node_id,
-            scope: ScopeStorage::new(),
+            scope_storage,
         };
         Ok(node)
     }
@@ -234,19 +236,63 @@ pub enum Expression {
     View(ViewExpr),
     Loop(LoopExpr),
     ControlFlow(ControlFlow),
+    Declaration(ValueExpr),
+    Assignment(ValueExpr),
 }
+
+// let outer_scope = {}
+// eval(&mut scope) local x = 1 outer_scope[x] = 1
+// eval(&mut scope) local y = 2 outer_scope[y] = 2
+
+// eval(vstack_scope) vstack <- gets ownership
+//    - new_scope -
+//    eval(&mut scope) local x = 1 vstack_scope[x] = 1
+//    eval(&mut scope) local y = 2 vstack_scope[y] = 2
+//    let text_1_scope = {immutable_ref: vstack_scope}
+//    eval(&mut text_1_scope) text x + y // 3
+//    eval(&mut scope) local y = 1 vstack_scope[y] = 1
+//    text x + y // 2
+//
+//    let inner_vstack_scope = {immutable_ref: vstack_scope}
+//    eval(inner_vstack_scope) vstack
+//        text x + y // 2
 
 impl Expression {
     pub(crate) fn eval<'expr>(
         &'expr self,
         context: &Context<'_, 'expr>,
         node_id: NodeId,
+        scope_storage: &mut ScopeStorage<'expr>,
     ) -> Result<Node<'expr>> {
+        // The scope storage needs to be cloned here, otherwise the values could
+        // be incorrect in the future given that there might be new declarations
+        // after this expressions.
+        //
+        // e.g
+        //
+        // vstack
+        //     local x = 1
+        //     text x
+        //     local x = 2
+        //     text x
+        //
+        // This should output:
+        // 1
+        // 2
+        //
+        // However the complete scope storage of the nodes for the vstack
+        // would be `x = 2` (as the first one was overwritten by the second one)
+
+        let storage = scope_storage.clone();
         match self {
-            Self::Node(node) => node.eval(context, node_id),
-            Self::Loop(loop_expr) => loop_expr.eval(context, node_id),
-            Self::ControlFlow(controlflow) => controlflow.eval(context, node_id),
-            Self::View(view_expr) => view_expr.eval(context, node_id),
+            Self::Node(node) => node.eval(context, node_id, storage),
+            Self::Loop(loop_expr) => loop_expr.eval(context, node_id, storage),
+            Self::ControlFlow(controlflow) => controlflow.eval(context, node_id, storage),
+            Self::View(view_expr) => view_expr.eval(context, node_id, storage),
+            _ => unreachable!()
+            // Self::Declaration => {
+            //     // modify child_scope
+            // }
         }
     }
 }

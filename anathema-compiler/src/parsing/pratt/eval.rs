@@ -26,18 +26,22 @@ pub fn eval(expr: Expr, consts: &Constants) -> ValueExpr {
             let index = eval(*index, consts);
             ValueExpr::Index(lhs.into(), index.into())
         }
-        Expr::Local(assignment) => ValueExpr::Declaration {
-            visibility: Visibility::Local,
-            assignment: eval(*assignment, consts).into(),
-        },
-        Expr::Global(assignment) => ValueExpr::Declaration {
-            visibility: Visibility::Global,
-            assignment: eval(*assignment, consts).into(),
-        },
-        Expr::Assignment { ident, value } => ValueExpr::Assignment {
-            ident: eval(*ident, consts).into(),
-            value: eval(*value, consts).into(),
-        },
+        Expr::Local { ident, value } => {
+            let ident = consts.lookup_string(ident);
+            ValueExpr::Declaration {
+                visibility: Visibility::Local,
+                ident: Rc::from(ident),
+                value: eval(*value, consts).into(),
+            }
+        }
+        Expr::Global { ident, value } => {
+            let ident = consts.lookup_string(ident);
+            ValueExpr::Declaration {
+                visibility: Visibility::Global,
+                ident: Rc::from(ident),
+                value: eval(*value, consts).into(),
+            }
+        }
         Expr::Binary { op, lhs, rhs } => match op {
             Operator::Dot => ValueExpr::Dot(eval(*lhs, consts).into(), eval(*rhs, consts).into()),
             Operator::Mul | Operator::Plus | Operator::Minus | Operator::Div | Operator::Mod => {
@@ -277,5 +281,17 @@ mod test {
     fn function_call() {
         let expr = eval_str("fun(5, 4)");
         assert_eq!(expr.to_string(), "fun(5, 4)");
+    }
+
+    #[test]
+    fn global_declaration() {
+        let expr = eval_str("global a = 2");
+        assert_eq!(expr.to_string(), "global a = 2");
+    }
+
+    #[test]
+    fn local_declaration() {
+        let expr = eval_str("local a = b + 2");
+        assert_eq!(expr.to_string(), "local a = b + 2");
     }
 }
