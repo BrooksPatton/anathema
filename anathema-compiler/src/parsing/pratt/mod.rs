@@ -140,6 +140,7 @@ fn expr_bp(tokens: &mut Tokens, precedence: u8) -> Expr {
                 Expr::Ident(ident) => return Expr::Local { ident, value: rhs },
                 _ => panic!("invalid identifier"),
             },
+            w => panic!("{w:#?}"),
             _ => panic!("invalid declaration"),
         },
         Kind::Global => match expr_bp(tokens, precedence) {

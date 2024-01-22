@@ -9,4 +9,8 @@ pub enum Error {
     /// Missing template error
     #[error("template missing")]
     TemplateMissing,
+
+    /// Missing template error
+    #[error("assignment to undeclared variable")]
+    UndeclaredVariable,
 }

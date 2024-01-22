@@ -11,6 +11,12 @@ impl From<usize> for ValueId {
     }
 }
 
+impl From<ValueId> for usize {
+    fn from(value: ValueId) -> Self {
+        value.0
+    }
+}
+
 #[derive(Debug)]
 pub struct Values(Storage<ValueExpr>);
 

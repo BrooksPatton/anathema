@@ -6,6 +6,12 @@ use super::Storage;
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct StringId(pub usize);
 
+impl StringId {
+    pub const fn new(id: usize) -> Self {
+        Self(id)
+    }
+}
+
 impl From<usize> for StringId {
     fn from(n: usize) -> Self {
         Self(n)

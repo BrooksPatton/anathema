@@ -36,66 +36,33 @@ impl Display for PathId {
 //   Key               Index   Key
 //   parent_collection .3     .name
 // -----------------------------------------------------------------------------
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
-pub enum Path {
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
+pub enum Path<'e> {
     /// The key is an index to an ident inside `Constants`
-    Key(String),
+    Key(&'e str),
     /// Index in a collection
     Index(usize),
-    /// Composite key, made up by two or more keys
-    // TODO: can we get rid of this now? - TB 2023-12-30
-    Composite(Box<Path>, Box<Path>),
 }
 
-impl fmt::Display for Path {
+impl fmt::Display for Path<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Key(key) => write!(f, "K({})", key)?,
             Self::Index(index) => write!(f, "I({})", index)?,
-            Self::Composite(left, right) => {
-                left.fmt(f)?;
-                write!(f, " -> ")?;
-                right.fmt(f)?;
-            }
         }
 
         Ok(())
     }
 }
 
-impl Path {
-    pub fn compose(&self, child: impl Into<Path>) -> Self {
-        match self {
-            Self::Key(_) | Self::Index(_) => {
-                Self::Composite(Box::new(self.clone()), Box::new(child.into()))
-            }
-            Self::Composite(left, right) => {
-                Self::Composite(left.clone(), Box::new(right.compose(child.into())))
-            }
-        }
-    }
-}
-
-impl From<usize> for Path {
+impl From<usize> for Path<'_> {
     fn from(index: usize) -> Self {
         Self::Index(index)
     }
 }
 
-impl From<&str> for Path {
-    fn from(s: &str) -> Self {
-        Self::Key(s.into())
-    }
-}
-
-impl From<&String> for Path {
-    fn from(s: &String) -> Self {
-        Self::Key(s.into())
-    }
-}
-
-impl From<String> for Path {
-    fn from(s: String) -> Self {
+impl<'e> From<&'e str> for Path<'e> {
+    fn from(s: &'e str) -> Self {
         Self::Key(s)
     }
 }

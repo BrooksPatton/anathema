@@ -2,14 +2,27 @@ use std::fmt::Debug;
 
 use crate::hashmap::HashMap;
 use crate::state::State;
-use crate::{NodeId, Path, ValueExpr, ValueRef};
+use crate::{NodeId, Path, ValueExpr, ValueRef, Owned};
 
-// TODO: technically the `InnerContext` is acting more as a scope
-//       and the `Scope` is just a wrapper around the storage.
-//       This could perhaps benefit from being renamed.
+#[derive(Debug)]
+pub struct OwnedScopeValues<'e>(pub Vec<(&'e str, ScopeValue<'e>)>);
+
+impl<'e> OwnedScopeValues<'e> {
+    pub fn new() -> Self {
+        Self(vec![])
+    }
+
+    pub fn insert(&mut self, key: &'e str, value: ScopeValue<'e>) {
+        self.0.push((key, value));
+    }
+
+    pub fn head_tail(&self) -> Option<(&'e str, ScopeValue<'e>, &[(&'e str, ScopeValue<'e>)])> {
+        self.0.first().copied().map(|(k, v)| (k, v, &self.0[1..]))
+    }
+}
 
 // Scopes can only borrow values with the same lifetime as an expressions.
-// Any scoped value that belongs to or contains state can only be scoped as deferred expressions.
+// Any scoped value that belongs to or contains state can only be scoped as a deferred expression.
 #[derive(Debug, Clone, Copy)]
 pub enum ScopeValue<'expr> {
     Value(ValueRef<'expr>),
@@ -17,57 +30,94 @@ pub enum ScopeValue<'expr> {
     DeferredList(usize, &'expr ValueExpr),
 }
 
-#[derive(Clone, Debug, Default)]
-pub struct ScopeStorage<'expr>(HashMap<Path, ScopeValue<'expr>>);
-
-impl<'expr> ScopeStorage<'expr> {
-    pub fn new() -> Self {
-        Self(HashMap::default())
-    }
-
-    pub fn take(&mut self) -> Self {
-        std::mem::take(self)
-    }
-
-    fn get(&self, lookup_path: &Path) -> Option<ScopeValue<'expr>> {
-        self.0.get(lookup_path).copied()
-    }
-
-    pub fn insert(&mut self, path: impl Into<Path>, value: ScopeValue<'expr>) {
-        self.0.insert(path.into(), value);
-    }
-
-    pub fn value(&mut self, path: impl Into<Path>, value: ValueRef<'expr>) {
-        self.insert(path, ScopeValue::Value(value));
-    }
-
-    pub fn deferred(&mut self, path: impl Into<Path>, expr: &'expr ValueExpr) {
-        self.insert(path, ScopeValue::Deferred(expr));
+impl<'e> ScopeValue<'e> {
+    pub fn value(val: impl Into<Owned>) -> Self {
+        Self::Value(ValueRef::Owned(val.into()))
     }
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct Scope<'frame, 'expr> {
-    store: &'frame ScopeStorage<'expr>,
-    parent: Option<&'frame Scope<'frame, 'expr>>,
+pub struct Scope<'expr> {
+    path: Path<'expr>,
+    value: ScopeValue<'expr>,
 }
 
-impl<'frame, 'expr> Scope<'frame, 'expr> {
-    fn get(&self, lookup_path: &Path) -> Option<ScopeValue<'expr>> {
-        self.store
-            .get(lookup_path)
-            .or_else(|| self.parent.and_then(|p| p.get(lookup_path)))
+#[derive(Debug, Copy, Clone)]
+pub struct Scopes<'frame, 'expr> {
+    pub current: Scope<'expr>,
+    pub parent: Option<&'frame Scopes<'frame, 'expr>>,
+}
+
+impl<'frame, 'expr> Scopes<'frame, 'expr> {
+    pub fn get(&self, path: Path<'_>) -> Option<ScopeValue<'expr>> {
+        match self.current.path == path {
+            true => Some(self.current.value),
+            false => self.parent?.get(path),
+        }
+    }
+
+    #[must_use]
+    pub fn scope_value(&'frame self, path: Path<'expr>, value: ScopeValue<'expr>) -> Self {
+        let scope = Scope { path, value };
+
+        Self {
+            current: scope,
+            parent: Some(self),
+        }
     }
 }
 
+// "get" order is:
+// 1. State
+// 2. Scope
+// 3. Parent
+//
+// TODO: right now failing to fetch a value with the `Deferred` resolver
+// will qualify the value as "deferred", even if the value doesn't exist in the state.
 #[derive(Copy, Clone)]
-struct InnerContext<'frame, 'expr> {
+pub struct InnerContext<'frame, 'expr> {
     state: &'frame dyn State,
-    scope: Option<&'frame Scope<'frame, 'expr>>,
+    scopes: Option<&'frame Scopes<'frame, 'expr>>,
     parent: Option<&'frame InnerContext<'frame, 'expr>>,
 }
 
 impl<'frame, 'expr> InnerContext<'frame, 'expr> {
+    // fn get(&self, key: &str, node_id: Option<&NodeId>) -> Option<ScopeValue<'expr>> {
+    //     if let Some(val) = self.state.state_get(key, node_id) {
+    //         return Some(ScopeValue::Val(val));
+    //     }
+
+    //     let scopes = self.scopes?;
+    //     let val = scopes.get(key)?;
+    //     match val {
+    //         val @ ScopeValue::Val(_) => Some(val),
+    //         ScopeValue::Deferred(key) => self.state.get(key).map(|val| ScopeValue::Val(val)),
+    //     }
+    // }
+
+    /// Scope a value and return the scopes.
+    /// Once the scopes are updated, create a new context with the new scopes:
+    /// ```
+    /// # fn run(context: &Context, value: ScopeValue<'_>, other_value: ScopeValue<'_>) {
+    /// let inner = context.inner();
+    /// let mut scopes = inner.scope("key".into(), value);
+    /// scopes.scope("other_key".into(), other_value);
+    /// inner.assign(scopes);
+    /// # }
+    /// ```
+    pub fn scope(&self, path: Path<'expr>, value: ScopeValue<'expr>) -> Scopes<'frame, 'expr> {
+        let scope = Scope { path, value };
+
+        Scopes {
+            current: scope,
+            parent: self.scopes,
+        }
+    }
+
+    pub fn assign(&mut self, scopes: &'frame Scopes<'frame, 'expr>) {
+        self.scopes = Some(scopes);
+    }
+
     fn pop(&self) -> Option<&Self> {
         self.parent
     }
@@ -77,7 +127,7 @@ impl Debug for InnerContext<'_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("InnterContext")
             .field("state", &"<state>")
-            .field("scope", &self.scope)
+            .field("scopes", &self.scopes)
             .field("parent", &self.parent)
             .finish()
     }
@@ -98,49 +148,37 @@ impl<'frame, 'expr> Context<'frame, 'expr> {
         Self {
             inner: InnerContext {
                 state,
-                scope: None,
+                scopes: None,
                 parent: None,
             },
         }
     }
 
-    pub fn with_scope(&self, scope: &'frame Scope<'frame, 'expr>) -> Self {
-        let inner = InnerContext {
-            state: self.inner.state,
-            parent: self.inner.parent,
-            scope: Some(scope),
-        };
-
-        Self { inner }
-    }
-
     pub fn with_state(&'frame self, state: &'frame dyn State) -> Self {
         let inner = InnerContext {
             state,
+            scopes: None,
             parent: Some(&self.inner),
-            scope: None,
         };
 
         Self { inner }
     }
 
-    pub fn new_scope(&self, store: &'frame ScopeStorage<'expr>) -> Scope<'frame, 'expr> {
-        Scope {
-            store,
-            parent: self.inner.scope,
+    pub fn inner(&'frame self) -> InnerContext<'frame, 'expr> {
+        InnerContext {
+            state: self.inner.state,
+            scopes: self.inner.scopes,
+            parent: self.inner.parent,
         }
+    }
+
+    pub fn new_context(&'frame self, inner: InnerContext<'frame, 'expr>) -> Self {
+        Self { inner }
     }
 
     // TODO: rename this
     pub fn lookup(&'frame self) -> ContextRef<'frame, 'expr> {
         ContextRef { inner: &self.inner }
-    }
-
-    pub fn clone_scope(&self) -> ScopeStorage<'expr> {
-        match self.inner.scope {
-            None => ScopeStorage::new(),
-            Some(scope) => scope.store.clone(),
-        }
     }
 }
 
@@ -155,14 +193,20 @@ impl<'frame, 'expr> ContextRef<'frame, 'expr> {
         })
     }
 
-    pub fn state(&self, path: &Path, node_id: &NodeId) -> ValueRef<'frame> {
+    pub fn state(&self, path: Path<'_>, node_id: &NodeId) -> ValueRef<'frame> {
         self.inner.state.state_get(path, node_id)
     }
 
-    pub fn scope(&self, path: &Path) -> Option<ScopeValue<'expr>> {
-        let scope = self.inner.scope?;
-        let val = scope.get(path);
+    pub fn scopes(&self, path: Path<'_>) -> Option<ScopeValue<'expr>> {
+        let scopes = self.inner.scopes?;
+        let val = scopes.get(path);
         val
+    }
+}
+
+impl<'frame, 'expr> From<InnerContext<'frame, 'expr>> for Context<'frame, 'expr> {
+    fn from(inner: InnerContext<'frame, 'expr>) -> Self {
+        Context { inner }
     }
 }
 

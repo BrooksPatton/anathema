@@ -121,20 +121,15 @@ impl<T> State for List<T>
 where
     for<'a> &'a T: Into<ValueRef<'a>>,
 {
-    fn state_get(&self, key: &Path, node_id: &NodeId) -> ValueRef<'_> {
-        match key {
+    fn state_get(&self, path: Path<'_>, node_id: &NodeId) -> ValueRef<'_> {
+        match path {
             Path::Index(index) => {
-                let Some(value) = self.inner.get(*index) else {
+                let Some(value) = self.inner.get(index) else {
                     return ValueRef::Empty;
                 };
                 value.subscribe(node_id.clone());
                 value.deref().into()
             }
-            Path::Composite(lhs, rhs) => match self.state_get(lhs, node_id) {
-                ValueRef::Map(map) => map.state_get(rhs, node_id),
-                ValueRef::List(collection) => collection.state_get(rhs, node_id),
-                _ => ValueRef::Empty,
-            },
             Path::Key(_) => ValueRef::Empty,
         }
     }

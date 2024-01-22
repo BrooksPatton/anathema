@@ -1,7 +1,6 @@
 use std::io::{stdout, Stdout};
 use std::time::{Duration, Instant};
 
-use anathema::ScopeStorage;
 use anathema_render::{size, Screen, Size};
 use anathema_values::{drain_dirty_nodes, Context};
 use anathema_vm::CompiledTemplates;
@@ -91,7 +90,6 @@ impl<'e> Runtime<'e> {
         let expressions = templates.expressions();
         register_default_widgets()?;
 
-        let mut scope_storage = ScopeStorage::new();
         let nodes = make_it_so(expressions);
 
         let size: Size = size()?.into();
@@ -252,6 +250,7 @@ impl<'e> Runtime<'e> {
 
                         *self.meta._size.width = size.width;
                         *self.meta._size.height = size.height;
+                        self.needs_layout = true;
                     }
                     Event::Blur => *self.meta._focus = false,
                     Event::Focus => *self.meta._focus = true,

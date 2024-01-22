@@ -8,11 +8,21 @@ use crate::{Constants, StringId, ValueId, ViewId, ViewIds};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Expression {
     LoadValue(ValueId),
-    LoadAttribute { key: StringId, value: ValueId },
+    LoadAttribute {
+        key: StringId,
+        value: ValueId,
+    },
     View(ViewId),
     Node(StringId),
-    For { data: ValueId, binding: StringId },
-    Declaration(ValueId),
+    For {
+        data: ValueId,
+        binding: StringId,
+    },
+    Declaration {
+        visibility: Visibility,
+        binding: StringId,
+        value: ValueId,
+    },
     // Assignment(ValueId),
     If(ValueId),
     Else(Option<ValueId>),
@@ -241,10 +251,9 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
         }
 
         let ident = self.read_ident()?;
-        
+
         // NOTE: this doesn't quite work as we need the ident for the binary expr
         // if the next token is `=` then parse assignment instead
-        // Also note that assignment is an expression not just an ident
         // if Kind::Newline == self.tokens.peek() {
         //     return self.parse_assignment(ident);
         // }
@@ -312,9 +321,22 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
         match self.tokens.peek_skip_indent() {
             Kind::Local | Kind::Global => {
                 let expr = expr(&mut self.tokens);
-                let value_expr = eval(expr, self.consts);
-                let value_id = self.consts.store_value(value_expr);
-                Ok(Some(Expression::Declaration(value_id)))
+                match eval(expr, self.consts) {
+                    ValueExpr::Declaration {
+                        visibility,
+                        binding,
+                        value,
+                    } => {
+                        let binding = self.consts.store_string(&*binding);
+                        let value = self.consts.store_value(*value);
+                        Ok(Some(Expression::Declaration {
+                            visibility,
+                            binding,
+                            value,
+                        }))
+                    }
+                    _ => panic!("change this to an Error::InvalidDeclaration"),
+                }
             }
             _ => {
                 self.next_state();
@@ -528,6 +550,10 @@ mod test {
 
     fn parse_ok(src: &str) -> Vec<Expression> {
         parse(src).into_iter().map(Result::unwrap).collect()
+    }
+
+    fn parse_err(src: &str) -> Error {
+        parse(src).into_iter().collect::<Result<Vec<_>>>().unwrap_err()
     }
 
     #[test]
@@ -780,6 +806,13 @@ mod test {
     fn parse_declaration() {
         let src = "local x = 1";
         let mut expressions = parse_ok(src);
-        assert!(matches!(expressions.remove(0), Expression::Declaration(_)));
+        assert!(matches!(expressions.remove(0), Expression::Declaration { .. }));
+    }
+
+    #[test]
+    fn parse_invalid_declaration() {
+        let src = "local x = global y = 1";
+        let mut expressions = parse_err(src);
+        // assert!(matches!(expressions.remove(0), Expression::Declaration { .. }));
     }
 }

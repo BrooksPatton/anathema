@@ -25,7 +25,7 @@ impl Display for Visibility {
 //   - Value resolver trait -
 // -----------------------------------------------------------------------------
 pub trait Resolver<'expr> {
-    fn resolve(&mut self, path: &Path) -> ValueRef<'expr>;
+    fn resolve(&mut self, path: Path<'_>) -> ValueRef<'expr>;
 
     fn resolve_list(&mut self, list: &'expr dyn Collection, index: usize) -> ValueRef<'expr>;
 
@@ -48,8 +48,8 @@ impl<'a, 'expr> Deferred<'a, 'expr> {
 }
 
 impl<'a, 'expr> Resolver<'expr> for Deferred<'a, 'expr> {
-    fn resolve(&mut self, path: &Path) -> ValueRef<'expr> {
-        match self.context.scope(path) {
+    fn resolve(&mut self, path: Path<'_>) -> ValueRef<'expr> {
+        match self.context.scopes(path) {
             None => {
                 if let Some(context) = self.context.pop() {
                     let mut resolver = Self::new(context);
@@ -105,7 +105,7 @@ impl Immediate<'_> {
 }
 
 impl<'frame> Resolver<'frame> for Immediate<'frame> {
-    fn resolve(&mut self, path: &Path) -> ValueRef<'frame> {
+    fn resolve(&mut self, path: Path<'_>) -> ValueRef<'frame> {
         // 1. state
         // 2. scope -> state, scope, [parent]---+
         // 3. parent                            |
@@ -126,7 +126,7 @@ impl<'frame> Resolver<'frame> for Immediate<'frame> {
         //     }
 
         match self.context.state(path, self.node_id) {
-            ValueRef::Empty => match self.context.scope(path) {
+            ValueRef::Empty => match self.context.scopes(path) {
                 None => {
                     if let Some(context) = self.context.pop() {
                         let mut resolver = Self::new(context, self.node_id);
@@ -153,7 +153,7 @@ impl<'frame> Resolver<'frame> for Immediate<'frame> {
                             .eval(self),
                         ValueRef::List(list) => {
                             let path = index.into();
-                            list.state_get(&path, self.node_id)
+                            list.state_get(path, self.node_id)
                         }
                         _ => ValueRef::Empty,
                     }
@@ -169,13 +169,13 @@ impl<'frame> Resolver<'frame> for Immediate<'frame> {
     fn resolve_list(&mut self, list: &'frame dyn Collection, index: usize) -> ValueRef<'frame> {
         let path = index.into();
         self.is_deferred = true;
-        list.state_get(&path, self.node_id)
+        list.state_get(path, self.node_id)
     }
 
     fn resolve_map(&mut self, map: &'frame dyn State, key: &str) -> ValueRef<'frame> {
         let path = key.into();
         self.is_deferred = true;
-        map.state_get(&path, self.node_id)
+        map.state_get(path, self.node_id)
     }
 }
 
@@ -220,7 +220,7 @@ pub enum ValueExpr {
 
     Declaration {
         visibility: Visibility,
-        ident: Rc<str>,
+        binding: Rc<str>,
         value: Box<ValueExpr>,
     },
 
@@ -284,7 +284,7 @@ impl Display for ValueExpr {
             }
             Self::Declaration {
                 visibility,
-                ident,
+                binding: ident,
                 value,
             } => write!(f, "{visibility} {ident} = {value}"),
             Self::Assignment { lhs, rhs } => write!(f, "{lhs} = {rhs}"),
@@ -419,7 +419,7 @@ impl ValueExpr {
             // -----------------------------------------------------------------------------
             Self::Ident(ident) => {
                 let path = Path::from(&**ident);
-                resolver.resolve(&path)
+                resolver.resolve(path)
             }
             Self::Index(lhs, index) => match lhs.eval(resolver) {
                 ValueRef::Expressions(list) => {
@@ -485,7 +485,7 @@ impl ValueExpr {
             // -----------------------------------------------------------------------------
             Self::Declaration {
                 visibility,
-                ident,
+                binding: ident,
                 value,
             } => {
                 panic!()
@@ -523,6 +523,13 @@ impl From<String> for ValueExpr {
 impl From<&str> for ValueExpr {
     fn from(val: &str) -> Self {
         Self::String(val.into())
+    }
+}
+
+impl<const N: usize> From<[usize; N]> for ValueExpr {
+    fn from(value: [usize; N]) -> Self {
+        let list = value.map(|n| ValueExpr::from(n));
+        ValueExpr::List(list.into())
     }
 }
 

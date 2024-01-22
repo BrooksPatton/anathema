@@ -1,6 +1,6 @@
 use anathema_render::Size;
 use anathema_values::testing::TestState;
-use anathema_values::{Context, State, Value, ScopeStorage};
+use anathema_values::{Context, State, Value};
 
 use crate::contexts::{LayoutCtx, PositionCtx};
 use crate::error::Result;

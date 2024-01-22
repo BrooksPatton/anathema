@@ -30,11 +30,11 @@ impl Constants {
         }
     }
 
-    pub(crate) fn store_string(&mut self, string: impl Into<String>) -> StringId {
+    pub fn store_string(&mut self, string: impl Into<String>) -> StringId {
         self.strings.push(string.into())
     }
 
-    pub(crate) fn store_view(&mut self, views: &mut ViewIds, string: String) -> ViewId {
+    pub fn store_view(&mut self, views: &mut ViewIds, string: String) -> ViewId {
         views.push(string)
     }
 

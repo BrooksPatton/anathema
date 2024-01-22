@@ -25,15 +25,22 @@ pub enum Instruction {
     View(ViewId),
     Node {
         ident: StringId,
-        scope_size: usize,
+        size: usize,
     },
     LoadAttribute {
         key: StringId,
         value: ValueId,
     },
     LoadValue(ValueId),
-    Declaration(ValueId),
-    // Assignment(ValueId),
+    Declaration {
+        visibility: Visibility,
+        binding: StringId,
+        value: ValueId,
+    },
+    Assignment {
+        binding: StringId,
+        value: ValueId,
+    },
 }
 
 enum Branch {
@@ -88,15 +95,15 @@ impl Compiler {
                     data,
                     size,
                 } => self.compile_for(*binding, *data, *size),
-                // Expression::Assignment { .. } => panic!(),
-                Expression::Declaration(dec) => self.compile_declaration(*dec),
+                Expression::Declaration { visibility, binding, value } => self.compile_declaration(*visibility, *binding, *value),
+                Expression::Assignment { binding: ident, value } => panic!()
             }?;
         }
         Ok(())
     }
 
-    fn compile_declaration(&mut self, dec: ValueId) -> Result<()> {
-        self.output.push(Instruction::Declaration(dec));
+    fn compile_declaration(&mut self, visibility: Visibility, binding: StringId, value: ValueId) -> Result<()> {
+        self.output.push(Instruction::Declaration { visibility, binding, value });
         Ok(())
     }
 
@@ -108,7 +115,7 @@ impl Compiler {
     fn compile_node(&mut self, ident: StringId, child_scope_size: usize) -> Result<()> {
         self.output.push(Instruction::Node {
             ident,
-            scope_size: child_scope_size,
+            size: child_scope_size,
         });
         Ok(())
     }
@@ -167,416 +174,423 @@ impl Compiler {
 
 #[cfg(test)]
 mod test {
-    // use super::*;
+    use super::*;
+    use crate::ViewIds;
 
-    // fn parse(src: &str) -> Vec<Instruction> {
-    //     crate::compile(src).unwrap().0
-    // }
+    fn instructions(src: &str) -> Vec<Instruction> {
+        let mut view_ids = ViewIds::new();
+        crate::compile(src, &mut view_ids).unwrap().0
+    }
 
-    // #[test]
-    // fn nested_children() {
-    //     let src = r#"
-    //     vstack
-    //         border
-    //         border
-    //             text
-    //     "#;
-    //     let mut instructions = parse(src);
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Node {
-    //             ident: 0.into(),
-    //             scope_size: 3
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Node {
-    //             ident: 1.into(),
-    //             scope_size: 0
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Node {
-    //             ident: 1.into(),
-    //             scope_size: 1
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Node {
-    //             ident: 2.into(),
-    //             scope_size: 0
-    //         }
-    //     );
-    //     assert!(instructions.is_empty());
-    // }
+    #[test]
+    fn nested_children() {
+        let src = r#"
+        vstack
+            border
+            border
+                text
+        "#;
+        let mut instructions = instructions(src);
 
-    // #[test]
-    // fn double_ifs() {
-    //     let src = "
-    //     if {{ x }}
-    //         a
-    //     if {{ y }}
-    //         b
-    //     c
-    //     ";
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Node {
+                ident: 0.into(),
+                size: 3
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Node {
+                ident: 1.into(),
+                size: 0
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Node {
+                ident: 1.into(),
+                size: 1
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Node {
+                ident: 2.into(),
+                size: 0
+            }
+        );
+        assert!(instructions.is_empty());
+    }
 
-    //     let mut instructions = parse(src);
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::If {
-    //             cond: 0.into(),
-    //             size: 1
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Node {
-    //             ident: 0.into(),
-    //             scope_size: 0
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::If {
-    //             cond: 1.into(),
-    //             size: 1
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Node {
-    //             ident: 1.into(),
-    //             scope_size: 0
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Node {
-    //             ident: 2.into(),
-    //             scope_size: 0
-    //         }
-    //     );
-    //     assert!(instructions.is_empty());
-    // }
+    #[test]
+    fn double_ifs() {
+        let src = "
+        if x 
+            a
+        if y 
+            b
+        c
+        ";
 
-    // #[test]
-    // fn compile_empty() {
-    //     let expressions = vec![];
-    //     let compiler = Compiler::new(expressions);
-    //     let instructions = compiler.compile().unwrap();
-    //     assert!(instructions.is_empty());
-    // }
+        let mut instructions = instructions(src);
+        let mut view_ids = ViewIds::new();
 
-    // #[test]
-    // fn compile_if() {
-    //     let expressions = vec![
-    //         Expression::If {
-    //             cond: 0.into(),
-    //             size: 1,
-    //         },
-    //         Expression::Node {
-    //             ident: 0.into(),
-    //             scope_size: 0,
-    //         },
-    //         Expression::Node {
-    //             ident: 1.into(),
-    //             scope_size: 0,
-    //         },
-    //     ];
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::If {
+                cond: 0.into(),
+                size: 1
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Node {
+                ident: 1.into(), // StringId
+                size: 0
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::If {
+                cond: 1.into(), // ValueId
+                size: 1
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Node {
+                ident: 3.into(),
+                size: 0
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Node {
+                ident: 4.into(),
+                size: 0
+            }
+        );
+        assert!(instructions.is_empty());
+    }
 
-    //     let compiler = Compiler::new(expressions);
-    //     let mut instructions = compiler.compile().unwrap();
+    #[test]
+    fn compile_empty() {
+        let expressions = vec![];
+        let compiler = Compiler::new(expressions);
+        let instructions = compiler.compile().unwrap();
+        assert!(instructions.is_empty());
+    }
 
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::If {
-    //             cond: 0.into(),
-    //             size: 1
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Node {
-    //             ident: 0.into(),
-    //             scope_size: 0
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Node {
-    //             ident: 1.into(),
-    //             scope_size: 0
-    //         }
-    //     );
-    // }
+    #[test]
+    fn compile_if() {
+        let expressions = vec![
+            Expression::If {
+                cond: 0.into(),
+                size: 1,
+            },
+            Expression::Node {
+                ident: 0.into(),
+                scope_size: 0,
+            },
+            Expression::Node {
+                ident: 1.into(),
+                scope_size: 0,
+            },
+        ];
 
-    // #[test]
-    // fn for_loop() {
-    //     let src = "
-    //     for x in {{ y }}
-    //         a
-    //     ";
+        let compiler = Compiler::new(expressions);
+        let mut instructions = compiler.compile().unwrap();
 
-    //     let mut instructions = parse(src);
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::For {
-    //             binding: 0.into(),
-    //             data: 0.into(),
-    //             size: 1
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Node {
-    //             ident: 1.into(),
-    //             scope_size: 0
-    //         }
-    //     );
-    //     assert!(instructions.is_empty());
-    // }
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::If {
+                cond: 0.into(),
+                size: 1
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Node {
+                ident: 0.into(),
+                size: 0
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Node {
+                ident: 1.into(),
+                size: 0
+            }
+        );
+    }
 
-    // #[test]
-    // fn nested_for_loop() {
-    //     let src = "
-    //     for x in {{ y }}
-    //         for z in {{ x }}
-    //             a
-    //     ";
+    #[test]
+    fn for_loop() {
+        let src = "
+        for x in y 
+            a
+        ";
 
-    //     let mut instructions = parse(src);
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::For {
-    //             binding: 0.into(),
-    //             data: 0.into(),
-    //             size: 2
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::For {
-    //             binding: 1.into(),
-    //             data: 1.into(),
-    //             size: 1
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Node {
-    //             ident: 2.into(),
-    //             scope_size: 0
-    //         }
-    //     );
-    //     assert!(instructions.is_empty());
-    // }
+        let mut instructions = instructions(src);
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::For {
+                binding: 0.into(),
+                data: 0.into(),
+                size: 1
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Node {
+                ident: 2.into(),
+                size: 0
+            }
+        );
+        assert!(instructions.is_empty());
+    }
 
-    // #[test]
-    // fn if_else_if_else_if() {
-    //     let src = "
-    //     if {{ x }}
-    //         a
-    //     else if {{ x }}
-    //         b
-    //     else
-    //         c
-    //         d
-    //     if {{ x }}
-    //         a
-    //     ";
+    #[test]
+    fn nested_for_loop() {
+        let src = "
+        for x in y 
+            for z in x 
+                a
+        ";
 
-    //     let mut instructions = parse(src);
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::If {
-    //             cond: 0.into(),
-    //             size: 1
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Node {
-    //             ident: 0.into(),
-    //             scope_size: 0
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Else {
-    //             cond: Some(0.into()),
-    //             size: 1,
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Node {
-    //             ident: 1.into(),
-    //             scope_size: 0
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Else {
-    //             cond: None,
-    //             size: 2,
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Node {
-    //             ident: 2.into(),
-    //             scope_size: 0
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Node {
-    //             ident: 3.into(),
-    //             scope_size: 0
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::If {
-    //             cond: 0.into(),
-    //             size: 1
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Node {
-    //             ident: 0.into(),
-    //             scope_size: 0
-    //         }
-    //     );
-    //     assert!(instructions.is_empty());
-    // }
+        let mut instructions = instructions(src);
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::For {
+                binding: 0.into(),
+                data: 0.into(),
+                size: 2
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::For {
+                binding: 2.into(),
+                data: 1.into(),
+                size: 1
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Node {
+                ident: 3.into(),
+                size: 0
+            }
+        );
+        assert!(instructions.is_empty());
+    }
 
-    // #[test]
-    // fn if_if_if_nested() {
-    //     let src = "
-    //     if {{ x }}
-    //         if {{ x }}
-    //             if {{ x }}
-    //                 a
-    //     b
-    //     ";
+    #[test]
+    fn if_else_if_else_if() {
+        let src = "
+        if x 
+            a
+        else if x 
+            b
+        else
+            c
+            d
+        if x 
+            a
 
-    //     let mut instructions = parse(src);
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::If {
-    //             cond: 0.into(),
-    //             size: 3
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::If {
-    //             cond: 0.into(),
-    //             size: 2
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::If {
-    //             cond: 0.into(),
-    //             size: 1
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Node {
-    //             ident: 0.into(),
-    //             scope_size: 0
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Node {
-    //             ident: 1.into(),
-    //             scope_size: 0
-    //         }
-    //     );
-    //     assert!(instructions.is_empty());
-    // }
+        ";
 
-    // #[test]
-    // fn load_text() {
-    //     let src = "a 'It is tea time'";
-    //     let mut instructions = parse(src);
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Node {
-    //             ident: 0.into(),
-    //             scope_size: 0
-    //         }
-    //     );
-    //     assert_eq!(instructions.remove(0), Instruction::LoadText(0.into()));
-    //     assert!(instructions.is_empty());
-    // }
+        let mut instructions = instructions(src);
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::If {
+                cond: 0.into(),
+                size: 1
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Node {
+                ident: 1.into(),
+                size: 0
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Else {
+                cond: Some(0.into()),
+                size: 1,
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Node {
+                ident: 2.into(),
+                size: 0
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Else {
+                cond: None,
+                size: 2,
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Node {
+                ident: 3.into(),
+                size: 0
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Node {
+                ident: 4.into(),
+                size: 0
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::If {
+                cond: 0.into(),
+                size: 1
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Node {
+                ident: 1.into(),
+                size: 0
+            }
+        );
+        assert!(instructions.is_empty());
+    }
 
-    // #[test]
-    // fn load_attributes() {
-    //     let src = "a [a: a, a: a]";
-    //     let mut instructions = parse(src);
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Node {
-    //             ident: 0.into(),
-    //             scope_size: 0
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::LoadAttribute {
-    //             key: 0.into(),
-    //             value: 0.into()
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::LoadAttribute {
-    //             key: 0.into(),
-    //             value: 0.into()
-    //         }
-    //     );
-    //     assert!(instructions.is_empty());
-    // }
+    #[test]
+    fn if_if_if_nested() {
+        let src = "
+        if x 
+            if x 
+                if x 
+                    a
+        b
+        ";
 
-    // #[test]
-    // fn load_text_nested_nodes() {
-    //     let src = r#"
-    //     text "hi {{ val }}"
-    //         span [a: b] "bye {{ val }}"
-    //     "#;
-    //     let mut instructions = parse(src);
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Node {
-    //             ident: 0.into(),
-    //             scope_size: 3
-    //         }
-    //     );
-    //     assert_eq!(instructions.remove(0), Instruction::LoadText(0.into()));
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::Node {
-    //             ident: 1.into(),
-    //             scope_size: 0
-    //         }
-    //     );
-    //     assert_eq!(
-    //         instructions.remove(0),
-    //         Instruction::LoadAttribute {
-    //             key: 2.into(),
-    //             value: 1.into()
-    //         }
-    //     );
-    //     assert_eq!(instructions.remove(0), Instruction::LoadText(2.into()));
-    //     assert!(instructions.is_empty());
-    // }
+        let mut instructions = instructions(src);
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::If {
+                cond: 0.into(),
+                size: 3
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::If {
+                cond: 0.into(),
+                size: 2
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::If {
+                cond: 0.into(),
+                size: 1
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Node {
+                ident: 1.into(),
+                size: 0
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Node {
+                ident: 2.into(),
+                size: 0
+            }
+        );
+        assert!(instructions.is_empty());
+    }
+
+    #[test]
+    fn load_text() {
+        let src = "a 'It is tea time'";
+        let mut instructions = instructions(src);
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Node {
+                ident: 0.into(),
+                size: 0
+            }
+        );
+        assert_eq!(instructions.remove(0), Instruction::LoadValue(0.into()));
+        assert!(instructions.is_empty());
+    }
+
+    #[test]
+    fn load_attributes() {
+        let src = "a [a: a, a: a]";
+        let mut instructions = instructions(src);
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Node {
+                ident: 0.into(),
+                size: 0
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::LoadAttribute {
+                key: 0.into(),
+                value: 0.into()
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::LoadAttribute {
+                key: 0.into(),
+                value: 0.into()
+            }
+        );
+        assert!(instructions.is_empty());
+    }
+
+    #[test]
+    fn load_text_nested_nodes() {
+        let src = r#"
+        text "hi " val
+            span [a: b] "bye " val
+        "#;
+        let mut instructions = instructions(src);
+
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Node {
+                ident: 0.into(),
+                size: 3
+            }
+        );
+        assert_eq!(instructions.remove(0), Instruction::LoadValue(0.into()));
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::Node {
+                ident: 3.into(),
+                size: 0
+            }
+        );
+        assert_eq!(
+            instructions.remove(0),
+            Instruction::LoadAttribute {
+                key: 4.into(),
+                value: 1.into()
+            }
+        );
+        assert_eq!(instructions.remove(0), Instruction::LoadValue(2.into()));
+        assert!(instructions.is_empty());
+    }
 }

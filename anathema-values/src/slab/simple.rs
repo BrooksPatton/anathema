@@ -46,7 +46,8 @@ impl<T> Slab<T> {
         }
     }
 
-    pub fn get(&self, index: Idx) -> Option<&T> {
+    pub fn get(&self, index: impl Into<Idx>) -> Option<&T> {
+        let index = index.into();
         let Entry::Occupied(val) = self.inner.get(index)? else {
             return None;
         };
@@ -96,8 +97,8 @@ impl<T> Slab<T> {
         }
     }
 
-    #[cfg(test)]
-    fn count(&self) -> usize {
+    #[cfg(any(test, feature = "testing"))]
+    pub fn count(&self) -> usize {
         self.inner
             .iter()
             .filter(|e| match e {

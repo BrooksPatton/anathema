@@ -1,10 +1,97 @@
+// -----------------------------------------------------------------------------
+//   - Overview -
+//
+//   -- Requirements --
+//
+//   --- Value resolution needs to copy the value into the node ---
+//   ```
+//       local x = state_value
+//       local y = x
+//       text y
+//   ```
+//   Needs to resolve the value all the way to the state value:
+//   `y` -> `x` -> `state_value`, replacing `y` in the text widget with 
+//   `state_value`.
+//
+//   TODO: currently this will resolve `y` to `x` producing an incorrect
+//         value.
+//   TODO: write a test confirming this behaviour.
+//
+//   --- Update call needs to build up the scopes ---
+//   ```
+//       for val in values
+//          text val
+//   ```
+//   Needs to build up the scope based on the `Iteration` wrapping the text:
+//   ```
+//       For 
+//          Iteration (val -> values[N])
+//              text val
+//   ```
+//
+//   TODO: write a test confirming this
+//
+//   -- Step: Node creation --
+//
+//   This is probably the most complex part of this library as there is a lot
+//   going on here.
+//
+//   The biggest complexity comes from evaluating values and building
+//   up the scopes.
+//
+//   When creating new nodes, the nodes need access to the values in use.
+//   E.g
+//
+//   ```
+//       local x = 1
+//       text x
+//   ```
+//
+//   Here a local variable `x` needs to be accessible to the text widget.
+//   This is done by copying the value of `x` into the text widget.
+//
+//   In fact, the local variable doesn't need to exist after the creation 
+//   of the node.
+//
+//   NOTE: might be an idea to simply generate the values into temporary
+//   storage during node generation and then simply drop the storage.
+//
+//   -- Step: Node update --
+//
+//   Assuming a state value named `values`:
+//
+//   ```
+//       for outer in values
+//          for inner in outer
+//              text inner
+//   ```
+//
+//   In the above example the `text` widget need access to `inner`.
+//
+//   This means when generating the `Context` to include `inner` each
+//   `Iteration` has to include its `loop_value`.
+//
+//   The above template would generate a node tree as follow:
+//
+//   ```
+//       Loop (values -> outer[N])
+//          Iteration (outer[N])
+//              Loop (outer[N] -> inner)
+//                  Iteration (inner[N])
+//                      Text (inner[N])
+//   ```
+//
+//   For the `Text` widget to be able to read `inner[N]` the `Context`
+//   has to include the scoping of values from the parents.
+// -----------------------------------------------------------------------------
+
 use std::fmt;
 use std::iter::once;
 use std::ops::ControlFlow;
 
 use anathema_values::{
-    Change, Context, Deferred, Immediate, NextNodeId, NodeId, ScopeStorage, Value, ValueExpr,
-    ValueRef,
+    Change, Context, Deferred, Immediate, NextNodeId, NodeId, OwnedScopeValues, ScopeValue, Scopes,
+    Value, ValueExpr, ValueRef,
 };
 
 pub(crate) use self::controlflow::IfElse;
@@ -46,7 +133,6 @@ where
 pub struct Node<'e> {
     pub node_id: NodeId,
     pub kind: NodeKind<'e>,
-    pub(crate) scope_storage: ScopeStorage<'e>,
 }
 
 impl<'e> Node<'e> {
@@ -54,10 +140,6 @@ impl<'e> Node<'e> {
     where
         F: FnMut(&mut WidgetContainer<'e>, &mut Nodes<'e>, &Context<'_, 'e>) -> Result<()>,
     {
-        let scope = context.new_scope(&self.scope_storage);
-        let context = context.with_scope(&scope);
-        let context = &context;
-
         match &mut self.kind {
             NodeKind::Single(Single {
                 widget, children, ..
@@ -76,9 +158,7 @@ impl<'e> Node<'e> {
                 nodes, state, view, ..
             }) => match state {
                 ViewState::Dynamic(state) => {
-                    let scope = context.new_scope(&self.scope_storage);
                     let context = context.with_state(*state);
-                    let context = context.with_scope(&scope);
                     let context = context.with_state(view.get_any_state());
                     c_and_b(nodes, &context, f)
                 }
@@ -87,17 +167,11 @@ impl<'e> Node<'e> {
 
                     match expr.eval(&mut resolver) {
                         ValueRef::Map(state) => {
-                            let scope = context.new_scope(&self.scope_storage);
                             let context = context.with_state(state);
-                            let context = context.with_scope(&scope);
                             let context = context.with_state(view.get_any_state());
                             c_and_b(nodes, &context, f)
                         }
-                        _ => {
-                            let scope = context.new_scope(&self.scope_storage);
-                            let context = context.with_scope(&scope);
-                            c_and_b(nodes, &context, f)
-                        }
+                        _ => c_and_b(nodes, &context, f),
                     }
                 }
                 ViewState::Map(map) => {
@@ -110,15 +184,11 @@ impl<'e> Node<'e> {
                     //     }
                     // }
 
-                    let scope = context.new_scope(&self.scope_storage);
-                    let context = context.with_scope(&scope);
                     let context = context.with_state(view.get_any_state());
                     c_and_b(nodes, &context, f)
                 }
                 ViewState::Internal => {
-                    let scope = context.new_scope(&self.scope_storage);
                     let context = context.with_state(view.get_any_state());
-                    let context = context.with_scope(&scope);
                     c_and_b(nodes, &context, f)
                 }
             },
@@ -138,11 +208,8 @@ impl<'e> Node<'e> {
     // This means that the update was specifically for this node,
     // and not one of its children
     fn update(&mut self, change: &Change, context: &Context<'_, '_>) {
-        let scope = context.new_scope(&self.scope_storage);
-        let context = context.with_scope(&scope);
-
         match &mut self.kind {
-            NodeKind::Single(Single { widget, .. }) => widget.update(&context, &self.node_id),
+            NodeKind::Single(Single { widget, .. }) => widget.update(context, &self.node_id),
             NodeKind::Loop(loop_node) => {
                 // if the collection is bound to a state
                 // we need to resub to the state
@@ -164,7 +231,7 @@ impl<'e> Node<'e> {
             NodeKind::View(View {
                 tabindex, state: _, ..
             }) => {
-                tabindex.resolve(&context, &self.node_id);
+                tabindex.resolve(context, &self.node_id);
                 Views::update(&self.node_id, tabindex.value());
             }
             // NOTE: the control flow has no immediate information
@@ -180,6 +247,7 @@ pub struct Single<'e> {
     pub(crate) widget: WidgetContainer<'e>,
     pub(crate) children: Nodes<'e>,
     pub(crate) ident: &'e str,
+    pub(crate) scope_values: OwnedScopeValues<'e>,
 }
 
 pub struct View<'e> {
@@ -222,6 +290,7 @@ pub enum NodeKind<'e> {
     Loop(LoopNode<'e>),
     ControlFlow(IfElse<'e>),
     View(View<'e>),
+    // Assignment
 }
 
 #[derive(Debug)]
@@ -232,7 +301,7 @@ pub struct Nodes<'expr> {
     root_id: NodeId,
     next_node_id: NextNodeId,
     cache_index: usize,
-    pub storage: ScopeStorage<'expr>,
+    pub(crate) scope_values: OwnedScopeValues<'expr>,
 }
 
 impl<'expr> Nodes<'expr> {
@@ -258,46 +327,58 @@ impl<'expr> Nodes<'expr> {
         // Check if the expression is a declaration or assignment and evaluate it.
         // If not do the next step
         match expr {
-            Expression::Declaration(value) => {
-                match value {
-                    ValueExpr::Declaration {
-                        visibility,
-                        ident,
-                        value,
-                    } => {
-                        // NOTE: the reason we can't find `a` here is because it's inside
-                        // self.storage
-                        let s = &self.storage;
-                        let p = format!("{value:?}");
+            Expression::Assignment(value) => match value {
+                _ => panic!()
+                // ValueExpr::Declaration {
+                //     visibility,
+                //     binding,
+                //     value,
+                // } => {
+                //     let mut resolver = Deferred::new(context.lookup());
+                //     match value.eval(&mut resolver) {
+                //         ValueRef::Deferred => {
+                //             self.scope_values.insert(binding, ScopeValue::Deferred(value))
+                //         }
+                //         value => self.scope_values.insert(binding, ScopeValue::Value(value)),
+                //     }
 
-                        {
-                            let scope = context.new_scope(&self.storage);
-                            let context = context.with_scope(&scope);
-                            let context = &context;
-                            let mut resolver = Deferred::new(context.lookup());
-                            match value.eval(&mut resolver) {
-                                ValueRef::Deferred => self.storage.deferred(&**ident, value),
-                                value => self.storage.value(&**ident, value),
-                            }
-                        }
-
-                        return Some(Ok(()));
-                    }
-                    _ => panic!(),
-                }
-            }
+                //     return Some(Ok(()));
+                // }
+                // _ => panic!(),
+            },
             // Expression::Assignment => panic!(),
             _ => {}
         }
 
-        match expr.eval(
-            context,
-            self.next_node_id.next(&self.root_id),
-            &mut self.storage,
-        ) {
-            Ok(node) => self.inner.push(node),
-            Err(e) => return Some(Err(e)),
+        // TODO: this and the update function has the same gross stuff in it.
+        // Make it less gross plz
+        match self.scope_values.head_tail() {
+            None => {
+                match expr.eval(context, self.next_node_id.next(&self.root_id)) {
+                    Ok(node) => self.inner.push(node),
+                    Err(e) => return Some(Err(e)),
+                }
+            }
+            Some((key, val, tail)) => {
+                let mut inner = context.inner();
+                let mut scopes = inner.scope(key.into(), val);
+
+                // Resolve the value
+                let mut inner = context.inner();
+
+                for (key, value) in tail {
+                     let scopes = scopes.scope_value((*key).into(), *value);
+                }
+
+                inner.assign(&scopes);
+                let context = inner.into();
+                match expr.eval(&context, self.next_node_id.next(&self.root_id)) {
+                    Ok(node) => self.inner.push(node),
+                    Err(e) => return Some(Err(e)),
+                };
+            }
         };
+
         Some(Ok(()))
     }
 
@@ -354,7 +435,7 @@ impl<'expr> Nodes<'expr> {
             next_node_id: NextNodeId::new(root_id.last()),
             root_id,
             cache_index: 0,
-            storage: ScopeStorage::new(),
+            scope_values: OwnedScopeValues::new(),
         }
     }
 
@@ -428,12 +509,31 @@ fn update(nodes: &mut [Node<'_>], node_id: &[usize], change: &Change, context: &
             return node.update(change, context);
         }
 
-        let scope = context.new_scope(&node.scope_storage);
-        let context = context.with_scope(&scope);
-
         match &mut node.kind {
-            NodeKind::Single(Single { children, .. }) => {
-                return children.update(node_id, change, &context)
+            NodeKind::Single(Single {
+                scope_values,
+                children,
+                ..
+            }) => {
+                match scope_values.head_tail() {
+                    None => return children.update(node_id, change, &context),
+                    Some((key, val, tail)) => {
+                        // Resolve the value
+                        let inner = context.inner();
+
+                        let mut inner = context.inner();
+                        let mut scopes = inner.scope(key.into(), val);
+
+                        for (key, value) in tail {
+                            scopes.scope_value((*key).into(), *value);
+                        }
+
+                        inner.assign(&scopes);
+                        let context = inner.into();
+                        return children.update(node_id, change, &context);
+                    }
+                };
+
             }
             NodeKind::Loop(loop_node) => {
                 return loop_node.update(node_id, change, &context);

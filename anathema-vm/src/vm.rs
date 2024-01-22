@@ -4,6 +4,7 @@ use anathema_widget_core::expressions::Expression;
 use crate::error::Result;
 use crate::scope::Scope;
 use crate::ViewTemplates;
+use crate::variables::Variables;
 
 pub struct VirtualMachine {
     instructions: Vec<Instruction>,
@@ -20,7 +21,8 @@ impl VirtualMachine {
 
     pub(super) fn exec(self, views: &mut ViewTemplates) -> Result<Vec<Expression>> {
         let mut root_scope = Scope::new(self.instructions, &self.consts);
-        root_scope.exec(views)
+        let mut vars = Variables::new();
+        root_scope.exec(views, &mut vars)
     }
 }
 

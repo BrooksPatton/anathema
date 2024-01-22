@@ -23,7 +23,7 @@ mod value;
 /// ```
 pub trait State {
     #[doc(hidden)]
-    fn state_get(&self, key: &Path, node_id: &NodeId) -> ValueRef<'_>;
+    fn state_get(&self, path: Path<'_>, node_id: &NodeId) -> ValueRef<'_>;
 
     #[doc(hidden)]
     fn get_value(&self, _: &NodeId) -> ValueRef<'_>
@@ -36,7 +36,7 @@ pub trait State {
 
 /// This exists so you can have a view with a default state of a unit
 impl State for () {
-    fn state_get(&self, _: &Path, _: &NodeId) -> ValueRef<'_> {
+    fn state_get(&self, _: Path<'_>, _: &NodeId) -> ValueRef<'_> {
         ValueRef::Empty
     }
 }

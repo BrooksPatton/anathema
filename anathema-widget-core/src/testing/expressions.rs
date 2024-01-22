@@ -20,8 +20,8 @@ pub fn expression(
 }
 
 #[allow(clippy::boxed_local)]
-pub fn for_expression(
-    binding: impl Into<Path>,
+pub fn for_expression<'e>(
+    binding: impl Into<String>,
     collection: Box<ValueExpr>,
     body: impl Into<Vec<Expression>>,
 ) -> Expression {

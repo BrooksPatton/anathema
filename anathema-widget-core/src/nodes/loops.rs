@@ -1,7 +1,7 @@
 use std::ops::ControlFlow;
 
 use anathema_values::{
-    Change, Context, Deferred, NextNodeId, NodeId, Path, ScopeStorage, ScopeValue, ValueRef,
+    Change, Context, Deferred, NextNodeId, NodeId, Path, ScopeValue, ValueRef, Scope,
 };
 
 use super::Nodes;
@@ -9,19 +9,13 @@ use crate::error::Result;
 use crate::expressions::{Collection, Expression};
 use crate::WidgetContainer;
 
+/// An iteration inside a loop node.
 #[derive(Debug)]
 pub(in crate::nodes) struct Iteration<'e> {
     pub(super) body: Nodes<'e>,
     node_id: NodeId,
-}
-
-impl<'e> Iteration<'e> {
-    pub fn new(expressions: &'e [Expression], node_id: NodeId) -> Self {
-        Self {
-            body: Nodes::new(expressions, node_id.child(0)),
-            node_id,
-        }
-    }
+    loop_index: usize,
+    loop_value: ScopeValue<'e>,
 }
 
 // -----------------------------------------------------------------------------
@@ -32,7 +26,7 @@ pub struct LoopNode<'e> {
     expressions: &'e [Expression],
     pub(super) iterations: Vec<Iteration<'e>>,
     current_iteration: usize,
-    pub(super) binding: Path,
+    pub(super) binding: &'e str,
     pub(super) collection: Collection<'e>,
     pub(super) value_index: usize,
     node_id: NodeId,
@@ -42,7 +36,7 @@ pub struct LoopNode<'e> {
 impl<'e> LoopNode<'e> {
     pub(crate) fn new(
         expressions: &'e [Expression],
-        binding: Path,
+        binding: &'e str,
         collection: Collection<'e>,
         node_id: NodeId,
     ) -> Self {
@@ -67,35 +61,35 @@ impl<'e> LoopNode<'e> {
     where
         F: FnMut(&mut WidgetContainer<'e>, &mut Nodes<'e>, &Context<'_, 'e>) -> Result<()>,
     {
-        let mut scope = ScopeStorage::new();
         loop {
             let Some(scope_val) = self.scope_next_value(context) else {
                 return Ok(ControlFlow::Continue(()));
             };
 
-            scope.value(
-                // TODO: make this into a constant
-                "loop",
-                ValueRef::Owned(self.value_index.into()),
-            );
+            let loop_index = self.value_index;
 
             self.value_index += 1;
-
-            scope.insert(self.binding.clone(), scope_val);
-
-            let scope = context.new_scope(&scope);
-            let context = context.with_scope(&scope);
 
             let iter = match self.iterations.get_mut(self.current_iteration) {
                 Some(iter) => iter,
                 None => {
-                    self.iterations.push(Iteration::new(
-                        self.expressions,
-                        self.next_node_id.next(&self.node_id),
-                    ));
+                    let node_id = self.next_node_id.next(&self.node_id); 
+
+                    self.iterations.push(Iteration {
+                        body: Nodes::new(self.expressions, node_id.child(0)),
+                        node_id,
+                        loop_index,
+                        loop_value: scope_val,
+                    });
                     &mut self.iterations[self.current_iteration]
                 }
             };
+
+            let mut inner = context.inner();
+            let scopes = inner.scope("loop".into(), ScopeValue::value(iter.loop_index));
+            let scopes = scopes.scope_value(self.binding.into(), iter.loop_value);
+            inner.assign(&scopes);
+            let context = inner.into();
 
             loop {
                 let res = iter.body.next(&context, f)?;
@@ -155,8 +149,14 @@ impl<'e> LoopNode<'e> {
 
     pub(super) fn update(&mut self, node_id: &[usize], change: &Change, context: &Context<'_, '_>) {
         for iter in &mut self.iterations {
+            let mut inner_context = context.inner();
+            let mut scopes = inner_context.scope("loop".into(), ScopeValue::Value(ValueRef::Owned(iter.loop_index.into())));
+            scopes.scope_value(self.binding.into(), iter.loop_value);
+            inner_context.assign(&scopes);
+            let context = inner_context.into();
+
             if iter.node_id.contains(node_id) {
-                iter.body.update(node_id, change, context);
+                iter.body.update(node_id, change, &context);
                 break;
             }
         }

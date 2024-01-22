@@ -30,7 +30,7 @@ pub fn eval(expr: Expr, consts: &Constants) -> ValueExpr {
             let ident = consts.lookup_string(ident);
             ValueExpr::Declaration {
                 visibility: Visibility::Local,
-                ident: Rc::from(ident),
+                binding: Rc::from(ident),
                 value: eval(*value, consts).into(),
             }
         }
@@ -38,7 +38,7 @@ pub fn eval(expr: Expr, consts: &Constants) -> ValueExpr {
             let ident = consts.lookup_string(ident);
             ValueExpr::Declaration {
                 visibility: Visibility::Global,
-                ident: Rc::from(ident),
+                binding: Rc::from(ident),
                 value: eval(*value, consts).into(),
             }
         }

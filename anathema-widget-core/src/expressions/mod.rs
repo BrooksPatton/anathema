@@ -1,7 +1,7 @@
 use anathema_render::Size;
 use anathema_values::{
     Attributes, Context, Deferred, DynValue, ExpressionMap, Expressions, Immediate, NextNodeId,
-    NodeId, Path, ScopeStorage, State, Value, ValueExpr, ValueRef,
+    NodeId, Path, State, Value, ValueExpr, ValueRef, Scope, OwnedScopeValues,
 };
 
 pub use self::controlflow::{ElseExpr, IfExpr};
@@ -37,19 +37,17 @@ pub struct SingleNodeExpr {
 }
 
 impl SingleNodeExpr {
-    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId, scope_storage: ScopeStorage<'e>) -> Result<Node<'e>> {
-
-        let scope = context.new_scope(&scope_storage);
-        let context = context.with_scope(&scope);
-
+    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId) -> Result<Node<'e>> {
+        let scope_values = OwnedScopeValues::new();
         let text = self
             .text
             .as_ref()
-            .map(|text| String::init_value(&context, &node_id, text))
+            .map(|text| 
+                String::init_value(context, &node_id, text))
             .unwrap_or_default();
 
         let context = FactoryContext::new(
-            &context,
+            context,
             node_id.clone(),
             &self.ident,
             &self.attributes,
@@ -71,9 +69,9 @@ impl SingleNodeExpr {
                 widget,
                 children: Nodes::new(&self.children, node_id.child(0)),
                 ident: &self.ident,
+                scope_values,
             }),
             node_id,
-            scope_storage,
         };
 
         Ok(node)
@@ -93,12 +91,12 @@ pub(crate) enum Collection<'e> {
 #[derive(Debug, Clone)]
 pub struct LoopExpr {
     pub body: Vec<Expression>,
-    pub binding: Path,
+    pub binding: String,
     pub collection: ValueExpr,
 }
 
 impl LoopExpr {
-    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId, scope_storage: ScopeStorage<'e>) -> Result<Node<'e>> {
+    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId) -> Result<Node<'e>> {
         // Need to know if this is a collection or a path
         let collection = match &self.collection {
             ValueExpr::List(list) => Collection::Static(list),
@@ -130,7 +128,7 @@ impl LoopExpr {
 
         let loop_node = LoopNode::new(
             &self.body,
-            self.binding.clone(),
+            self.binding.as_str().into(),
             collection,
             node_id.child(0),
         );
@@ -138,7 +136,6 @@ impl LoopExpr {
         let node = Node {
             kind: NodeKind::Loop(loop_node),
             node_id,
-            scope_storage,
         };
 
         Ok(node)
@@ -155,7 +152,7 @@ pub struct ControlFlow {
 }
 
 impl ControlFlow {
-    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId, scope_storage: ScopeStorage<'e>) -> Result<Node<'e>> {
+    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId) -> Result<Node<'e>> {
         let inner_node_id = node_id.child(0);
         let next_node = NextNodeId::new(node_id.last());
 
@@ -168,7 +165,6 @@ impl ControlFlow {
                 next_node,
             )),
             node_id,
-            scope_storage,
         };
         Ok(node)
     }
@@ -190,7 +186,7 @@ pub struct ViewExpr {
 }
 
 impl ViewExpr {
-    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId, scope_storage: ScopeStorage<'e>) -> Result<Node<'e>> {
+    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId) -> Result<Node<'e>> {
         let tabindex = self
             .attributes
             .get("tabindex") // TODO: should be a constant. Look into reserving (more) keywords
@@ -221,10 +217,13 @@ impl ViewExpr {
                 tabindex,
             }),
             node_id,
-            scope_storage,
         };
         Ok(node)
     }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct AssignmentExpr {
 }
 
 // -----------------------------------------------------------------------------
@@ -236,8 +235,8 @@ pub enum Expression {
     View(ViewExpr),
     Loop(LoopExpr),
     ControlFlow(ControlFlow),
-    Declaration(ValueExpr),
-    Assignment(ValueExpr),
+    // Declaration(ValueExpr),
+    Assignment(AssignmentExpr),
 }
 
 // let outer_scope = {}
@@ -262,7 +261,6 @@ impl Expression {
         &'expr self,
         context: &Context<'_, 'expr>,
         node_id: NodeId,
-        scope_storage: &mut ScopeStorage<'expr>,
     ) -> Result<Node<'expr>> {
         // The scope storage needs to be cloned here, otherwise the values could
         // be incorrect in the future given that there might be new declarations
@@ -272,27 +270,27 @@ impl Expression {
         //
         // vstack
         //     local x = 1
-        //     text x
+        //     local y = 1
+        //     text x y
+        //     text x y
         //     local x = 2
-        //     text x
+        //     local y = 2
+        //     text x y
         //
         // This should output:
+        // 1
         // 1
         // 2
         //
         // However the complete scope storage of the nodes for the vstack
         // would be `x = 2` (as the first one was overwritten by the second one)
 
-        let storage = scope_storage.clone();
         match self {
-            Self::Node(node) => node.eval(context, node_id, storage),
-            Self::Loop(loop_expr) => loop_expr.eval(context, node_id, storage),
-            Self::ControlFlow(controlflow) => controlflow.eval(context, node_id, storage),
-            Self::View(view_expr) => view_expr.eval(context, node_id, storage),
-            _ => unreachable!()
-            // Self::Declaration => {
-            //     // modify child_scope
-            // }
+            Self::Node(node) => node.eval(context, node_id),
+            Self::Loop(loop_expr) => loop_expr.eval(context, node_id),
+            Self::ControlFlow(controlflow) => controlflow.eval(context, node_id),
+            Self::View(view_expr) => view_expr.eval(context, node_id),
+            _ => unreachable!("declarations and assignments are handled separately")
         }
     }
 }

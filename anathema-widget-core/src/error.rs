@@ -4,9 +4,11 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// Failed to lookup id
-    #[error("failed to lookup path")]
-    IdNotFound(Path),
+    // TODO: remove this if it's not being used. can't tell right now
+    // - TB 2024-01-11
+    // /// Failed to lookup id
+    // #[error("failed to lookup path")]
+    // IdNotFound(Path),
 
     /// Failed to lookup widget by the ident
     #[error("unregistered widget: {0}")]
