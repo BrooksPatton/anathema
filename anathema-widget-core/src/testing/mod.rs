@@ -5,16 +5,16 @@ use anathema_values::Context;
 pub use self::expressions::expression;
 use super::WidgetContainer;
 use crate::contexts::PaintCtx;
-use crate::expressions::Expression;
+use crate::expressions::Node;
 use crate::layout::Constraints;
-use crate::nodes::{NodeKind, Single};
-use crate::{Node, Nodes, Pos};
+use crate::elements::{NodeKind, Single};
+use crate::{Element, Elements, Pos};
 
 pub mod expressions;
 pub mod nodes;
 
-impl<'e> Node<'e> {
-    pub(crate) fn single(&mut self) -> (&mut WidgetContainer<'e>, &mut Nodes<'e>) {
+impl<'e> Element<'e> {
+    pub(crate) fn single(&mut self) -> (&mut WidgetContainer<'e>, &mut Elements<'e>) {
         match &mut self.kind {
             NodeKind::Single(Single {
                 widget, children, ..
@@ -97,7 +97,7 @@ impl FakeTerm {
     }
 }
 
-pub fn test_widget(expr: Expression, expected: FakeTerm) {
+pub fn test_widget(expr: Node, expected: FakeTerm) {
     let state = TestState::new();
     let context = Context::root(&state);
     panic!()
@@ -109,7 +109,7 @@ pub fn test_widget(expr: Expression, expected: FakeTerm) {
 
 pub fn test_widget_container<'e>(
     widget: &mut WidgetContainer<'e>,
-    children: &mut Nodes<'e>,
+    children: &mut Elements<'e>,
     context: &Context<'_, 'e>,
     mut expected: FakeTerm,
 ) {

@@ -4,7 +4,7 @@ use anathema_compiler::Instruction;
 use anathema_values::hashmap::HashMap;
 use anathema_values::{Attributes, Constants, StringId, ExpressionBanana, ViewId, Visibility};
 use anathema_widget_core::expressions::{
-    ControlFlow, ElseExpr, Expression, IfExpr, LoopExpr, SingleNodeExpr, ViewExpr,
+    ControlFlow, ElseExpr, Node, IfExpr, LoopExpr, SingleNodeExpr, ViewExpr,
 };
 
 use crate::error::Result;
@@ -28,7 +28,7 @@ impl<'vm> Scope<'vm> {
         &mut self,
         views: &mut ViewTemplates,
         vars: &mut Variables,
-    ) -> Result<Vec<Expression>> {
+    ) -> Result<Vec<Node>> {
         let mut nodes = vec![];
 
         if self.instructions.is_empty() {
@@ -60,7 +60,7 @@ impl<'vm> Scope<'vm> {
                     let body = Scope::new(body, self.consts).exec(views, vars)?;
                     vars.pop();
 
-                    let template = Expression::Loop(LoopExpr {
+                    let template = Node::Loop(LoopExpr {
                         binding: binding.into(),
                         collection,
                         body,
@@ -103,7 +103,7 @@ impl<'vm> Scope<'vm> {
                         });
                     }
 
-                    let template = Expression::ControlFlow(control_flow);
+                    let template = Node::ControlFlow(control_flow);
                     nodes.push(template);
                 }
                 Instruction::Else { .. } => {
@@ -123,13 +123,13 @@ impl<'vm> Scope<'vm> {
 
                     let lhs = ExpressionBanana::Ident(self.consts.lookup_string(binding).into()).into();
                     let rhs = self.consts.lookup_value(value).into();
-                    let expr = Expression::Assignment { lhs, rhs };
+                    let expr = Node::Assignment { lhs, rhs };
                     nodes.push(expr);
                 }
                 Instruction::Assignment { lhs, rhs } => {
                     let lhs = self.consts.lookup_value(lhs).into();
                     let rhs = self.consts.lookup_value(rhs).into();
-                    let expr = Expression::Assignment { lhs, rhs };
+                    let expr = Node::Assignment { lhs, rhs };
                     nodes.push(expr);
                 }
             }
@@ -164,7 +164,7 @@ impl<'vm> Scope<'vm> {
         scope_size: usize,
         views: &mut ViewTemplates,
         vars: &mut Variables,
-    ) -> Result<Expression> {
+    ) -> Result<Node> {
         let ident = self.consts.lookup_string(ident);
 
         let mut text = None::<ExpressionBanana>;
@@ -185,7 +185,7 @@ impl<'vm> Scope<'vm> {
         let children = Scope::new(scope, self.consts).exec(views, vars)?;
         vars.pop();
 
-        let node = Expression::Node(SingleNodeExpr {
+        let node = Node::Single(SingleNodeExpr {
             ident: ident.to_string(),
             text,
             attributes,
@@ -195,7 +195,7 @@ impl<'vm> Scope<'vm> {
         Ok(node)
     }
 
-    fn view(&mut self, view: ViewId, views: &mut ViewTemplates) -> Result<Expression> {
+    fn view(&mut self, view: ViewId, views: &mut ViewTemplates) -> Result<Node> {
         let attributes = self.attributes();
 
         let state = match self.instructions.first() {
@@ -209,7 +209,7 @@ impl<'vm> Scope<'vm> {
 
         let body = views.get(view)?;
 
-        let node = Expression::View(ViewExpr {
+        let node = Node::View(ViewExpr {
             id: view.0,
             body,
             attributes,

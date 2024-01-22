@@ -4,7 +4,7 @@
 // -----------------------------------------------------------------------------
 use std::fs::read_to_string;
 
-use anathema::core::{Event, KeyCode, Nodes, View};
+use anathema::core::{Event, KeyCode, Elements, View};
 use anathema::runtime::Runtime;
 use anathema::values::{List, State, StateValue};
 use anathema::vm::Templates;
@@ -20,7 +20,7 @@ struct RootView {
 }
 
 impl View for RootView {
-    fn on_event(&mut self, event: Event, _nodes: &mut Nodes<'_>) -> Event {
+    fn on_event(&mut self, event: Event, _nodes: &mut Elements<'_>) -> Event {
         if let Event::KeyPress(code, ..) = event {
             match code {
                 KeyCode::Char(c) => self.state.input.push(c),

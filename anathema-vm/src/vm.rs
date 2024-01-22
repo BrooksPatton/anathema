@@ -1,6 +1,6 @@
 use anathema_compiler::Instruction;
 use anathema_values::Constants;
-use anathema_widget_core::expressions::Expression;
+use anathema_widget_core::expressions::Node;
 
 use crate::error::Result;
 use crate::scope::Scope;
@@ -20,7 +20,7 @@ impl VirtualMachine {
         }
     }
 
-    pub(super) fn exec(self, views: &mut ViewTemplates) -> Result<Vec<Expression>> {
+    pub(super) fn exec(self, views: &mut ViewTemplates) -> Result<Vec<Node>> {
         let mut root_scope = Scope::new(self.instructions, &self.consts);
         let mut vars = Variables::new();
         root_scope.exec(views, &mut vars)
@@ -41,7 +41,7 @@ mod test {
         let vm = VirtualMachine::new(instructions, consts);
         let vstack = vm.exec(&mut ViewTemplates::new()).unwrap().remove(0);
 
-        assert!(matches!(vstack, Expression::Node(SingleNodeExpr { .. })));
+        assert!(matches!(vstack, Node::Single(SingleNodeExpr { .. })));
     }
 
     #[test]
@@ -54,6 +54,6 @@ mod test {
         let vm = VirtualMachine::new(instructions, consts);
         let for_loop = vm.exec(&mut ViewTemplates::new()).unwrap().remove(0);
 
-        assert!(matches!(for_loop, Expression::Loop { .. }));
+        assert!(matches!(for_loop, Node::Loop { .. }));
     }
 }

@@ -7,9 +7,9 @@ use anathema_values::{Attributes, Context, NodeId, Value};
 use super::{AnyWidget, Widget};
 use crate::contexts::{PaintCtx, PositionCtx, Unsized, WithSize};
 use crate::error::Result;
-use crate::expressions::Expression;
+use crate::expressions::Node;
 use crate::layout::Constraints;
-use crate::nodes::Nodes;
+use crate::elements::Elements;
 use crate::{Display, LayoutNodes, LocalPos, Pos, Region};
 
 /// The `WidgetContainer` has to go through three steps before it can be displayed:
@@ -23,7 +23,7 @@ pub struct WidgetContainer<'e> {
     pub(crate) inner: Box<dyn AnyWidget>,
     pub pos: Pos,
     pub size: Size,
-    pub expr: Option<&'e Expression>,
+    pub expr: Option<&'e Node>,
     pub attributes: &'e Attributes,
 }
 
@@ -101,7 +101,7 @@ impl WidgetContainer<'_> {
 
     pub fn layout<'e>(
         &mut self,
-        children: &mut Nodes<'e>,
+        children: &mut Elements<'e>,
         constraints: Constraints,
         data: &Context<'_, 'e>,
     ) -> Result<Size> {
@@ -122,7 +122,7 @@ impl WidgetContainer<'_> {
         Ok(self.size)
     }
 
-    pub fn position(&mut self, children: &mut Nodes<'_>, pos: Pos) {
+    pub fn position(&mut self, children: &mut Elements<'_>, pos: Pos) {
         self.pos = pos;
 
         let pos = Pos::new(self.pos.x, self.pos.y);
@@ -131,7 +131,7 @@ impl WidgetContainer<'_> {
         self.inner.position(children, ctx);
     }
 
-    pub fn paint(&mut self, children: &mut Nodes<'_>, ctx: PaintCtx<'_, Unsized>) {
+    pub fn paint(&mut self, children: &mut Elements<'_>, ctx: PaintCtx<'_, Unsized>) {
         if let Display::Hide | Display::Exclude = self.display.value_or_default() {
             return;
         }

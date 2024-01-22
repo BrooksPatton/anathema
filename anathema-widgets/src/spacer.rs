@@ -2,7 +2,7 @@ use anathema_render::Size;
 use anathema_widget_core::contexts::{PaintCtx, PositionCtx, WithSize};
 use anathema_widget_core::error::Result;
 use anathema_widget_core::layout::Layout;
-use anathema_widget_core::{AnyWidget, FactoryContext, LayoutNodes, Nodes, Widget, WidgetFactory};
+use anathema_widget_core::{AnyWidget, FactoryContext, LayoutNodes, Elements, Widget, WidgetFactory};
 
 use crate::layout::spacers::SpacerLayout;
 
@@ -34,9 +34,9 @@ impl Widget for Spacer {
         SpacerLayout.layout(nodes)
     }
 
-    fn position<'tpl>(&mut self, _children: &mut Nodes<'_>, _ctx: PositionCtx) {}
+    fn position<'tpl>(&mut self, _children: &mut Elements<'_>, _ctx: PositionCtx) {}
 
-    fn paint(&mut self, _children: &mut Nodes<'_>, _ctx: PaintCtx<'_, WithSize>) {}
+    fn paint(&mut self, _children: &mut Elements<'_>, _ctx: PaintCtx<'_, WithSize>) {}
 }
 
 pub(crate) struct SpacerFactory;

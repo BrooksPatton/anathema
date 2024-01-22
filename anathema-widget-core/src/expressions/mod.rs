@@ -9,7 +9,7 @@ use anathema_values::{
 pub use self::controlflow::{ElseExpr, IfExpr};
 use crate::error::Result;
 use crate::factory::FactoryContext;
-use crate::nodes::{IfElse, LoopNode, Node, NodeKind, Nodes, Single, View};
+use crate::elements::{IfElse, LoopNode, Element, NodeKind, Elements, Single, View};
 use crate::views::{RegisteredViews, Views};
 use crate::{Factory, Pos, WidgetContainer};
 
@@ -18,8 +18,8 @@ mod controlflow;
 // Create the root view, this is so events can be handled and state can
 // be associated with the root view, without having to register additional
 // views.
-pub fn root_view(body: Vec<Expression>, id: usize) -> Expression {
-    Expression::View(ViewExpr {
+pub fn root_view(body: Vec<Node>, id: usize) -> Node {
+    Node::View(ViewExpr {
         id,
         state: None,
         body,
@@ -35,11 +35,11 @@ pub struct SingleNodeExpr {
     pub ident: String,
     pub text: Option<ExpressionBanana>,
     pub attributes: Attributes,
-    pub children: Vec<Expression>,
+    pub children: Vec<Node>,
 }
 
 impl SingleNodeExpr {
-    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId) -> Result<Node<'e>> {
+    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId) -> Result<Element<'e>> {
         let scope_values = OwnedScopeValues::new();
         let text = self
             .text
@@ -65,10 +65,10 @@ impl SingleNodeExpr {
             attributes: &self.attributes,
         };
 
-        let node = Node {
+        let node = Element {
             kind: NodeKind::Single(Single {
                 widget,
-                children: Nodes::new(&self.children, node_id.child(0)),
+                children: Elements::new(&self.children, node_id.child(0)),
                 ident: &self.ident,
                 scope_values,
             }),
@@ -94,13 +94,13 @@ pub(crate) enum Collection<'e> {
 
 #[derive(Debug, Clone)]
 pub struct LoopExpr {
-    pub body: Vec<Expression>, // make this Rc<[Expression]>,
+    pub body: Vec<Node>, // make this Rc<[Expression]>,
     pub binding: String,             // TODO: make this an Rc<str>
     pub collection: ExpressionBanana,
 }
 
 impl LoopExpr {
-    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId) -> Result<Node<'e>> {
+    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId) -> Result<Element<'e>> {
         // Need to know if this is a collection or a path
         let collection = match &self.collection {
             ExpressionBanana::List(list) => Collection::Static(list),
@@ -137,7 +137,7 @@ impl LoopExpr {
             node_id.child(0),
         );
 
-        let node = Node {
+        let node = Element {
             kind: NodeKind::Loop(loop_node),
             node_id,
         };
@@ -156,11 +156,11 @@ pub struct ControlFlow {
 }
 
 impl ControlFlow {
-    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId) -> Result<Node<'e>> {
+    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId) -> Result<Element<'e>> {
         let inner_node_id = node_id.child(0);
         let next_node = NextNodeId::new(node_id.last());
 
-        let node = Node {
+        let node = Element {
             kind: NodeKind::ControlFlow(IfElse::new(
                 &self.if_expr,
                 &self.elses,
@@ -185,12 +185,12 @@ pub(crate) enum ViewState<'e> {
 pub struct ViewExpr {
     pub id: usize,
     pub state: Option<ExpressionBanana>,
-    pub body: Vec<Expression>,
+    pub body: Vec<Node>,
     pub attributes: Attributes,
 }
 
 impl ViewExpr {
-    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId) -> Result<Node<'e>> {
+    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId) -> Result<Element<'e>> {
         let tabindex = self
             .attributes
             .get("tabindex") // TODO: should be a constant. Look into reserving (more) keywords
@@ -213,10 +213,10 @@ impl ViewExpr {
             None => ViewState::Internal,
         };
 
-        let node = Node {
+        let node = Element {
             kind: NodeKind::View(View {
                 view: RegisteredViews::get(self.id)?,
-                nodes: Nodes::new(&self.body, node_id.child(0)),
+                nodes: Elements::new(&self.body, node_id.child(0)),
                 state,
                 tabindex,
             }),
@@ -233,8 +233,8 @@ pub struct AssignmentExpr {}
 //   - Expression -
 // -----------------------------------------------------------------------------
 #[derive(Debug, Clone)]
-pub enum Expression {
-    Node(SingleNodeExpr),
+pub enum Node {
+    Single(SingleNodeExpr),
     View(ViewExpr),
     Loop(LoopExpr),
     ControlFlow(ControlFlow),
@@ -262,12 +262,12 @@ pub enum Expression {
 //    eval(inner_vstack_scope) vstack
 //        text x + y // 2
 
-impl Expression {
+impl Node {
     pub(crate) fn eval<'expr>(
         &'expr self,
         context: &Context<'_, 'expr>,
         node_id: NodeId,
-    ) -> Result<Node<'expr>> {
+    ) -> Result<Element<'expr>> {
         // The scope storage needs to be cloned here, otherwise the values could
         // be incorrect in the future given that there might be new declarations
         // after this expressions.
@@ -292,7 +292,7 @@ impl Expression {
         // would be `x = 2` (as the first one was overwritten by the second one)
 
         match self {
-            Self::Node(node) => node.eval(context, node_id),
+            Self::Single(node) => node.eval(context, node_id),
             Self::Loop(loop_expr) => loop_expr.eval(context, node_id),
             Self::ControlFlow(controlflow) => controlflow.eval(context, node_id),
             Self::View(view_expr) => view_expr.eval(context, node_id),
@@ -345,7 +345,7 @@ mod test {
 
         assert!(matches!(
             node,
-            Node {
+            Element {
                 kind: NodeKind::Loop { .. },
                 ..
             }
@@ -364,7 +364,7 @@ mod test {
 
         assert!(matches!(
             node,
-            Node {
+            Element {
                 kind: NodeKind::ControlFlow(..),
                 ..
             }
@@ -387,7 +387,7 @@ mod test {
 
         assert!(matches!(
             node,
-            Node {
+            Element {
                 kind: NodeKind::View(..),
                 ..
             }

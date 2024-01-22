@@ -5,7 +5,7 @@ mod vm;
 
 use anathema_values::hashmap::HashMap;
 use anathema_values::{ViewId, ViewIds};
-use anathema_widget_core::expressions::{root_view, Expression};
+use anathema_widget_core::expressions::{root_view, Node};
 use anathema_widget_core::views::{AnyView, RegisteredViews, View};
 pub use vm::VirtualMachine;
 
@@ -26,7 +26,7 @@ impl ViewTemplates {
         }
     }
 
-    fn get(&mut self, view: ViewId) -> Result<Vec<Expression>> {
+    fn get(&mut self, view: ViewId) -> Result<Vec<Node>> {
         if self.dep_list.iter().any(|v| view.eq(v)) {
             panic!("circular dependencies");
         }
@@ -104,21 +104,21 @@ impl Templates {
 }
 
 pub struct CompiledTemplates {
-    root: Vec<Expression>,
+    root: Vec<Node>,
 }
 
 impl CompiledTemplates {
-    pub fn expressions(&self) -> &[Expression] {
+    pub fn expressions(&self) -> &[Node] {
         &self.root
     }
 }
 
 enum Template {
     Pending(String),
-    Evaluated(Vec<Expression>),
+    Evaluated(Vec<Node>),
 }
 
-fn templates(root: &str, views: &mut ViewTemplates) -> Result<Vec<Expression>> {
+fn templates(root: &str, views: &mut ViewTemplates) -> Result<Vec<Node>> {
     let (instructions, constants) = anathema_compiler::compile(root, &mut views.view_ids)?;
     let vm = VirtualMachine::new(instructions, constants);
     vm.exec(views)

@@ -1,7 +1,7 @@
 use anathema_values::{Change, Context, DynValue, NextNodeId, NodeId, Value};
 
 use crate::expressions::{ElseExpr, IfExpr};
-use crate::{Nodes, WidgetContainer};
+use crate::{Elements, WidgetContainer};
 
 #[derive(Debug)]
 pub struct IfElse<'e> {
@@ -20,7 +20,7 @@ impl<'e> IfElse<'e> {
         let mut if_node = If {
             cond: bool::init_value(context, &node_id, &if_expr.cond),
             previous: false,
-            body: Nodes::new(&if_expr.expressions, node_id.child(0)),
+            body: Elements::new(&if_expr.expressions, node_id.child(0)),
             node_id,
             next_node,
         };
@@ -35,7 +35,7 @@ impl<'e> IfElse<'e> {
                         .as_ref()
                         .map(|expr| bool::init_value(context, &node_id, expr)),
                     previous: false,
-                    body: Nodes::new(&e.expressions, node_id.child(0)),
+                    body: Elements::new(&e.expressions, node_id.child(0)),
                     node_id,
                 }
             })
@@ -54,7 +54,7 @@ impl<'e> IfElse<'e> {
         Self { if_node, elses }
     }
 
-    pub(super) fn body_mut(&mut self) -> Option<&mut Nodes<'e>> {
+    pub(super) fn body_mut(&mut self) -> Option<&mut Elements<'e>> {
         if self.if_node.is_true() {
             return Some(&mut self.if_node.body);
         }
@@ -68,7 +68,7 @@ impl<'e> IfElse<'e> {
         None
     }
 
-    fn body(&self) -> Option<&Nodes<'e>> {
+    fn body(&self) -> Option<&Elements<'e>> {
         if self.if_node.is_true() {
             return Some(&self.if_node.body);
         }
@@ -84,7 +84,7 @@ impl<'e> IfElse<'e> {
 
     pub(super) fn iter_mut(
         &mut self,
-    ) -> impl Iterator<Item = (&mut WidgetContainer<'e>, &mut Nodes<'e>)> + '_ {
+    ) -> impl Iterator<Item = (&mut WidgetContainer<'e>, &mut Elements<'e>)> + '_ {
         self.body_mut()
             .into_iter()
             .flat_map(|nodes| nodes.iter_mut())
@@ -135,7 +135,7 @@ pub struct If<'e> {
     cond: Value<bool>,
     // Previous condition value
     previous: bool,
-    pub(super) body: Nodes<'e>,
+    pub(super) body: Elements<'e>,
     node_id: NodeId,
     next_node: NextNodeId,
 }
@@ -151,7 +151,7 @@ pub struct Else<'e> {
     cond: Option<Value<bool>>,
     // Previous condition value
     previous: bool,
-    pub(super) body: Nodes<'e>,
+    pub(super) body: Elements<'e>,
     node_id: NodeId,
 }
 

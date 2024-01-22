@@ -3,7 +3,7 @@ use anathema_values::{Context, NodeId, Value};
 use anathema_widget_core::contexts::{PaintCtx, PositionCtx, WithSize};
 use anathema_widget_core::error::{Error, Result};
 use anathema_widget_core::{
-    AnyWidget, FactoryContext, LayoutNodes, LocalPos, Nodes, Widget, WidgetFactory, WidgetStyle,
+    AnyWidget, FactoryContext, LayoutNodes, LocalPos, Elements, Widget, WidgetFactory, WidgetStyle,
 };
 
 use crate::layout::text::{Line, ProcessOutput, TextAlignment, TextLayout, Wrap};
@@ -123,7 +123,7 @@ impl Widget for Text {
         Ok(size)
     }
 
-    fn paint<'ctx>(&mut self, children: &mut Nodes<'_>, mut ctx: PaintCtx<'_, WithSize>) {
+    fn paint<'ctx>(&mut self, children: &mut Elements<'_>, mut ctx: PaintCtx<'_, WithSize>) {
         let children = children
             .iter_mut()
             .map(|(c, _)| c.to_ref::<TextSpan>())
@@ -134,7 +134,7 @@ impl Widget for Text {
         }
     }
 
-    fn position<'ctx>(&mut self, _: &mut Nodes<'_>, _: PositionCtx) {
+    fn position<'ctx>(&mut self, _: &mut Elements<'_>, _: PositionCtx) {
         // NOTE: there is no need to position text as the text
         // is printed from the context position
     }
@@ -167,12 +167,12 @@ impl Widget for TextSpan {
         panic!("layout should never be called directly on a span");
     }
 
-    fn position<'ctx>(&mut self, _: &mut Nodes<'_>, _: PositionCtx) {
+    fn position<'ctx>(&mut self, _: &mut Elements<'_>, _: PositionCtx) {
         // NOTE: there is no need to position text as the text is printed from the context position
         panic!("don't invoke position on the span directly.");
     }
 
-    fn paint<'ctx>(&mut self, _: &mut Nodes<'_>, _: PaintCtx<'_, WithSize>) {
+    fn paint<'ctx>(&mut self, _: &mut Elements<'_>, _: PaintCtx<'_, WithSize>) {
         panic!("don't invoke paint on the span directly.");
     }
 }

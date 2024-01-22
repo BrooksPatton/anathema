@@ -7,7 +7,7 @@ use anathema_vm::CompiledTemplates;
 use anathema_widget_core::contexts::PaintCtx;
 use anathema_widget_core::error::Result;
 use anathema_widget_core::layout::Constraints;
-use anathema_widget_core::nodes::{make_it_so, Nodes};
+use anathema_widget_core::elements::{make_it_so, Elements};
 use anathema_widget_core::views::Views;
 use anathema_widget_core::{Event, Events, KeyCode, LayoutNodes, Pos};
 use anathema_widgets::register_default_widgets;
@@ -71,7 +71,7 @@ pub struct Runtime<'e> {
     screen: Screen,
     output: Stdout,
     constraints: Constraints,
-    nodes: Nodes<'e>,
+    nodes: Elements<'e>,
     events: Events,
     needs_layout: bool,
     meta: meta::Meta,

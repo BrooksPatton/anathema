@@ -3,7 +3,7 @@ use anathema_values::{Context, NodeId, Value};
 use anathema_widget_core::contexts::{PaintCtx, PositionCtx, WithSize};
 use anathema_widget_core::error::Result;
 use anathema_widget_core::layout::{Axis, Direction, Layout};
-use anathema_widget_core::{AnyWidget, FactoryContext, LayoutNodes, Nodes, Widget, WidgetFactory};
+use anathema_widget_core::{AnyWidget, FactoryContext, LayoutNodes, Elements, Widget, WidgetFactory};
 
 use crate::layout::many::Many;
 
@@ -58,7 +58,7 @@ impl Widget for Viewport {
         self.clamp.resolve(context, node_id);
     }
 
-    fn position<'tpl>(&mut self, children: &mut Nodes<'_>, ctx: PositionCtx) {
+    fn position<'tpl>(&mut self, children: &mut Elements<'_>, ctx: PositionCtx) {
         let direction = self.direction.value_or_default();
         let axis = self.axis.value_or(Axis::Vertical);
         let mut pos = ctx.pos;
@@ -131,7 +131,7 @@ impl Widget for Viewport {
         }
     }
 
-    fn paint(&mut self, children: &mut Nodes<'_>, mut ctx: PaintCtx<'_, WithSize>) {
+    fn paint(&mut self, children: &mut Elements<'_>, mut ctx: PaintCtx<'_, WithSize>) {
         let region = ctx.create_region();
         for (widget, children) in children.iter_mut() {
             let mut ctx = ctx.to_unsized();

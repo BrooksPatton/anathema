@@ -5,17 +5,17 @@ use anathema_values::Context;
 
 use super::Constraints;
 use crate::error::Result;
-use crate::{Nodes, WidgetContainer};
+use crate::{Elements, WidgetContainer};
 
 pub struct LayoutNodes<'nodes, 'state, 'expr> {
-    nodes: &'nodes mut Nodes<'expr>,
+    nodes: &'nodes mut Elements<'expr>,
     pub constraints: Constraints,
     context: &'state Context<'state, 'expr>,
 }
 
 impl<'nodes, 'state, 'expr> LayoutNodes<'nodes, 'state, 'expr> {
     pub fn new(
-        nodes: &'nodes mut Nodes<'expr>,
+        nodes: &'nodes mut Elements<'expr>,
         constraints: Constraints,
         context: &'state Context<'state, 'expr>,
     ) -> Self {
@@ -87,7 +87,7 @@ impl<'nodes, 'state, 'expr> LayoutNodes<'nodes, 'state, 'expr> {
 
 pub struct LayoutNode<'widget, 'state, 'expr> {
     widget: &'widget mut WidgetContainer<'expr>,
-    children: &'widget mut Nodes<'expr>,
+    children: &'widget mut Elements<'expr>,
     context: &'widget Context<'state, 'expr>,
 }
 

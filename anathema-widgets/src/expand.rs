@@ -4,7 +4,7 @@ use anathema_widget_core::contexts::{PaintCtx, PositionCtx, WithSize};
 use anathema_widget_core::error::Result;
 use anathema_widget_core::layout::{Axis, Layout};
 use anathema_widget_core::{
-    AnyWidget, FactoryContext, LayoutNodes, LocalPos, Nodes, Widget, WidgetFactory, WidgetStyle,
+    AnyWidget, FactoryContext, LayoutNodes, LocalPos, Elements, Widget, WidgetFactory, WidgetStyle,
 };
 
 use crate::layout::single::Single;
@@ -91,13 +91,13 @@ impl Widget for Expand {
         Ok(size)
     }
 
-    fn position<'tpl>(&mut self, children: &mut Nodes<'_>, ctx: PositionCtx) {
+    fn position<'tpl>(&mut self, children: &mut Elements<'_>, ctx: PositionCtx) {
         if let Some((widget, children)) = children.first_mut() {
             widget.position(children, ctx.pos)
         }
     }
 
-    fn paint(&mut self, children: &mut Nodes<'_>, mut ctx: PaintCtx<'_, WithSize>) {
+    fn paint(&mut self, children: &mut Elements<'_>, mut ctx: PaintCtx<'_, WithSize>) {
         if let Some(fill) = self.fill.value_ref() {
             for y in 0..ctx.local_size.height {
                 let mut used_width = 0;

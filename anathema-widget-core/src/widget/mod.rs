@@ -8,7 +8,7 @@ use anathema_values::{Context, NodeId};
 pub use self::container::WidgetContainer;
 use super::contexts::{PaintCtx, PositionCtx, WithSize};
 use crate::error::Result;
-use crate::nodes::Nodes;
+use crate::elements::Elements;
 use crate::LayoutNodes;
 
 mod container;
@@ -36,9 +36,9 @@ pub trait Widget {
     /// By the time this function is called the widget container
     /// has already set the position. This is useful to correctly set the position
     /// of the children.
-    fn position(&mut self, children: &mut Nodes<'_>, ctx: PositionCtx);
+    fn position(&mut self, children: &mut Elements<'_>, ctx: PositionCtx);
 
-    fn paint(&mut self, children: &mut Nodes<'_>, mut ctx: PaintCtx<'_, WithSize>) {
+    fn paint(&mut self, children: &mut Elements<'_>, mut ctx: PaintCtx<'_, WithSize>) {
         for (widget, children) in children.iter_mut() {
             let ctx = ctx.to_unsized();
             widget.paint(children, ctx);
@@ -58,11 +58,11 @@ impl Widget for Box<dyn Widget> {
         self.as_mut().layout(nodes)
     }
 
-    fn position(&mut self, children: &mut Nodes<'_>, ctx: PositionCtx) {
+    fn position(&mut self, children: &mut Elements<'_>, ctx: PositionCtx) {
         self.as_mut().position(children, ctx)
     }
 
-    fn paint(&mut self, children: &mut Nodes<'_>, ctx: PaintCtx<'_, WithSize>) {
+    fn paint(&mut self, children: &mut Elements<'_>, ctx: PaintCtx<'_, WithSize>) {
         self.as_mut().paint(children, ctx)
     }
 
@@ -80,11 +80,11 @@ pub trait AnyWidget: Debug {
 
     fn kind_any(&self) -> &'static str;
 
-    fn position_any(&mut self, children: &mut Nodes<'_>, ctx: PositionCtx);
+    fn position_any(&mut self, children: &mut Elements<'_>, ctx: PositionCtx);
 
     fn paint_any<'gen: 'ctx, 'ctx>(
         &mut self,
-        children: &mut Nodes<'_>,
+        children: &mut Elements<'_>,
         ctx: PaintCtx<'_, WithSize>,
     );
 
@@ -100,11 +100,11 @@ impl Widget for Box<dyn AnyWidget> {
         self.deref_mut().layout_any(nodes)
     }
 
-    fn position(&mut self, children: &mut Nodes<'_>, ctx: PositionCtx) {
+    fn position(&mut self, children: &mut Elements<'_>, ctx: PositionCtx) {
         self.deref_mut().position_any(children, ctx)
     }
 
-    fn paint(&mut self, children: &mut Nodes<'_>, ctx: PaintCtx<'_, WithSize>) {
+    fn paint(&mut self, children: &mut Elements<'_>, ctx: PaintCtx<'_, WithSize>) {
         self.deref_mut().paint_any(children, ctx)
     }
 
@@ -130,13 +130,13 @@ impl<T: Debug + Widget + 'static> AnyWidget for T {
         self.kind()
     }
 
-    fn position_any(&mut self, children: &mut Nodes<'_>, ctx: PositionCtx) {
+    fn position_any(&mut self, children: &mut Elements<'_>, ctx: PositionCtx) {
         self.position(children, ctx)
     }
 
     fn paint_any<'gen: 'ctx, 'ctx>(
         &mut self,
-        children: &mut Nodes<'_>,
+        children: &mut Elements<'_>,
         ctx: PaintCtx<'_, WithSize>,
     ) {
         self.paint(children, ctx)

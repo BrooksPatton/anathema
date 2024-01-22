@@ -3,7 +3,7 @@ use anathema_values::{Context, NodeId, Value};
 use anathema_widget_core::contexts::PositionCtx;
 use anathema_widget_core::error::Result;
 use anathema_widget_core::layout::{Direction, Layout};
-use anathema_widget_core::{Axis, LayoutNodes, Nodes};
+use anathema_widget_core::{Axis, LayoutNodes, Elements};
 
 use crate::layout::horizontal::Horizontal;
 use crate::layout::vertical::Vertical;
@@ -94,7 +94,7 @@ impl Stack {
         }
     }
 
-    pub(crate) fn position(&mut self, children: &mut Nodes<'_>, ctx: PositionCtx) {
+    pub(crate) fn position(&mut self, children: &mut Elements<'_>, ctx: PositionCtx) {
         let mut pos = ctx.pos;
         for (widget, children) in children.iter_mut() {
             widget.position(children, pos);

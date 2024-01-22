@@ -4,7 +4,7 @@ mod event;
 pub mod expressions;
 mod factory;
 pub mod layout;
-pub mod nodes;
+pub mod elements;
 mod style;
 pub mod views;
 mod widget;
@@ -13,7 +13,7 @@ mod widget;
 pub mod testing;
 
 pub use anathema_render::Color;
-pub use nodes::{Node, Nodes};
+pub use elements::{Element, Elements};
 
 pub use crate::event::{Event, Events, KeyCode, KeyEventState, KeyModifiers, MouseButton};
 pub use crate::factory::{Factory, FactoryContext, WidgetFactory};

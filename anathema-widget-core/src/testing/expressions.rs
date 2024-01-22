@@ -1,17 +1,17 @@
 use anathema_values::{Attributes, Path, ExpressionBanana};
 
 use crate::expressions::{
-    ControlFlow, ElseExpr, Expression, IfExpr, LoopExpr, SingleNodeExpr, ViewExpr,
+    ControlFlow, ElseExpr, Node, IfExpr, LoopExpr, SingleNodeExpr, ViewExpr,
 };
 
 pub fn expression(
     ident: impl Into<String>,
     text: impl Into<Option<ExpressionBanana>>,
     attributes: impl IntoIterator<Item = (String, ExpressionBanana)>,
-    children: impl Into<Vec<Expression>>,
-) -> Expression {
+    children: impl Into<Vec<Node>>,
+) -> Node {
     let children = children.into();
-    Expression::Node(SingleNodeExpr {
+    Node::Single(SingleNodeExpr {
         ident: ident.into(),
         text: text.into(),
         attributes: Attributes::from_iter(attributes),
@@ -23,9 +23,9 @@ pub fn expression(
 pub fn for_expression<'e>(
     binding: impl Into<String>,
     collection: Box<ExpressionBanana>,
-    body: impl Into<Vec<Expression>>,
-) -> Expression {
-    Expression::Loop(LoopExpr {
+    body: impl Into<Vec<Node>>,
+) -> Node {
+    Node::Loop(LoopExpr {
         body: body.into(),
         binding: binding.into(),
         collection: *collection,
@@ -33,10 +33,10 @@ pub fn for_expression<'e>(
 }
 
 pub fn if_expression(
-    if_true: (ExpressionBanana, Vec<Expression>),
-    elses: Vec<(Option<ExpressionBanana>, Vec<Expression>)>,
-) -> Expression {
-    Expression::ControlFlow(ControlFlow {
+    if_true: (ExpressionBanana, Vec<Node>),
+    elses: Vec<(Option<ExpressionBanana>, Vec<Node>)>,
+) -> Node {
+    Node::ControlFlow(ControlFlow {
         if_expr: IfExpr {
             cond: if_true.0,
             expressions: if_true.1,
@@ -51,8 +51,8 @@ pub fn if_expression(
     })
 }
 
-pub fn view_expression(id: usize, state: Option<ExpressionBanana>, body: Vec<Expression>) -> Expression {
-    Expression::View(ViewExpr {
+pub fn view_expression(id: usize, state: Option<ExpressionBanana>, body: Vec<Node>) -> Node {
+    Node::View(ViewExpr {
         id,
         state,
         body,

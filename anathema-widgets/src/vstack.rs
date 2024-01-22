@@ -3,7 +3,7 @@ use anathema_values::{Context, NodeId, Value};
 use anathema_widget_core::contexts::PositionCtx;
 use anathema_widget_core::error::Result;
 use anathema_widget_core::{
-    AnyWidget, Axis, FactoryContext, LayoutNodes, Nodes, Widget, WidgetFactory,
+    AnyWidget, Axis, FactoryContext, LayoutNodes, Elements, Widget, WidgetFactory,
 };
 
 use crate::stack::Stack;
@@ -57,7 +57,7 @@ impl Widget for VStack {
         self.0.layout(nodes)
     }
 
-    fn position<'tpl>(&mut self, children: &mut Nodes<'_>, ctx: PositionCtx) {
+    fn position<'tpl>(&mut self, children: &mut Elements<'_>, ctx: PositionCtx) {
         self.0.position(children, ctx)
     }
 }

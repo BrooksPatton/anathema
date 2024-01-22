@@ -98,7 +98,7 @@ pub(crate) use self::controlflow::IfElse;
 pub(crate) use self::loops::LoopNode;
 use self::query::Query;
 use crate::error::Result;
-use crate::expressions::{Collection, Expression, ViewState};
+use crate::expressions::{Collection, Node, ViewState};
 use crate::views::{AnyView, Views};
 use crate::{Event, WidgetContainer};
 
@@ -106,18 +106,18 @@ mod controlflow;
 mod loops;
 mod query;
 
-pub fn make_it_so<'e>(expressions: &'e [crate::expressions::Expression]) -> Nodes<'e> {
-    Nodes::new(expressions, 0.into())
+pub fn make_it_so<'e>(expressions: &'e [crate::expressions::Node]) -> Elements<'e> {
+    Elements::new(expressions, 0.into())
 }
 
 // TODO: good grief rename this function!
 fn c_and_b<'expr, F>(
-    nodes: &mut Nodes<'expr>,
+    nodes: &mut Elements<'expr>,
     context: &Context<'_, 'expr>,
     f: &mut F,
 ) -> Result<ControlFlow<(), ()>>
 where
-    F: FnMut(&mut WidgetContainer<'expr>, &mut Nodes<'expr>, &Context<'_, 'expr>) -> Result<()>,
+    F: FnMut(&mut WidgetContainer<'expr>, &mut Elements<'expr>, &Context<'_, 'expr>) -> Result<()>,
 {
     while let Ok(res) = nodes.next(context, f) {
         match res {
@@ -130,15 +130,15 @@ where
 }
 
 #[derive(Debug)]
-pub struct Node<'e> {
+pub struct Element<'e> {
     pub node_id: NodeId,
     pub kind: NodeKind<'e>,
 }
 
-impl<'e> Node<'e> {
+impl<'e> Element<'e> {
     pub fn next<F>(&mut self, context: &Context<'_, 'e>, f: &mut F) -> Result<ControlFlow<(), ()>>
     where
-        F: FnMut(&mut WidgetContainer<'e>, &mut Nodes<'e>, &Context<'_, 'e>) -> Result<()>,
+        F: FnMut(&mut WidgetContainer<'e>, &mut Elements<'e>, &Context<'_, 'e>) -> Result<()>,
     {
         match &mut self.kind {
             NodeKind::Single(Single {
@@ -245,14 +245,14 @@ impl<'e> Node<'e> {
 #[derive(Debug)]
 pub struct Single<'e> {
     pub(crate) widget: WidgetContainer<'e>,
-    pub(crate) children: Nodes<'e>,
+    pub(crate) children: Elements<'e>,
     pub(crate) ident: &'e str,
     pub(crate) scope_values: OwnedScopeValues<'e>,
 }
 
 pub struct View<'e> {
     pub(crate) view: Box<dyn AnyView>,
-    pub(crate) nodes: Nodes<'e>,
+    pub(crate) nodes: Elements<'e>,
     pub(crate) state: ViewState<'e>,
     pub tabindex: Value<u32>,
 }
@@ -294,9 +294,9 @@ pub enum NodeKind<'e> {
 }
 
 #[derive(Debug)]
-pub struct Nodes<'expr> {
-    expressions: &'expr [Expression],
-    inner: Vec<Node<'expr>>,
+pub struct Elements<'expr> {
+    expressions: &'expr [Node],
+    inner: Vec<Element<'expr>>,
     expr_index: usize,
     root_id: NodeId,
     next_node_id: NextNodeId,
@@ -304,12 +304,12 @@ pub struct Nodes<'expr> {
     pub(crate) scope_values: OwnedScopeValues<'expr>,
 }
 
-impl<'expr> Nodes<'expr> {
+impl<'expr> Elements<'expr> {
     pub fn with_view<T, F>(&mut self, node_id: &NodeId, mut f: F) -> Option<T>
     where
         F: FnMut(&mut View<'_>) -> T,
     {
-        if let Some(Node {
+        if let Some(Element {
             kind: NodeKind::View(view),
             ..
         }) = self.query().get(node_id)
@@ -327,7 +327,7 @@ impl<'expr> Nodes<'expr> {
         // Check if the expression is a declaration or assignment and evaluate it.
         // If not do the next step
         match expr {
-            Expression::Assignment { .. } => panic!(),
+            Node::Assignment { .. } => panic!(),
             _ => {}
         }
 
@@ -367,7 +367,7 @@ impl<'expr> Nodes<'expr> {
         f: &mut F,
     ) -> Result<ControlFlow<(), ()>>
     where
-        F: FnMut(&mut WidgetContainer<'expr>, &mut Nodes<'expr>, &Context<'_, 'expr>) -> Result<()>,
+        F: FnMut(&mut WidgetContainer<'expr>, &mut Elements<'expr>, &Context<'_, 'expr>) -> Result<()>,
     {
         match self.inner.get_mut(self.cache_index) {
             Some(n) => {
@@ -387,7 +387,7 @@ impl<'expr> Nodes<'expr> {
 
     pub fn for_each<F>(&mut self, context: &Context<'_, 'expr>, mut f: F) -> Result<()>
     where
-        F: FnMut(&mut WidgetContainer<'expr>, &mut Nodes<'expr>, &Context<'_, 'expr>) -> Result<()>,
+        F: FnMut(&mut WidgetContainer<'expr>, &mut Elements<'expr>, &Context<'_, 'expr>) -> Result<()>,
     {
         #[allow(clippy::while_let_loop)]
         loop {
@@ -406,7 +406,7 @@ impl<'expr> Nodes<'expr> {
         update(&mut self.inner, node_id, change, context);
     }
 
-    pub(crate) fn new(expressions: &'expr [Expression], root_id: NodeId) -> Self {
+    pub(crate) fn new(expressions: &'expr [Node], root_id: NodeId) -> Self {
         Self {
             expressions,
             inner: vec![],
@@ -445,9 +445,9 @@ impl<'expr> Nodes<'expr> {
     /// A mutable iterator over [`WidgetContainer`]s and their children
     pub fn iter_mut(
         &mut self,
-    ) -> impl Iterator<Item = (&mut WidgetContainer<'expr>, &mut Nodes<'expr>)> + '_ {
+    ) -> impl Iterator<Item = (&mut WidgetContainer<'expr>, &mut Elements<'expr>)> + '_ {
         self.inner.iter_mut().flat_map(
-            |node| -> Box<dyn Iterator<Item = (&mut WidgetContainer<'expr>, &mut Nodes<'expr>)>> {
+            |node| -> Box<dyn Iterator<Item = (&mut WidgetContainer<'expr>, &mut Elements<'expr>)>> {
                 match &mut node.kind {
                     NodeKind::Single(Single {
                         widget, children, ..
@@ -461,12 +461,12 @@ impl<'expr> Nodes<'expr> {
     }
 
     /// First mutable [`WidgetContainer`] and its children
-    pub fn first_mut(&mut self) -> Option<(&mut WidgetContainer<'expr>, &mut Nodes<'expr>)> {
+    pub fn first_mut(&mut self) -> Option<(&mut WidgetContainer<'expr>, &mut Elements<'expr>)> {
         self.iter_mut().next()
     }
 }
 
-fn count_widgets<'a>(nodes: impl Iterator<Item = &'a Node<'a>>) -> usize {
+fn count_widgets<'a>(nodes: impl Iterator<Item = &'a Element<'a>>) -> usize {
     nodes
         .map(|node| match &node.kind {
             NodeKind::Single(Single { children, .. }) => 1 + children.count(),
@@ -478,7 +478,7 @@ fn count_widgets<'a>(nodes: impl Iterator<Item = &'a Node<'a>>) -> usize {
 }
 
 // Apply change / update to relevant nodes
-fn update(nodes: &mut [Node<'_>], node_id: &[usize], change: &Change, context: &Context<'_, '_>) {
+fn update(nodes: &mut [Element<'_>], node_id: &[usize], change: &Change, context: &Context<'_, '_>) {
     for node in nodes {
         if !node.node_id.contains(node_id) {
             continue;

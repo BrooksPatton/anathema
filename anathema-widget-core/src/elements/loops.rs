@@ -4,15 +4,15 @@ use anathema_values::{
     Change, Context, Deferred, NextNodeId, NodeId, Path, Scope, ScopeValue, ValueRef,
 };
 
-use super::Nodes;
+use super::Elements;
 use crate::error::Result;
-use crate::expressions::{Collection, Expression};
+use crate::expressions::{Collection, Node};
 use crate::WidgetContainer;
 
 /// An iteration inside a loop node.
 #[derive(Debug)]
-pub(in crate::nodes) struct Iteration<'e> {
-    pub(super) body: Nodes<'e>,
+pub(in crate::elements) struct Iteration<'e> {
+    pub(super) body: Elements<'e>,
     node_id: NodeId,
     loop_index: usize,
     loop_value: ScopeValue<'e>,
@@ -23,7 +23,7 @@ pub(in crate::nodes) struct Iteration<'e> {
 // -----------------------------------------------------------------------------
 #[derive(Debug)]
 pub struct LoopNode<'e> {
-    expressions: &'e [Expression],
+    expressions: &'e [Node],
     pub(super) iterations: Vec<Iteration<'e>>,
     current_iteration: usize,
     pub(super) binding: &'e str,
@@ -35,7 +35,7 @@ pub struct LoopNode<'e> {
 
 impl<'e> LoopNode<'e> {
     pub(crate) fn new(
-        expressions: &'e [Expression],
+        expressions: &'e [Node],
         binding: &'e str,
         collection: Collection<'e>,
         node_id: NodeId,
@@ -59,7 +59,7 @@ impl<'e> LoopNode<'e> {
         f: &mut F,
     ) -> Result<ControlFlow<(), ()>>
     where
-        F: FnMut(&mut WidgetContainer<'e>, &mut Nodes<'e>, &Context<'_, 'e>) -> Result<()>,
+        F: FnMut(&mut WidgetContainer<'e>, &mut Elements<'e>, &Context<'_, 'e>) -> Result<()>,
     {
         loop {
             let Some(scope_val) = self.scope_next_value(context) else {
@@ -76,7 +76,7 @@ impl<'e> LoopNode<'e> {
                     let node_id = self.next_node_id.next(&self.node_id);
 
                     self.iterations.push(Iteration {
-                        body: Nodes::new(self.expressions, node_id.child(0)),
+                        body: Elements::new(self.expressions, node_id.child(0)),
                         node_id,
                         loop_index,
                         loop_value: scope_val,
@@ -143,7 +143,7 @@ impl<'e> LoopNode<'e> {
 
     pub(super) fn iter_mut(
         &mut self,
-    ) -> impl Iterator<Item = (&mut WidgetContainer<'e>, &mut Nodes<'e>)> + '_ {
+    ) -> impl Iterator<Item = (&mut WidgetContainer<'e>, &mut Elements<'e>)> + '_ {
         self.iterations.iter_mut().flat_map(|i| i.body.iter_mut())
     }
 

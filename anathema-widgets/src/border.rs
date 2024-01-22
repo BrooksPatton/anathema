@@ -8,7 +8,7 @@ use anathema_widget_core::contexts::{PaintCtx, PositionCtx, WithSize};
 use anathema_widget_core::error::Result;
 use anathema_widget_core::layout::Layout;
 use anathema_widget_core::{
-    AnyWidget, FactoryContext, LayoutNodes, LocalPos, Nodes, Widget, WidgetFactory, WidgetStyle,
+    AnyWidget, FactoryContext, LayoutNodes, LocalPos, Elements, Widget, WidgetFactory, WidgetStyle,
 };
 use unicode_width::UnicodeWidthChar;
 
@@ -372,7 +372,7 @@ impl Widget for Border {
         layout.layout(nodes)
     }
 
-    fn position(&mut self, children: &mut Nodes<'_>, mut ctx: PositionCtx) {
+    fn position(&mut self, children: &mut Elements<'_>, mut ctx: PositionCtx) {
         let (child, children) = match children.first_mut() {
             Some(child) => child,
             None => return,
@@ -389,7 +389,7 @@ impl Widget for Border {
         child.position(children, ctx.pos);
     }
 
-    fn paint(&mut self, children: &mut Nodes<'_>, mut ctx: PaintCtx<'_, WithSize>) {
+    fn paint(&mut self, children: &mut Elements<'_>, mut ctx: PaintCtx<'_, WithSize>) {
         // Draw the child
         if let Some((child, children)) = children.first_mut() {
             let child_ctx = ctx.to_unsized();

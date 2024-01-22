@@ -3,7 +3,7 @@ use anathema_values::{Context, NodeId, Value};
 use anathema_widget_core::contexts::PositionCtx;
 use anathema_widget_core::error::Result;
 use anathema_widget_core::layout::Layout;
-use anathema_widget_core::{AnyWidget, FactoryContext, LayoutNodes, Nodes, Widget, WidgetFactory};
+use anathema_widget_core::{AnyWidget, FactoryContext, LayoutNodes, Elements, Widget, WidgetFactory};
 
 use crate::layout::stacked::Stacked;
 
@@ -95,7 +95,7 @@ impl Widget for ZStack {
         Stacked.layout(nodes)
     }
 
-    fn position<'tpl>(&mut self, children: &mut Nodes<'_>, ctx: PositionCtx) {
+    fn position<'tpl>(&mut self, children: &mut Elements<'_>, ctx: PositionCtx) {
         for (widget, children) in children.iter_mut() {
             widget.position(children, ctx.pos);
         }

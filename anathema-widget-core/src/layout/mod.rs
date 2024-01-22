@@ -10,7 +10,7 @@ pub use layoutnodes::{LayoutNode, LayoutNodes};
 pub use self::constraints::Constraints;
 use crate::contexts::LayoutCtx;
 use crate::error::Result;
-use crate::nodes::Nodes;
+use crate::elements::Elements;
 
 mod constraints;
 mod layoutnodes;
@@ -42,7 +42,7 @@ impl<'ctx, T: Layout> Layouts<'ctx, T> {
 
     pub fn layout<'e>(
         &mut self,
-        _children: &mut Nodes<'e>,
+        _children: &mut Elements<'e>,
         _data: &Context<'_, 'e>,
     ) -> Result<Size> {
         panic!()

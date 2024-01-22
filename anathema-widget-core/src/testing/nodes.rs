@@ -4,10 +4,10 @@ use anathema_values::{Context, State, Value};
 
 use crate::contexts::{LayoutCtx, PositionCtx};
 use crate::error::Result;
-use crate::expressions::Expression;
+use crate::expressions::Node;
 use crate::layout::{Constraints, Layout};
-use crate::nodes::{make_it_so, Node};
-use crate::{AnyWidget, Factory, FactoryContext, LayoutNodes, Nodes, Widget, WidgetFactory};
+use crate::elements::{make_it_so, Element};
+use crate::{AnyWidget, Factory, FactoryContext, LayoutNodes, Elements, Widget, WidgetFactory};
 
 // -----------------------------------------------------------------------------
 //   - Layouts -
@@ -50,7 +50,7 @@ impl Widget for TestWidget {
         }
     }
 
-    fn position<'tpl>(&mut self, _children: &mut Nodes<'_>, _ctx: PositionCtx) {}
+    fn position<'tpl>(&mut self, _children: &mut Elements<'_>, _ctx: PositionCtx) {}
 }
 
 struct TestWidgetFactory;
@@ -74,7 +74,7 @@ impl Widget for TestListWidget {
         TestLayoutMany.layout(nodes)
     }
 
-    fn position<'tpl>(&mut self, _children: &mut Nodes<'_>, _ctx: PositionCtx) {
+    fn position<'tpl>(&mut self, _children: &mut Elements<'_>, _ctx: PositionCtx) {
         todo!()
     }
 }
@@ -94,7 +94,7 @@ impl WidgetFactory for TestListWidgetFactory {
 
 pub struct TestExpression<S> {
     pub state: S,
-    pub expr: Box<Expression>,
+    pub expr: Box<Node>,
     pub layout: LayoutCtx,
 }
 
@@ -103,7 +103,7 @@ impl<S: State> TestExpression<S> {
         Context::root(&self.state)
     }
 
-    pub fn eval(&self) -> Result<Node<'_>> {
+    pub fn eval(&self) -> Result<Element<'_>> {
         panic!()
         // self.expr.eval(&self.ctx(), 0.into())
     }
@@ -114,7 +114,7 @@ impl<S: State> TestExpression<S> {
 // -----------------------------------------------------------------------------
 
 pub struct TestRuntime<'e> {
-    pub nodes: Nodes<'e>,
+    pub nodes: Elements<'e>,
     constraints: Constraints,
     state: TestState,
 }
@@ -137,7 +137,7 @@ impl TestRuntime<'_> {
     }
 }
 
-pub fn test_runtime(exprs: &[Expression]) -> TestRuntime<'_> {
+pub fn test_runtime(exprs: &[Node]) -> TestRuntime<'_> {
     register_test_widget();
     let nodes = make_it_so(exprs);
     TestRuntime {

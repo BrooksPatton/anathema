@@ -7,7 +7,7 @@ use kempt::Map;
 use parking_lot::Mutex;
 
 use crate::error::{Error, Result};
-use crate::{Event, Nodes};
+use crate::{Event, Elements};
 
 pub type ViewFn = dyn Fn() -> Box<dyn AnyView> + Send;
 
@@ -114,7 +114,7 @@ impl Views {
 pub trait View {
     /// Called once a view receives an event.
     /// `nodes` represents all the nodes inside the view.
-    fn on_event(&mut self, event: Event, _nodes: &mut Nodes<'_>) -> Event {
+    fn on_event(&mut self, event: Event, _nodes: &mut Elements<'_>) -> Event {
         event
     }
 
@@ -142,7 +142,7 @@ pub trait View {
 impl View for () {}
 
 pub trait AnyView: Send {
-    fn on_any_event(&mut self, ev: Event, nodes: &mut Nodes<'_>) -> Event;
+    fn on_any_event(&mut self, ev: Event, nodes: &mut Elements<'_>) -> Event;
 
     fn get_any_state(&self) -> &dyn State;
 
@@ -157,7 +157,7 @@ impl<T> AnyView for T
 where
     T: View + Send,
 {
-    fn on_any_event(&mut self, event: Event, nodes: &mut Nodes<'_>) -> Event {
+    fn on_any_event(&mut self, event: Event, nodes: &mut Elements<'_>) -> Event {
         self.on_event(event, nodes)
     }
 

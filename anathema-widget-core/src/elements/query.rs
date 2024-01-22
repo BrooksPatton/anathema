@@ -1,11 +1,11 @@
 use anathema_values::{NodeId, ExpressionBanana};
 
-use super::{LoopNode, Node, Single, View};
-use crate::nodes::NodeKind;
-use crate::{Nodes, WidgetContainer};
+use super::{LoopNode, Element, Single, View};
+use crate::elements::NodeKind;
+use crate::{Elements, WidgetContainer};
 
 pub struct Query<'nodes, 'expr, F> {
-    pub(super) nodes: &'nodes mut Nodes<'expr>,
+    pub(super) nodes: &'nodes mut Elements<'expr>,
     pub(super) filter: F,
 }
 
@@ -34,7 +34,7 @@ impl<'nodes, 'expr: 'nodes, F: Filter> Query<'nodes, 'expr, F> {
 
     pub fn filter<Fun>(self, f: Fun) -> Query<'nodes, 'expr, impl Filter>
     where
-        Fun: Fn(&Node<'_>) -> bool,
+        Fun: Fn(&Element<'_>) -> bool,
     {
         let filter = FilterFn(f);
         Query {
@@ -43,7 +43,7 @@ impl<'nodes, 'expr: 'nodes, F: Filter> Query<'nodes, 'expr, F> {
         }
     }
 
-    fn remove_nodes(filter: &F, nodes: &mut Nodes<'expr>) {
+    fn remove_nodes(filter: &F, nodes: &mut Elements<'expr>) {
         let mut indices = vec![];
 
         for (index, node) in nodes.inner.iter_mut().enumerate() {
@@ -73,9 +73,9 @@ impl<'nodes, 'expr: 'nodes, F: Filter> Query<'nodes, 'expr, F> {
             .for_each(|index| drop(nodes.inner.remove(index)));
     }
 
-    fn for_each_nodes<Fun>(filter: &F, nodes: &mut Nodes<'expr>, fun: &mut Fun)
+    fn for_each_nodes<Fun>(filter: &F, nodes: &mut Elements<'expr>, fun: &mut Fun)
     where
-        Fun: FnMut(&mut Node<'_>),
+        Fun: FnMut(&mut Element<'_>),
     {
         for node in &mut nodes.inner {
             if filter.filter(node) {
@@ -107,14 +107,14 @@ impl<'nodes, 'expr: 'nodes, F: Filter> Query<'nodes, 'expr, F> {
 
     pub fn for_each<Fun>(self, mut fun: Fun)
     where
-        Fun: FnMut(&mut Node<'_>),
+        Fun: FnMut(&mut Element<'_>),
     {
         Self::for_each_nodes(&self.filter, self.nodes, &mut fun);
     }
 
     fn first_node<'a>(
         filter: &F,
-        nodes: &'a mut Nodes<'expr>,
+        nodes: &'a mut Elements<'expr>,
     ) -> Option<&'a mut WidgetContainer<'expr>> {
         for node in nodes.inner.iter_mut() {
             let found = filter.filter(node);
@@ -152,7 +152,7 @@ impl<'nodes, 'expr: 'nodes, F: Filter> Query<'nodes, 'expr, F> {
         Self::first_node(&self.filter, self.nodes)
     }
 
-    fn get_node<'a>(node_id: &NodeId, nodes: &'a mut Nodes<'expr>) -> Option<&'a mut Node<'expr>> {
+    fn get_node<'a>(node_id: &NodeId, nodes: &'a mut Elements<'expr>) -> Option<&'a mut Element<'expr>> {
         for node in &mut nodes.inner {
             // Found the node
             if node.node_id.eq(node_id) {
@@ -184,13 +184,13 @@ impl<'nodes, 'expr: 'nodes, F: Filter> Query<'nodes, 'expr, F> {
         None
     }
 
-    pub fn get(&mut self, node_id: &NodeId) -> Option<&mut Node<'expr>> {
+    pub fn get(&mut self, node_id: &NodeId) -> Option<&mut Element<'expr>> {
         Self::get_node(node_id, self.nodes)
     }
 }
 
 pub trait Filter {
-    fn filter(&self, _node: &Node<'_>) -> bool {
+    fn filter(&self, _node: &Element<'_>) -> bool {
         true
     }
 
@@ -215,7 +215,7 @@ where
     A: Filter,
     B: Filter,
 {
-    fn filter(&self, node: &Node<'_>) -> bool {
+    fn filter(&self, node: &Element<'_>) -> bool {
         if self.lhs.filter(node) {
             self.rhs.filter(node)
         } else {
@@ -232,7 +232,7 @@ struct ByAttribute(String, ExpressionBanana);
 //       Alternatively we can resolve all attributes upon creation,
 //       and thus having a cached value for lookups
 impl Filter for ByAttribute {
-    fn filter(&self, node: &Node<'_>) -> bool {
+    fn filter(&self, node: &Element<'_>) -> bool {
         match &node.kind {
             NodeKind::Single(Single { widget, .. }) => widget
                 .attributes
@@ -247,7 +247,7 @@ impl Filter for ByAttribute {
 struct ByTag(String);
 
 impl Filter for ByTag {
-    fn filter(&self, node: &Node<'_>) -> bool {
+    fn filter(&self, node: &Element<'_>) -> bool {
         match node.kind {
             NodeKind::Single(Single { ident, .. }) => ident == self.0,
             _ => false,
@@ -259,9 +259,9 @@ struct FilterFn<F>(F);
 
 impl<F> Filter for FilterFn<F>
 where
-    F: Fn(&Node<'_>) -> bool,
+    F: Fn(&Element<'_>) -> bool,
 {
-    fn filter(&self, node: &Node<'_>) -> bool {
+    fn filter(&self, node: &Element<'_>) -> bool {
         (self.0)(node)
     }
 }
