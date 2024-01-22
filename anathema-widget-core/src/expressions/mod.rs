@@ -1,7 +1,9 @@
+use std::rc::Rc;
+
 use anathema_render::Size;
 use anathema_values::{
-    Attributes, Context, Deferred, DynValue, ExpressionMap, Expressions, Immediate, NextNodeId,
-    NodeId, OwnedScopeValues, Path, Scope, State, Value, ValueExpr, ValueRef,
+    Attributes, Context, Deferred, DynValue, ExpressionBanana, ExpressionMap, Expressions,
+    Immediate, NextNodeId, NodeId, OwnedScopeValues, Path, Scope, State, Value, ValueId, ValueRef,
 };
 
 pub use self::controlflow::{ElseExpr, IfExpr};
@@ -31,7 +33,7 @@ pub fn root_view(body: Vec<Expression>, id: usize) -> Expression {
 #[derive(Debug, Clone)]
 pub struct SingleNodeExpr {
     pub ident: String,
-    pub text: Option<ValueExpr>,
+    pub text: Option<ExpressionBanana>,
     pub attributes: Attributes,
     pub children: Vec<Expression>,
 }
@@ -82,23 +84,26 @@ impl SingleNodeExpr {
 // -----------------------------------------------------------------------------
 #[derive(Debug)]
 pub(crate) enum Collection<'e> {
-    Static(&'e [ValueExpr]),
-    State { len: usize, expr: &'e ValueExpr },
+    Static(&'e [ExpressionBanana]),
+    State {
+        len: usize,
+        expr: &'e ExpressionBanana,
+    },
     Empty,
 }
 
 #[derive(Debug, Clone)]
 pub struct LoopExpr {
-    pub body: Vec<Expression>,
-    pub binding: String,
-    pub collection: ValueExpr,
+    pub body: Vec<Expression>, // make this Rc<[Expression]>,
+    pub binding: String,             // TODO: make this an Rc<str>
+    pub collection: ExpressionBanana,
 }
 
 impl LoopExpr {
     fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId) -> Result<Node<'e>> {
         // Need to know if this is a collection or a path
         let collection = match &self.collection {
-            ValueExpr::List(list) => Collection::Static(list),
+            ExpressionBanana::List(list) => Collection::Static(list),
             col => {
                 let mut resolver = Deferred::new(context.lookup());
                 let val = col.eval(&mut resolver);
@@ -171,7 +176,7 @@ impl ControlFlow {
 
 pub(crate) enum ViewState<'e> {
     Dynamic(&'e dyn State),
-    External { expr: &'e ValueExpr },
+    External { expr: &'e ExpressionBanana },
     Map(ExpressionMap<'e>),
     Internal,
 }
@@ -179,7 +184,7 @@ pub(crate) enum ViewState<'e> {
 #[derive(Debug, Clone)]
 pub struct ViewExpr {
     pub id: usize,
-    pub state: Option<ValueExpr>,
+    pub state: Option<ExpressionBanana>,
     pub body: Vec<Expression>,
     pub attributes: Attributes,
 }
@@ -234,7 +239,10 @@ pub enum Expression {
     Loop(LoopExpr),
     ControlFlow(ControlFlow),
     // Declaration(ValueExpr),
-    Assignment(AssignmentExpr),
+    Assignment {
+        lhs: ExpressionBanana,
+        rhs: ExpressionBanana,
+    },
 }
 
 // let outer_scope = {}
@@ -303,7 +311,7 @@ mod test {
     use crate::testing::expressions::{expression, for_expression, if_expression, view_expression};
     use crate::testing::nodes::*;
 
-    impl Expression {
+    impl ExpressionBanana {
         pub fn test(self) -> TestExpression<TestState> {
             register_test_widget();
 

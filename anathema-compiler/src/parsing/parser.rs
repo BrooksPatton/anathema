@@ -1,11 +1,11 @@
-use anathema_values::{Constants, StringId, ValueExpr, ValueId, ViewId, ViewIds, Visibility};
+use anathema_values::{Constants, StringId, ExpressionBanana, ValueId, ViewId, ViewIds, Visibility};
 
 use super::pratt::{eval, expr};
 use crate::error::{src_line_no, Error, ErrorKind, Result};
 use crate::token::{Kind, Operator, Tokens, Value};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Expression {
+pub enum Statement {
     LoadValue(ValueId),
     LoadAttribute {
         key: StringId,
@@ -22,7 +22,10 @@ pub enum Expression {
         binding: StringId,
         value: ValueId,
     },
-    // Assignment(ValueId),
+    Assignment {
+        binding: StringId,
+        value: ValueId,
+    },
     If(ValueId),
     Else(Option<ValueId>),
     ScopeStart,
@@ -105,7 +108,7 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Result<Expression> {
+    pub(crate) fn parse(&mut self) -> Result<Statement> {
         // * It is okay to advance the state once and only once
         //   in any parse function using `self.next_state()`.
         //   The exception to this is he parse view function
@@ -158,7 +161,7 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
     // -----------------------------------------------------------------------------
     //     - Stage 1: Parse enter / exit scopes -
     // -----------------------------------------------------------------------------
-    fn enter_scope(&mut self) -> Result<Option<Expression>> {
+    fn enter_scope(&mut self) -> Result<Option<Statement>> {
         let indent = self.tokens.read_indent();
 
         match self.tokens.peek() {
@@ -190,7 +193,7 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
                 // Indent is bigger than previous: create another scope
                 Some(&last) if indent > last => {
                     self.open_scopes.push(indent);
-                    Ok(Some(Expression::ScopeStart))
+                    Ok(Some(Statement::ScopeStart))
                 }
                 // Indent is smaller than previous: close larger scopes
                 Some(&last) if indent < last => {
@@ -212,7 +215,7 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
                 // There are no previous indents, and this indent is not zero
                 None if indent > 0 && self.open_scopes.is_empty() => {
                     self.open_scopes.push(indent);
-                    Ok(Some(Expression::ScopeStart))
+                    Ok(Some(Statement::ScopeStart))
                 }
                 _ => Ok(None),
             },
@@ -222,9 +225,9 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
         ret
     }
 
-    fn exit_scope(&mut self) -> Result<Option<Expression>> {
+    fn exit_scope(&mut self) -> Result<Option<Statement>> {
         match self.closed_scopes.pop() {
-            Some(_) => Ok(Some(Expression::ScopeEnd)),
+            Some(_) => Ok(Some(Statement::ScopeEnd)),
             None => {
                 self.next_state();
                 Ok(None)
@@ -235,7 +238,7 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
     // -----------------------------------------------------------------------------
     //     - Stage 2: Parse ident, For, If, declaration and assignment -
     // -----------------------------------------------------------------------------
-    fn parse_ident(&mut self) -> Result<Option<Expression>> {
+    fn parse_ident(&mut self) -> Result<Option<Statement>> {
         if Kind::Eof == self.tokens.peek() {
             self.state = State::Done;
             return Ok(None);
@@ -251,6 +254,8 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
 
         let ident = self.read_ident()?;
 
+        // If the next value is `=` then it's an assignment
+
         // NOTE: this doesn't quite work as we need the ident for the binary expr
         // if the next token is `=` then parse assignment instead
         // if Kind::Newline == self.tokens.peek() {
@@ -259,10 +264,10 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
 
         self.tokens.consume_indent();
         self.next_state();
-        Ok(Some(Expression::Node(ident)))
+        Ok(Some(Statement::Node(ident)))
     }
 
-    fn parse_for(&mut self) -> Result<Option<Expression>> {
+    fn parse_for(&mut self) -> Result<Option<Statement>> {
         if Kind::For != self.tokens.peek_skip_indent() {
             self.next_state();
             return Ok(None);
@@ -286,19 +291,19 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
         let data = self.consts.store_value(value_expr);
 
         self.next_state();
-        Ok(Some(Expression::For { data, binding }))
+        Ok(Some(Statement::For { data, binding }))
     }
 
-    fn parse_if(&mut self) -> Result<Option<Expression>> {
+    fn parse_if(&mut self) -> Result<Option<Statement>> {
         match self.tokens.peek_skip_indent() {
             Kind::Else => {
                 self.tokens.consume();
                 let cond = match self.parse_if()? {
-                    Some(Expression::If(cond)) => Some(cond),
+                    Some(Statement::If(cond)) => Some(cond),
                     _ => None,
                 };
 
-                Ok(Some(Expression::Else(cond)))
+                Ok(Some(Statement::Else(cond)))
             }
             Kind::If => {
                 self.tokens.consume();
@@ -307,7 +312,7 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
                 let value_id = self.consts.store_value(value_expr);
 
                 self.next_state();
-                Ok(Some(Expression::If(value_id)))
+                Ok(Some(Statement::If(value_id)))
             }
             _ => {
                 self.next_state();
@@ -316,19 +321,19 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
         }
     }
 
-    fn parse_declaration(&mut self) -> std::result::Result<Option<Expression>, Error> {
+    fn parse_declaration(&mut self) -> std::result::Result<Option<Statement>, Error> {
         match self.tokens.peek_skip_indent() {
             Kind::Local | Kind::Global => {
                 let expr = expr(&mut self.tokens);
                 match eval(expr, self.consts) {
-                    ValueExpr::Declaration {
+                    ExpressionBanana::Declaration {
                         visibility,
                         binding,
                         value,
                     } => {
                         let binding = self.consts.store_string(&*binding);
                         let value = self.consts.store_value(*value);
-                        Ok(Some(Expression::Declaration {
+                        Ok(Some(Statement::Declaration {
                             visibility,
                             binding,
                             value,
@@ -351,7 +356,7 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
     //     panic!()
     // }
 
-    fn parse_view(&mut self) -> Result<Option<Expression>> {
+    fn parse_view(&mut self) -> Result<Option<Statement>> {
         if Kind::View != self.tokens.peek_skip_indent() {
             self.next_state();
             return Ok(None);
@@ -367,7 +372,7 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
 
         self.next_state();
         self.next_state();
-        Ok(Some(Expression::View(view_id)))
+        Ok(Some(Statement::View(view_id)))
     }
 
     // -----------------------------------------------------------------------------
@@ -386,7 +391,7 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
     // -----------------------------------------------------------------------------
     //     - Stage 4: Parse single attribute -
     // -----------------------------------------------------------------------------
-    fn parse_attribute(&mut self) -> Result<Option<Expression>> {
+    fn parse_attribute(&mut self) -> Result<Option<Statement>> {
         // Check for the closing bracket
         if Kind::Op(Operator::RBracket) == self.tokens.peek_skip_indent() {
             self.tokens.consume();
@@ -422,13 +427,13 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
             return Err(self.error(ErrorKind::UnterminatedAttributes));
         }
 
-        Ok(Some(Expression::LoadAttribute { key, value }))
+        Ok(Some(Statement::LoadAttribute { key, value }))
     }
 
     // -----------------------------------------------------------------------------
     //     - Stage 5: Node value -
     // -----------------------------------------------------------------------------
-    fn parse_value(&mut self) -> Result<Option<Expression>> {
+    fn parse_value(&mut self) -> Result<Option<Statement>> {
         self.tokens.consume_indent();
 
         // TODO: does this make sense?
@@ -472,11 +477,11 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
         let value_id = match values.len() {
             0 => panic!("invalid state"),
             1 => self.consts.store_value(values.remove(0)),
-            _ => self.consts.store_value(ValueExpr::List(values.into())),
+            _ => self.consts.store_value(ExpressionBanana::List(values.into())),
         };
 
         self.next_state();
-        Ok(Some(Expression::LoadValue(value_id)))
+        Ok(Some(Statement::LoadValue(value_id)))
     }
 
     // -----------------------------------------------------------------------------
@@ -484,15 +489,15 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
     //     Clear empty spaces, ready for next instructions,
     //     or deal with EOF
     // -----------------------------------------------------------------------------
-    fn parse_done(&mut self) -> Result<Option<Expression>> {
+    fn parse_done(&mut self) -> Result<Option<Statement>> {
         let token = self.tokens.next();
 
         let ret = match token {
             Kind::Eof if !self.open_scopes.is_empty() => {
                 self.open_scopes.pop();
-                return Ok(Some(Expression::ScopeEnd));
+                return Ok(Some(Statement::ScopeEnd));
             }
-            Kind::Eof => return Ok(Some(Expression::Eof)),
+            Kind::Eof => return Ok(Some(Statement::Eof)),
             Kind::Newline => {
                 self.tokens.consume_newlines();
                 Ok(None)
@@ -511,7 +516,7 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
 //     - Iterator -
 // -----------------------------------------------------------------------------
 impl Iterator for Parser<'_, '_, '_> {
-    type Item = Result<Expression>;
+    type Item = Result<Statement>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.done {
@@ -519,9 +524,9 @@ impl Iterator for Parser<'_, '_, '_> {
         }
 
         match self.parse() {
-            Ok(Expression::Eof) => {
+            Ok(Statement::Eof) => {
                 self.done = true;
-                Some(Ok(Expression::Eof))
+                Some(Ok(Statement::Eof))
             }
             Err(e) => {
                 self.state = State::Done;
@@ -537,7 +542,7 @@ mod test {
     use super::*;
     use crate::lexer::Lexer;
 
-    fn parse(src: &str) -> Vec<Result<Expression>> {
+    fn parse(src: &str) -> Vec<Result<Statement>> {
         let mut consts = Constants::new();
         let mut view_ids = ViewIds::new();
         let lexer = Lexer::new(src, &mut consts);
@@ -547,7 +552,7 @@ mod test {
         parser.collect::<Vec<_>>()
     }
 
-    fn parse_ok(src: &str) -> Vec<Expression> {
+    fn parse_ok(src: &str) -> Vec<Statement> {
         parse(src).into_iter().map(Result::unwrap).collect()
     }
 
@@ -561,7 +566,7 @@ mod test {
     #[test]
     fn parse_single_instruction() {
         let src = "a";
-        let expected = Expression::Node(0.into());
+        let expected = Statement::Node(0.into());
         let actual = parse_ok(src).remove(0);
         assert_eq!(expected, actual);
     }
@@ -570,12 +575,12 @@ mod test {
     fn parse_attributes() {
         let src = "a [a: a]";
         let expected = vec![
-            Expression::Node(0.into()),
-            Expression::LoadAttribute {
+            Statement::Node(0.into()),
+            Statement::LoadAttribute {
                 key: 0.into(),
                 value: 0.into(),
             },
-            Expression::Eof,
+            Statement::Eof,
         ];
 
         let actual = parse_ok(src);
@@ -586,9 +591,9 @@ mod test {
     fn parse_text() {
         let src = "a 'a'      \n\n//some comments \n    ";
         let expected = vec![
-            Expression::Node(0.into()),
-            Expression::LoadValue(0.into()),
-            Expression::Eof,
+            Statement::Node(0.into()),
+            Statement::LoadValue(0.into()),
+            Statement::Eof,
         ];
 
         let actual = parse_ok(src);
@@ -605,16 +610,16 @@ mod test {
             a
             ";
         let expected = vec![
-            Expression::Node(0.into()),
-            Expression::ScopeStart,
-            Expression::Node(1.into()),
-            Expression::ScopeStart,
-            Expression::Node(2.into()),
-            Expression::ScopeEnd,
-            Expression::Node(1.into()),
-            Expression::ScopeEnd,
-            Expression::Node(0.into()),
-            Expression::Eof,
+            Statement::Node(0.into()),
+            Statement::ScopeStart,
+            Statement::Node(1.into()),
+            Statement::ScopeStart,
+            Statement::Node(2.into()),
+            Statement::ScopeEnd,
+            Statement::Node(1.into()),
+            Statement::ScopeEnd,
+            Statement::Node(0.into()),
+            Statement::Eof,
         ];
 
         let actual = parse_ok(src);
@@ -626,14 +631,14 @@ mod test {
                     c
             ";
         let expected = vec![
-            Expression::Node(0.into()),
-            Expression::ScopeStart,
-            Expression::Node(1.into()),
-            Expression::ScopeStart,
-            Expression::Node(2.into()),
-            Expression::ScopeEnd,
-            Expression::ScopeEnd,
-            Expression::Eof,
+            Statement::Node(0.into()),
+            Statement::ScopeStart,
+            Statement::Node(1.into()),
+            Statement::ScopeStart,
+            Statement::Node(2.into()),
+            Statement::ScopeEnd,
+            Statement::ScopeEnd,
+            Statement::Eof,
         ];
 
         let actual = parse_ok(src);
@@ -650,28 +655,28 @@ mod test {
         ";
         let mut instructions = parse_ok(src);
 
-        assert_eq!(instructions.remove(0), Expression::Node(0.into()));
-        assert_eq!(instructions.remove(0), Expression::ScopeStart);
+        assert_eq!(instructions.remove(0), Statement::Node(0.into()));
+        assert_eq!(instructions.remove(0), Statement::ScopeStart);
         assert_eq!(
             instructions.remove(0),
-            Expression::For {
+            Statement::For {
                 data: 0.into(),
                 binding: 0.into()
             }
         );
-        assert_eq!(instructions.remove(0), Expression::ScopeStart);
+        assert_eq!(instructions.remove(0), Statement::ScopeStart);
         assert_eq!(
             instructions.remove(0),
-            Expression::For {
+            Statement::For {
                 data: 0.into(),
                 binding: 2.into()
             }
         );
-        assert_eq!(instructions.remove(0), Expression::ScopeStart);
-        assert_eq!(instructions.remove(0), Expression::Node(0.into()));
-        assert_eq!(instructions.remove(0), Expression::ScopeEnd);
-        assert_eq!(instructions.remove(0), Expression::ScopeEnd);
-        assert_eq!(instructions.remove(0), Expression::ScopeEnd);
+        assert_eq!(instructions.remove(0), Statement::ScopeStart);
+        assert_eq!(instructions.remove(0), Statement::Node(0.into()));
+        assert_eq!(instructions.remove(0), Statement::ScopeEnd);
+        assert_eq!(instructions.remove(0), Statement::ScopeEnd);
+        assert_eq!(instructions.remove(0), Statement::ScopeEnd);
     }
 
     #[test]
@@ -683,20 +688,20 @@ mod test {
             y
         ";
         let mut instructions = parse_ok(src);
-        assert_eq!(instructions.remove(0), Expression::Node(0.into()));
-        assert_eq!(instructions.remove(0), Expression::ScopeStart);
-        assert_eq!(instructions.remove(0), Expression::Node(1.into()));
-        assert_eq!(instructions.remove(0), Expression::ScopeEnd);
+        assert_eq!(instructions.remove(0), Statement::Node(0.into()));
+        assert_eq!(instructions.remove(0), Statement::ScopeStart);
+        assert_eq!(instructions.remove(0), Statement::Node(1.into()));
+        assert_eq!(instructions.remove(0), Statement::ScopeEnd);
         assert_eq!(
             instructions.remove(0),
-            Expression::For {
+            Statement::For {
                 data: 0.into(),
                 binding: 0.into()
             }
         );
-        assert_eq!(instructions.remove(0), Expression::ScopeStart);
-        assert_eq!(instructions.remove(0), Expression::Node(1.into()));
-        assert_eq!(instructions.remove(0), Expression::ScopeEnd);
+        assert_eq!(instructions.remove(0), Statement::ScopeStart);
+        assert_eq!(instructions.remove(0), Statement::Node(1.into()));
+        assert_eq!(instructions.remove(0), Statement::ScopeEnd);
     }
 
     #[test]
@@ -707,10 +712,10 @@ mod test {
         ";
         let mut instructions = parse_ok(src);
 
-        assert_eq!(instructions.remove(0), Expression::If(0.into()));
-        assert_eq!(instructions.remove(0), Expression::ScopeStart);
-        assert_eq!(instructions.remove(0), Expression::Node(1.into()));
-        assert_eq!(instructions.remove(0), Expression::ScopeEnd);
+        assert_eq!(instructions.remove(0), Statement::If(0.into()));
+        assert_eq!(instructions.remove(0), Statement::ScopeStart);
+        assert_eq!(instructions.remove(0), Statement::Node(1.into()));
+        assert_eq!(instructions.remove(0), Statement::ScopeEnd);
     }
 
     #[test]
@@ -723,14 +728,14 @@ mod test {
         ";
         let mut instructions = parse_ok(src);
 
-        assert_eq!(instructions.remove(0), Expression::If(0.into()));
-        assert_eq!(instructions.remove(0), Expression::ScopeStart);
-        assert_eq!(instructions.remove(0), Expression::Node(1.into()));
-        assert_eq!(instructions.remove(0), Expression::ScopeEnd);
-        assert_eq!(instructions.remove(0), Expression::Else(None));
-        assert_eq!(instructions.remove(0), Expression::ScopeStart);
-        assert_eq!(instructions.remove(0), Expression::Node(2.into()));
-        assert_eq!(instructions.remove(0), Expression::ScopeEnd);
+        assert_eq!(instructions.remove(0), Statement::If(0.into()));
+        assert_eq!(instructions.remove(0), Statement::ScopeStart);
+        assert_eq!(instructions.remove(0), Statement::Node(1.into()));
+        assert_eq!(instructions.remove(0), Statement::ScopeEnd);
+        assert_eq!(instructions.remove(0), Statement::Else(None));
+        assert_eq!(instructions.remove(0), Statement::ScopeStart);
+        assert_eq!(instructions.remove(0), Statement::Node(2.into()));
+        assert_eq!(instructions.remove(0), Statement::ScopeEnd);
     }
 
     #[test]
@@ -745,30 +750,30 @@ mod test {
         ";
         let mut expressions = parse_ok(src);
 
-        assert_eq!(expressions.remove(0), Expression::If(0.into()));
-        assert_eq!(expressions.remove(0), Expression::ScopeStart);
-        assert_eq!(expressions.remove(0), Expression::Node(1.into()));
-        assert_eq!(expressions.remove(0), Expression::ScopeEnd);
-        assert_eq!(expressions.remove(0), Expression::Else(Some(0.into())));
-        assert_eq!(expressions.remove(0), Expression::ScopeStart);
-        assert_eq!(expressions.remove(0), Expression::Node(2.into()));
-        assert_eq!(expressions.remove(0), Expression::ScopeEnd);
-        assert_eq!(expressions.remove(0), Expression::Else(None));
-        assert_eq!(expressions.remove(0), Expression::ScopeStart);
-        assert_eq!(expressions.remove(0), Expression::Node(3.into()));
-        assert_eq!(expressions.remove(0), Expression::ScopeEnd);
+        assert_eq!(expressions.remove(0), Statement::If(0.into()));
+        assert_eq!(expressions.remove(0), Statement::ScopeStart);
+        assert_eq!(expressions.remove(0), Statement::Node(1.into()));
+        assert_eq!(expressions.remove(0), Statement::ScopeEnd);
+        assert_eq!(expressions.remove(0), Statement::Else(Some(0.into())));
+        assert_eq!(expressions.remove(0), Statement::ScopeStart);
+        assert_eq!(expressions.remove(0), Statement::Node(2.into()));
+        assert_eq!(expressions.remove(0), Statement::ScopeEnd);
+        assert_eq!(expressions.remove(0), Statement::Else(None));
+        assert_eq!(expressions.remove(0), Statement::ScopeStart);
+        assert_eq!(expressions.remove(0), Statement::Node(3.into()));
+        assert_eq!(expressions.remove(0), Statement::ScopeEnd);
     }
 
     #[test]
     fn parse_view() {
         let src = "@mail";
         let mut expressions = parse_ok(src);
-        assert_eq!(expressions.remove(0), Expression::View(0.into()));
+        assert_eq!(expressions.remove(0), Statement::View(0.into()));
 
         let src = "@mail state";
         let mut expressions = parse_ok(src);
-        assert_eq!(expressions.remove(0), Expression::View(0.into()));
-        assert_eq!(expressions.remove(0), Expression::LoadValue(0.into()));
+        assert_eq!(expressions.remove(0), Statement::View(0.into()));
+        assert_eq!(expressions.remove(0), Statement::LoadValue(0.into()));
     }
 
     #[test]
@@ -779,19 +784,19 @@ mod test {
         ";
 
         let mut expressions = parse_ok(src);
-        assert_eq!(expressions.remove(0), Expression::If(0.into()));
-        assert_eq!(expressions.remove(0), Expression::Node(0.into()));
+        assert_eq!(expressions.remove(0), Statement::If(0.into()));
+        assert_eq!(expressions.remove(0), Statement::Node(0.into()));
     }
 
     #[test]
     fn parse_no_instruction() {
         let src = "";
-        let expected: Vec<Expression> = vec![Expression::Eof];
+        let expected: Vec<Statement> = vec![Statement::Eof];
         let actual = parse_ok(src);
         assert_eq!(expected, actual);
 
         let src = "\n// comment         \n";
-        let expected: Vec<Expression> = vec![Expression::Eof];
+        let expected: Vec<Statement> = vec![Statement::Eof];
         let actual = parse_ok(src);
         assert_eq!(expected, actual);
     }
@@ -800,8 +805,8 @@ mod test {
     fn parse_text_with_multiple_values() {
         let src = "a 'a' 'b'";
         let mut expressions = parse_ok(src);
-        assert_eq!(expressions.remove(0), Expression::Node(0.into()));
-        assert_eq!(expressions.remove(0), Expression::LoadValue(0.into()));
+        assert_eq!(expressions.remove(0), Statement::Node(0.into()));
+        assert_eq!(expressions.remove(0), Statement::LoadValue(0.into()));
     }
 
     #[test]
@@ -810,7 +815,7 @@ mod test {
         let mut expressions = parse_ok(src);
         assert!(matches!(
             expressions.remove(0),
-            Expression::Declaration { .. }
+            Statement::Declaration { .. }
         ));
     }
 

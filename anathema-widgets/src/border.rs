@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use anathema_render::Size;
 use anathema_values::{
-    impl_dyn_value, Context, DynValue, Expressions, Immediate, NodeId, Value, ValueExpr, ValueRef,
+    impl_dyn_value, Context, DynValue, Expressions, Immediate, NodeId, Value, ExpressionBanana, ValueRef,
 };
 use anathema_widget_core::contexts::{PaintCtx, PositionCtx, WithSize};
 use anathema_widget_core::error::Result;
@@ -60,7 +60,7 @@ impl Default for Sides {
 }
 
 impl DynValue for Sides {
-    fn init_value(context: &Context<'_, '_>, node_id: &NodeId, expr: &ValueExpr) -> Value<Self> {
+    fn init_value(context: &Context<'_, '_>, node_id: &NodeId, expr: &ExpressionBanana) -> Value<Self> {
         // TODO: smells like copy and past in here!
         let mut resolver = Immediate::new(context.lookup(), node_id);
         let value = expr.eval(&mut resolver);
@@ -146,8 +146,8 @@ impl From<Vec<String>> for Sides {
     }
 }
 
-impl Into<ValueExpr> for Sides {
-    fn into(self) -> ValueExpr {
+impl Into<ExpressionBanana> for Sides {
+    fn into(self) -> ExpressionBanana {
         let mut sides = vec![];
 
         for side in self {
@@ -168,7 +168,7 @@ impl Into<ValueExpr> for Sides {
             }
         }
 
-        ValueExpr::List(sides.into())
+        ExpressionBanana::List(sides.into())
     }
 }
 
@@ -510,7 +510,7 @@ impl WidgetFactory for BorderFactory {
 
 #[cfg(test)]
 mod test {
-    use anathema_widget_core::expressions::Expression;
+    use anathema_widget_core::expressions::Node;
     use anathema_widget_core::testing::{expression, FakeTerm};
 
     use super::*;
@@ -522,7 +522,7 @@ mod test {
         width: Option<usize>,
         height: Option<usize>,
         text: Option<&'static str>,
-    ) -> Expression {
+    ) -> ExpressionBanana {
         let mut attribs = vec![("border-style".into(), border_style.to_string().into())];
 
         if let Some(width) = width {

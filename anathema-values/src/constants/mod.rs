@@ -5,7 +5,7 @@ use self::strings::Strings;
 pub use self::values::ValueId;
 use self::values::Values;
 pub use self::views::{ViewId, ViewIds};
-use crate::ValueExpr;
+use crate::ExpressionBanana;
 
 mod storage;
 mod strings;
@@ -38,7 +38,7 @@ impl Constants {
         views.push(string)
     }
 
-    pub fn store_value(&mut self, value: ValueExpr) -> ValueId {
+    pub fn store_value(&mut self, value: ExpressionBanana) -> ValueId {
         self.values.push(value)
     }
 
@@ -48,7 +48,7 @@ impl Constants {
         )
     }
 
-    pub fn lookup_value(&self, index: ValueId) -> ValueExpr {
+    pub fn lookup_value(&self, index: ValueId) -> ExpressionBanana {
         self.values.get(index).cloned().expect(
             "consts have been modified, this is a bug with Anathema, file a bug report please",
         )

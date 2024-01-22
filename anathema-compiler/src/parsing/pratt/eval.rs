@@ -1,33 +1,33 @@
 use std::rc::Rc;
 
 use anathema_values::hashmap::HashMap;
-use anathema_values::{Constants, Num, Owned, ValueExpr, Visibility};
+use anathema_values::{Constants, Num, Owned, ExpressionBanana, Visibility};
 
 use super::Expr;
 use crate::token::Operator;
 
-pub fn eval(expr: Expr, consts: &Constants) -> ValueExpr {
+pub fn eval(expr: Expr, consts: &Constants) -> ExpressionBanana {
     match expr {
-        Expr::Bool(b) => ValueExpr::from(b),
-        Expr::Color(color) => ValueExpr::from(color),
+        Expr::Bool(b) => ExpressionBanana::from(b),
+        Expr::Color(color) => ExpressionBanana::from(color),
         Expr::Ident(string_id) => {
             let string = consts.lookup_string(string_id);
-            ValueExpr::Ident(string.into())
+            ExpressionBanana::Ident(string.into())
         }
         Expr::Str(string_id) => {
             let string = consts.lookup_string(string_id);
-            ValueExpr::String(Rc::from(string))
+            ExpressionBanana::String(Rc::from(string))
         }
-        Expr::Num(num) => ValueExpr::Owned(Owned::Num(num.into())),
-        Expr::Float(num) => ValueExpr::Owned(Owned::Num(Num::Float(num))),
+        Expr::Num(num) => ExpressionBanana::Owned(Owned::Num(num.into())),
+        Expr::Float(num) => ExpressionBanana::Owned(Owned::Num(Num::Float(num))),
         Expr::Array { lhs, index } => {
             let lhs = eval(*lhs, consts);
             let index = eval(*index, consts);
-            ValueExpr::Index(lhs.into(), index.into())
+            ExpressionBanana::Index(lhs.into(), index.into())
         }
         Expr::Local { ident, value } => {
             let ident = consts.lookup_string(ident);
-            ValueExpr::Declaration {
+            ExpressionBanana::Declaration {
                 visibility: Visibility::Local,
                 binding: Rc::from(ident),
                 value: eval(*value, consts).into(),
@@ -35,23 +35,23 @@ pub fn eval(expr: Expr, consts: &Constants) -> ValueExpr {
         }
         Expr::Global { ident, value } => {
             let ident = consts.lookup_string(ident);
-            ValueExpr::Declaration {
+            ExpressionBanana::Declaration {
                 visibility: Visibility::Global,
                 binding: Rc::from(ident),
                 value: eval(*value, consts).into(),
             }
         }
         Expr::Binary { op, lhs, rhs } => match op {
-            Operator::Dot => ValueExpr::Dot(eval(*lhs, consts).into(), eval(*rhs, consts).into()),
+            Operator::Dot => ExpressionBanana::Dot(eval(*lhs, consts).into(), eval(*rhs, consts).into()),
             Operator::Mul | Operator::Plus | Operator::Minus | Operator::Div | Operator::Mod => {
                 let (lhs, rhs) = match (eval(*lhs, consts), eval(*rhs, consts)) {
-                    (ValueExpr::Owned(Owned::Num(lhs)), ValueExpr::Owned(Owned::Num(rhs))) => {
+                    (ExpressionBanana::Owned(Owned::Num(lhs)), ExpressionBanana::Owned(Owned::Num(rhs))) => {
                         match op {
-                            Operator::Mul => return ValueExpr::Owned(Owned::Num(lhs * rhs)),
-                            Operator::Plus => return ValueExpr::Owned(Owned::Num(lhs + rhs)),
-                            Operator::Minus => return ValueExpr::Owned(Owned::Num(lhs - rhs)),
-                            Operator::Div => return ValueExpr::Owned(Owned::Num(lhs / rhs)),
-                            Operator::Mod => return ValueExpr::Owned(Owned::Num(lhs % rhs)),
+                            Operator::Mul => return ExpressionBanana::Owned(Owned::Num(lhs * rhs)),
+                            Operator::Plus => return ExpressionBanana::Owned(Owned::Num(lhs + rhs)),
+                            Operator::Minus => return ExpressionBanana::Owned(Owned::Num(lhs - rhs)),
+                            Operator::Div => return ExpressionBanana::Owned(Owned::Num(lhs / rhs)),
+                            Operator::Mod => return ExpressionBanana::Owned(Owned::Num(lhs % rhs)),
                             _ => unreachable!(),
                         }
                     }
@@ -59,35 +59,35 @@ pub fn eval(expr: Expr, consts: &Constants) -> ValueExpr {
                 };
 
                 match op {
-                    Operator::Mul => ValueExpr::Mul(lhs, rhs),
-                    Operator::Plus => ValueExpr::Add(lhs, rhs),
-                    Operator::Minus => ValueExpr::Sub(lhs, rhs),
-                    Operator::Div => ValueExpr::Div(lhs, rhs),
-                    Operator::Mod => ValueExpr::Mod(lhs, rhs),
+                    Operator::Mul => ExpressionBanana::Mul(lhs, rhs),
+                    Operator::Plus => ExpressionBanana::Add(lhs, rhs),
+                    Operator::Minus => ExpressionBanana::Sub(lhs, rhs),
+                    Operator::Div => ExpressionBanana::Div(lhs, rhs),
+                    Operator::Mod => ExpressionBanana::Mod(lhs, rhs),
                     _ => unreachable!(),
                 }
             }
             Operator::EqualEqual => {
-                ValueExpr::Equality(eval(*lhs, consts).into(), eval(*rhs, consts).into())
+                ExpressionBanana::Equality(eval(*lhs, consts).into(), eval(*rhs, consts).into())
             }
             Operator::GreaterThan => {
-                ValueExpr::Greater(eval(*lhs, consts).into(), eval(*rhs, consts).into())
+                ExpressionBanana::Greater(eval(*lhs, consts).into(), eval(*rhs, consts).into())
             }
             Operator::GreaterThanOrEqual => {
-                ValueExpr::GreaterEqual(eval(*lhs, consts).into(), eval(*rhs, consts).into())
+                ExpressionBanana::GreaterEqual(eval(*lhs, consts).into(), eval(*rhs, consts).into())
             }
             Operator::LessThan => {
-                ValueExpr::Less(eval(*lhs, consts).into(), eval(*rhs, consts).into())
+                ExpressionBanana::Less(eval(*lhs, consts).into(), eval(*rhs, consts).into())
             }
             Operator::LessThanOrEqual => {
-                ValueExpr::LessEqual(eval(*lhs, consts).into(), eval(*rhs, consts).into())
+                ExpressionBanana::LessEqual(eval(*lhs, consts).into(), eval(*rhs, consts).into())
             }
             Operator::Or | Operator::And => {
                 let lhs = eval(*lhs, consts);
                 let rhs = eval(*rhs, consts);
                 match op {
-                    Operator::Or => ValueExpr::Or(lhs.into(), rhs.into()),
-                    Operator::And => ValueExpr::And(lhs.into(), rhs.into()),
+                    Operator::Or => ExpressionBanana::Or(lhs.into(), rhs.into()),
+                    Operator::And => ExpressionBanana::And(lhs.into(), rhs.into()),
                     _ => unreachable!(),
                 }
             }
@@ -98,22 +98,22 @@ pub fn eval(expr: Expr, consts: &Constants) -> ValueExpr {
 
             match op {
                 Operator::Not => match expr {
-                    ValueExpr::Owned(Owned::Bool(b)) => ValueExpr::Owned((!b).into()),
-                    _ => ValueExpr::Not(expr.into()),
+                    ExpressionBanana::Owned(Owned::Bool(b)) => ExpressionBanana::Owned((!b).into()),
+                    _ => ExpressionBanana::Not(expr.into()),
                 },
                 Operator::Minus => match expr {
-                    ValueExpr::Owned(Owned::Num(Num::Unsigned(n))) => {
-                        ValueExpr::Owned(Owned::Num(Num::Signed(-(n as i64))))
+                    ExpressionBanana::Owned(Owned::Num(Num::Unsigned(n))) => {
+                        ExpressionBanana::Owned(Owned::Num(Num::Signed(-(n as i64))))
                     }
-                    _ => ValueExpr::Negative(expr.into()),
+                    _ => ExpressionBanana::Negative(expr.into()),
                 },
                 _ => panic!("operator: {op:#?}"),
             }
         }
         Expr::List(list) => {
-            ValueExpr::List(list.into_iter().map(|expr| eval(expr, consts)).collect())
+            ExpressionBanana::List(list.into_iter().map(|expr| eval(expr, consts)).collect())
         }
-        Expr::Map(map) => ValueExpr::Map(
+        Expr::Map(map) => ExpressionBanana::Map(
             map.into_iter()
                 .map(|(key, value)| (eval(key, consts).to_string(), eval(value, consts)))
                 .collect::<HashMap<_, _>>()
@@ -121,7 +121,7 @@ pub fn eval(expr: Expr, consts: &Constants) -> ValueExpr {
         ),
         Expr::Call { fun, args } => {
             let args = args.into_iter().map(|expr| eval(expr, consts)).collect();
-            ValueExpr::Call {
+            ExpressionBanana::Call {
                 fun: eval(*fun, consts).into(),
                 args,
             }
@@ -137,7 +137,7 @@ mod test {
     use crate::token::Tokens;
     use crate::Constants;
 
-    fn eval_str(input: &str) -> ValueExpr {
+    fn eval_str(input: &str) -> ExpressionBanana {
         let mut consts = Constants::new();
         let lexer = Lexer::new(input, &mut consts);
         let tokens = lexer.collect::<Result<_, _>>().unwrap();

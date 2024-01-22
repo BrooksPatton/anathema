@@ -1,4 +1,4 @@
-use anathema_values::{Attributes, Path, ValueExpr};
+use anathema_values::{Attributes, Path, ExpressionBanana};
 
 use crate::expressions::{
     ControlFlow, ElseExpr, Expression, IfExpr, LoopExpr, SingleNodeExpr, ViewExpr,
@@ -6,8 +6,8 @@ use crate::expressions::{
 
 pub fn expression(
     ident: impl Into<String>,
-    text: impl Into<Option<ValueExpr>>,
-    attributes: impl IntoIterator<Item = (String, ValueExpr)>,
+    text: impl Into<Option<ExpressionBanana>>,
+    attributes: impl IntoIterator<Item = (String, ExpressionBanana)>,
     children: impl Into<Vec<Expression>>,
 ) -> Expression {
     let children = children.into();
@@ -22,7 +22,7 @@ pub fn expression(
 #[allow(clippy::boxed_local)]
 pub fn for_expression<'e>(
     binding: impl Into<String>,
-    collection: Box<ValueExpr>,
+    collection: Box<ExpressionBanana>,
     body: impl Into<Vec<Expression>>,
 ) -> Expression {
     Expression::Loop(LoopExpr {
@@ -33,8 +33,8 @@ pub fn for_expression<'e>(
 }
 
 pub fn if_expression(
-    if_true: (ValueExpr, Vec<Expression>),
-    elses: Vec<(Option<ValueExpr>, Vec<Expression>)>,
+    if_true: (ExpressionBanana, Vec<Expression>),
+    elses: Vec<(Option<ExpressionBanana>, Vec<Expression>)>,
 ) -> Expression {
     Expression::ControlFlow(ControlFlow {
         if_expr: IfExpr {
@@ -51,7 +51,7 @@ pub fn if_expression(
     })
 }
 
-pub fn view_expression(id: usize, state: Option<ValueExpr>, body: Vec<Expression>) -> Expression {
+pub fn view_expression(id: usize, state: Option<ExpressionBanana>, body: Vec<Expression>) -> Expression {
     Expression::View(ViewExpr {
         id,
         state,

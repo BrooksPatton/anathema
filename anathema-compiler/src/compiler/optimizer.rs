@@ -1,6 +1,6 @@
 use anathema_values::{StringId, ValueId, ViewId, Visibility};
 
-use crate::parsing::parser::Expression as ParseExpr;
+use crate::parsing::parser::Statement as ParseStatement;
 
 enum ControlFlow {
     If(ValueId),
@@ -8,7 +8,7 @@ enum ControlFlow {
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Eq)]
-pub(crate) enum Expression {
+pub(crate) enum Statement {
     If {
         cond: ValueId,
         size: usize,
@@ -44,13 +44,13 @@ pub(crate) enum Expression {
 }
 
 pub(crate) struct Optimizer {
-    output: Vec<Expression>,
-    input: Vec<ParseExpr>,
+    output: Vec<Statement>,
+    input: Vec<ParseStatement>,
     ep: usize,
 }
 
 impl Optimizer {
-    pub(crate) fn new(input: Vec<ParseExpr>) -> Self {
+    pub(crate) fn new(input: Vec<ParseStatement>) -> Self {
         Self {
             output: vec![],
             input,
@@ -71,45 +71,45 @@ impl Optimizer {
     //     * Node idents could also be looked up beforehand
     // -----------------------------------------------------------------------------
 
-    pub(crate) fn optimize(mut self) -> Vec<Expression> {
+    pub(crate) fn optimize(mut self) -> Vec<Statement> {
         self.remove_empty_if_else_for();
 
         while let Some(in_expr) = self.input.get(self.ep) {
             self.ep += 1;
             let out_expr = match in_expr {
-                &ParseExpr::If(cond) => {
+                &ParseStatement::If(cond) => {
                     self.opt_control_flow(ControlFlow::If(cond));
                     continue;
                 }
-                &ParseExpr::Else(cond) => {
+                &ParseStatement::Else(cond) => {
                     self.opt_control_flow(ControlFlow::Else(cond));
                     continue;
                 }
-                ParseExpr::ScopeStart => unreachable!(
+                ParseStatement::ScopeStart => unreachable!(
                     "this should not happen as scopes are consumed by other expressions"
                 ),
-                &ParseExpr::For { data, binding } => {
+                &ParseStatement::For { data, binding } => {
                     self.opt_for(data, binding);
                     continue;
                 }
-                &ParseExpr::View(ident) => {
-                    self.output.push(Expression::View(ident));
+                &ParseStatement::View(ident) => {
+                    self.output.push(Statement::View(ident));
                     continue;
                 }
-                &ParseExpr::Node(ident_index) => {
+                &ParseStatement::Node(ident_index) => {
                     let start = self.output.len();
 
                     // Get attributes and text
                     let mut text_and_attributes = 0;
                     loop {
                         match self.input.get(self.ep) {
-                            Some(&ParseExpr::LoadValue(index)) => {
-                                self.output.push(Expression::LoadText(index));
+                            Some(&ParseStatement::LoadValue(index)) => {
+                                self.output.push(Statement::LoadText(index));
                                 text_and_attributes += 1;
                                 self.ep += 1;
                             }
-                            Some(&ParseExpr::LoadAttribute { key, value }) => {
-                                self.output.push(Expression::LoadAttribute { key, value });
+                            Some(&ParseStatement::LoadAttribute { key, value }) => {
+                                self.output.push(Statement::LoadAttribute { key, value });
                                 text_and_attributes += 1;
                                 self.ep += 1;
                             }
@@ -118,7 +118,7 @@ impl Optimizer {
                     }
 
                     let child_scope_size = match self.input.get(self.ep) {
-                        Some(ParseExpr::ScopeStart) => {
+                        Some(ParseStatement::ScopeStart) => {
                             self.opt_scope();
                             self.output.len() - start - text_and_attributes
                         }
@@ -126,29 +126,31 @@ impl Optimizer {
                     };
                     self.output.insert(
                         start,
-                        Expression::Node {
+                        Statement::Node {
                             ident: ident_index,
                             scope_size: child_scope_size,
                         },
                     );
                     continue;
                 }
-                &ParseExpr::LoadValue(index) => Expression::LoadText(index),
-                &ParseExpr::LoadAttribute { key, value } => {
-                    Expression::LoadAttribute { key, value }
+                &ParseStatement::LoadValue(index) => Statement::LoadText(index),
+                &ParseStatement::LoadAttribute { key, value } => {
+                    Statement::LoadAttribute { key, value }
                 }
-                &ParseExpr::Declaration {
+                &ParseStatement::Declaration {
                     visibility,
                     binding,
                     value,
-                } => Expression::Declaration {
+                } => Statement::Declaration {
                     visibility,
                     binding,
                     value,
                 },
-                // ParseExpr::Assignment { .. } => panic!(),
-                ParseExpr::Eof => continue, // noop, we don't care about EOF
-                ParseExpr::ScopeEnd => unreachable!("scopes are consumed by `opt_scope`"),
+                &ParseStatement::Assignment { binding, value } => {
+                    Statement::Assignment { binding, value }
+                }
+                ParseStatement::Eof => continue, // noop, we don't care about EOF
+                ParseStatement::ScopeEnd => unreachable!("scopes are consumed by `opt_scope`"),
             };
 
             self.output.push(out_expr);
@@ -162,14 +164,14 @@ impl Optimizer {
         self.opt_scope();
         let size = self.output.len() - start;
         let expr = match control_flow {
-            ControlFlow::If(cond) => Expression::If { cond, size },
-            ControlFlow::Else(cond) => Expression::Else { cond, size },
+            ControlFlow::If(cond) => Statement::If { cond, size },
+            ControlFlow::Else(cond) => Statement::Else { cond, size },
         };
         self.output.insert(start, expr);
     }
 
     fn opt_scope(&mut self) {
-        if let Some(ParseExpr::ScopeStart) = self.input.get(self.ep) {
+        if let Some(ParseStatement::ScopeStart) = self.input.get(self.ep) {
             self.ep += 1; // consume ScopeStart
         } else {
             panic!(
@@ -184,8 +186,8 @@ impl Optimizer {
 
         while let Some(expr) = self.input.get(end) {
             match expr {
-                ParseExpr::ScopeStart => level += 1,
-                ParseExpr::ScopeEnd => {
+                ParseStatement::ScopeStart => level += 1,
+                ParseStatement::ScopeEnd => {
                     level -= 1;
                     if level == 0 {
                         let input = self.input.drain(start..end).collect::<Vec<_>>();
@@ -207,7 +209,7 @@ impl Optimizer {
         let end = self.output.len();
         self.output.insert(
             start,
-            Expression::For {
+            Statement::For {
                 data,
                 binding,
                 size: end - start,
@@ -218,9 +220,9 @@ impl Optimizer {
     fn remove_empty_if_else_for(&mut self) {
         let mut p = 0;
         while let Some(expr) = self.input.get(p) {
-            if let ParseExpr::If(_) | ParseExpr::Else(_) | ParseExpr::For { .. } = expr {
+            if let ParseStatement::If(_) | ParseStatement::Else(_) | ParseStatement::For { .. } = expr {
                 match self.input.get(p + 1) {
-                    Some(ParseExpr::ScopeStart) => p += 1,
+                    Some(ParseStatement::ScopeStart) => p += 1,
                     _ => drop(self.input.remove(p)),
                 }
             } else {
@@ -238,7 +240,7 @@ mod test {
     use crate::token::Tokens;
     use crate::{Constants, ViewIds};
 
-    fn parse(src: &str) -> Vec<Expression> {
+    fn parse(src: &str) -> Vec<Statement> {
         let mut consts = Constants::new();
         let mut view_ids = ViewIds::new();
         let lexer = Lexer::new(src, &mut consts);
@@ -258,14 +260,14 @@ mod test {
         let mut expressions = parse(src);
         assert_eq!(
             expressions.remove(0),
-            Expression::Node {
+            Statement::Node {
                 ident: 0.into(),
                 scope_size: 1
             }
         );
         assert_eq!(
             expressions.remove(0),
-            Expression::Node {
+            Statement::Node {
                 ident: 0.into(),
                 scope_size: 0
             }
@@ -281,14 +283,14 @@ mod test {
         let mut expressions = parse(src);
         assert_eq!(
             expressions.remove(0),
-            Expression::If {
+            Statement::If {
                 cond: 0.into(),
                 size: 1
             }
         );
         assert_eq!(
             expressions.remove(0),
-            Expression::Node {
+            Statement::Node {
                 ident: 0.into(),
                 scope_size: 0
             }
@@ -306,28 +308,28 @@ mod test {
         let mut expressions = parse(src);
         assert_eq!(
             expressions.remove(0),
-            Expression::If {
+            Statement::If {
                 cond: 0.into(),
                 size: 1
             }
         );
         assert_eq!(
             expressions.remove(0),
-            Expression::Node {
+            Statement::Node {
                 ident: 0.into(),
                 scope_size: 0
             }
         );
         assert_eq!(
             expressions.remove(0),
-            Expression::Else {
+            Statement::Else {
                 cond: None,
                 size: 1
             }
         );
         assert_eq!(
             expressions.remove(0),
-            Expression::Node {
+            Statement::Node {
                 ident: 0.into(),
                 scope_size: 0
             }
@@ -345,14 +347,14 @@ mod test {
         let mut expressions = parse(src);
         assert_eq!(
             expressions.remove(0),
-            Expression::Node {
+            Statement::Node {
                 ident: 0.into(),
                 scope_size: 0
             }
         );
         assert_eq!(
             expressions.remove(0),
-            Expression::For {
+            Statement::For {
                 data: 0.into(),
                 binding: 1.into(),
                 size: 2
@@ -360,14 +362,14 @@ mod test {
         );
         assert_eq!(
             expressions.remove(0),
-            Expression::Node {
+            Statement::Node {
                 ident: 0.into(),
                 scope_size: 0
             }
         );
         assert_eq!(
             expressions.remove(0),
-            Expression::Node {
+            Statement::Node {
                 ident: 1.into(),
                 scope_size: 0
             }
@@ -384,21 +386,21 @@ mod test {
         let mut expressions = parse(src);
         assert_eq!(
             expressions.remove(0),
-            Expression::If {
+            Statement::If {
                 cond: 0.into(),
                 size: 2
             }
         );
         assert_eq!(
             expressions.remove(0),
-            Expression::If {
+            Statement::If {
                 cond: 0.into(),
                 size: 1
             }
         );
         assert_eq!(
             expressions.remove(0),
-            Expression::Node {
+            Statement::Node {
                 ident: 0.into(),
                 scope_size: 0
             }
@@ -420,42 +422,42 @@ mod test {
         let mut expressions = parse(src);
         assert_eq!(
             expressions.remove(0),
-            Expression::If {
+            Statement::If {
                 cond: 0.into(),
                 size: 2
             }
         );
         assert_eq!(
             expressions.remove(0),
-            Expression::Node {
+            Statement::Node {
                 ident: 1.into(),
                 scope_size: 0
             }
         );
         assert_eq!(
             expressions.remove(0),
-            Expression::Node {
+            Statement::Node {
                 ident: 1.into(),
                 scope_size: 0
             }
         );
         assert_eq!(
             expressions.remove(0),
-            Expression::If {
+            Statement::If {
                 cond: 0.into(),
                 size: 1
             }
         );
         assert_eq!(
             expressions.remove(0),
-            Expression::Node {
+            Statement::Node {
                 ident: 1.into(),
                 scope_size: 0
             }
         );
         assert_eq!(
             expressions.remove(0),
-            Expression::Node {
+            Statement::Node {
                 ident: 2.into(),
                 scope_size: 0
             }
@@ -471,7 +473,7 @@ mod test {
         let mut expressions = parse(src);
         assert_eq!(
             expressions.remove(0),
-            Expression::Node {
+            Statement::Node {
                 ident: 1.into(),
                 scope_size: 0
             }
@@ -490,21 +492,21 @@ mod test {
         let mut expressions = parse(src);
         assert_eq!(
             expressions.remove(0),
-            Expression::If {
+            Statement::If {
                 cond: 0.into(),
                 size: 1
             }
         );
         assert_eq!(
             expressions.remove(0),
-            Expression::Node {
+            Statement::Node {
                 ident: 0.into(),
                 scope_size: 0
             }
         );
         assert_eq!(
             expressions.remove(0),
-            Expression::Node {
+            Statement::Node {
                 ident: 0.into(),
                 scope_size: 0
             }
@@ -522,7 +524,7 @@ mod test {
         let mut expressions = parse(src);
         assert_eq!(
             expressions.remove(0),
-            Expression::Node {
+            Statement::Node {
                 ident: 0.into(),
                 scope_size: 0
             }
@@ -541,7 +543,7 @@ mod test {
         let mut expressions = parse(src);
         assert_eq!(
             expressions.remove(0),
-            Expression::Node {
+            Statement::Node {
                 ident: 0.into(),
                 scope_size: 0
             }
@@ -558,27 +560,27 @@ mod test {
         let mut expressions = parse(src);
         assert_eq!(
             expressions.remove(0),
-            Expression::Node {
+            Statement::Node {
                 ident: 0.into(),
                 scope_size: 2
             }
         );
         assert_eq!(
             expressions.remove(0),
-            Expression::LoadAttribute {
+            Statement::LoadAttribute {
                 key: 1.into(),
                 value: 0.into()
             }
         );
-        assert_eq!(expressions.remove(0), Expression::LoadText(1.into()));
+        assert_eq!(expressions.remove(0), Statement::LoadText(1.into()));
         assert_eq!(
             expressions.remove(0),
-            Expression::Node {
+            Statement::Node {
                 ident: 4.into(),
                 scope_size: 0
             }
         );
-        assert_eq!(expressions.remove(0), Expression::LoadText(1.into()));
+        assert_eq!(expressions.remove(0), Statement::LoadText(1.into()));
         assert!(expressions.is_empty());
     }
 }

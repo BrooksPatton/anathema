@@ -108,14 +108,14 @@ impl Stack {
 
 #[cfg(test)]
 mod test {
-    use anathema_widget_core::expressions::Expression;
+    use anathema_widget_core::expressions::Node;
     use anathema_widget_core::testing::{expression, FakeTerm};
 
     use crate::testing::test_widget;
 
     // TODO: there are many copies of this function...
     // just saying..
-    fn children(count: usize) -> Vec<Expression> {
+    fn children(count: usize) -> Vec<Node> {
         (0..count)
             .map(|i| {
                 expression(

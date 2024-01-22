@@ -91,7 +91,7 @@ use std::ops::ControlFlow;
 
 use anathema_values::{
     Change, Context, Deferred, Immediate, NextNodeId, NodeId, OwnedScopeValues, ScopeValue, Scopes,
-    Value, ValueExpr, ValueRef,
+    Value, ExpressionBanana, ValueRef,
 };
 
 pub(crate) use self::controlflow::IfElse;
@@ -327,25 +327,7 @@ impl<'expr> Nodes<'expr> {
         // Check if the expression is a declaration or assignment and evaluate it.
         // If not do the next step
         match expr {
-            Expression::Assignment(value) => match value {
-                _ => panic!(), // ValueExpr::Declaration {
-                               //     visibility,
-                               //     binding,
-                               //     value,
-                               // } => {
-                               //     let mut resolver = Deferred::new(context.lookup());
-                               //     match value.eval(&mut resolver) {
-                               //         ValueRef::Deferred => {
-                               //             self.scope_values.insert(binding, ScopeValue::Deferred(value))
-                               //         }
-                               //         value => self.scope_values.insert(binding, ScopeValue::Value(value)),
-                               //     }
-
-                               //     return Some(Ok(()));
-                               // }
-                               // _ => panic!(),
-            },
-            // Expression::Assignment => panic!(),
+            Expression::Assignment { .. } => panic!(),
             _ => {}
         }
 
@@ -571,7 +553,7 @@ fn update(nodes: &mut [Node<'_>], node_id: &[usize], change: &Change, context: &
 mod test {
     use anathema_render::Size;
     use anathema_values::testing::{ident, list};
-    use anathema_values::ValueExpr;
+    use anathema_values::ExpressionBanana;
 
     use crate::testing::expressions::{expression, for_expression, if_expression};
     use crate::testing::nodes::*;
@@ -597,7 +579,7 @@ mod test {
 
     #[test]
     fn for_loop_from_state() {
-        let string = ValueExpr::Ident("item".into());
+        let string = ExpressionBanana::Ident("item".into());
         let body = expression("test", Some(string), [], []);
         let exprs = vec![for_expression("item", ident("generic_list"), [body])];
         let mut runtime = test_runtime(&exprs);

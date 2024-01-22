@@ -1,4 +1,4 @@
-use anathema_values::{NodeId, ValueExpr};
+use anathema_values::{NodeId, ExpressionBanana};
 
 use super::{LoopNode, Node, Single, View};
 use crate::nodes::NodeKind;
@@ -13,7 +13,7 @@ impl<'nodes, 'expr: 'nodes, F: Filter> Query<'nodes, 'expr, F> {
     pub fn by_attrib(
         self,
         key: &str,
-        value: impl Into<ValueExpr>,
+        value: impl Into<ExpressionBanana>,
     ) -> Query<'nodes, 'expr, impl Filter> {
         let filter = ByAttribute(key.into(), value.into());
 
@@ -226,7 +226,7 @@ where
 
 impl Filter for () {}
 
-struct ByAttribute(String, ValueExpr);
+struct ByAttribute(String, ExpressionBanana);
 
 // TODO: attributes are not resolved at this point.
 //       Alternatively we can resolve all attributes upon creation,

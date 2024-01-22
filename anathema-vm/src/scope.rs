@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use anathema_compiler::Instruction;
 use anathema_values::hashmap::HashMap;
-use anathema_values::{Attributes, Constants, StringId, ValueExpr, ViewId, Visibility};
+use anathema_values::{Attributes, Constants, StringId, ExpressionBanana, ViewId, Visibility};
 use anathema_widget_core::expressions::{
     ControlFlow, ElseExpr, Expression, IfExpr, LoopExpr, SingleNodeExpr, ViewExpr,
 };
@@ -117,19 +117,21 @@ impl<'vm> Scope<'vm> {
                     binding,
                     value,
                 } => {
-                    let value = self.consts.lookup_value(value);
-                    let binding = self.consts.lookup_string(binding);
-                    // insert the declaration into the var table
-                    // let expr = Expression::Assignment { };
-                    let expr = panic!();
+                    if let Visibility::Global = visibility {
+                        panic!("store globals in the vars, not done yet");
+                    }
+
+                    let lhs = ExpressionBanana::Ident(self.consts.lookup_string(binding).into()).into();
+                    let rhs = self.consts.lookup_value(value).into();
+                    let expr = Expression::Assignment { lhs, rhs };
                     nodes.push(expr);
                 }
-                Instruction::Assignment { .. } => todo!(),
-                // Instruction::Assignment(value_id) => {
-                //     let assignment = self.consts.lookup_value(value_id);
-                //     let expr = Expression::Assignment(assignment);
-                //     nodes.push(expr);
-                // }
+                Instruction::Assignment { lhs, rhs } => {
+                    let lhs = self.consts.lookup_value(lhs).into();
+                    let rhs = self.consts.lookup_value(rhs).into();
+                    let expr = Expression::Assignment { lhs, rhs };
+                    nodes.push(expr);
+                }
             }
 
             if self.instructions.is_empty() {
@@ -165,7 +167,7 @@ impl<'vm> Scope<'vm> {
     ) -> Result<Expression> {
         let ident = self.consts.lookup_string(ident);
 
-        let mut text = None::<ValueExpr>;
+        let mut text = None::<ExpressionBanana>;
         // let mut attributes = Attributes::new();
         let attributes = self.attributes();
         let mut ip = 0;
@@ -239,7 +241,7 @@ mod test {
             }
         }
 
-        fn exec(mut self) -> Result<Box<[Expression]>> {
+        fn exec(mut self) -> Result<Box<[ExpressionBanana]>> {
             let Self {
                 consts,
                 mut views,
@@ -260,7 +262,7 @@ mod test {
             self.instructions.push(inst);
         }
 
-        fn for_loop(&mut self, binding: &str, data: impl Into<ValueExpr>, size: usize) {
+        fn for_loop(&mut self, binding: &str, data: impl Into<ExpressionBanana>, size: usize) {
             let binding = self.consts.store_string(binding);
             let data = self.consts.store_value(data.into());
             let inst = Instruction::For {
@@ -271,26 +273,26 @@ mod test {
             self.instructions.push(inst);
         }
 
-        fn if_stmt(&mut self, cond: impl Into<ValueExpr>, size: usize) {
+        fn if_stmt(&mut self, cond: impl Into<ExpressionBanana>, size: usize) {
             let cond = self.consts.store_value(cond.into());
             let inst = Instruction::If { cond, size };
             self.instructions.push(inst);
         }
 
-        fn else_stmt(&mut self, cond: Option<impl Into<ValueExpr>>, size: usize) {
+        fn else_stmt(&mut self, cond: Option<impl Into<ExpressionBanana>>, size: usize) {
             let cond = cond.map(|cond| self.consts.store_value(cond.into()));
             let inst = Instruction::Else { cond, size };
             self.instructions.push(inst);
         }
 
-        fn attrib(&mut self, key: &str, value: impl Into<ValueExpr>) {
+        fn attrib(&mut self, key: &str, value: impl Into<ExpressionBanana>) {
             let key = self.consts.store_string(key);
             let value = self.consts.store_value(value.into());
             let inst = Instruction::LoadAttribute { key, value };
             self.instructions.push(inst);
         }
 
-        fn decl(&mut self, visibility: Visibility, binding: &str, value: impl Into<ValueExpr>) {
+        fn decl(&mut self, visibility: Visibility, binding: &str, value: impl Into<ExpressionBanana>) {
             let binding = self.consts.store_string(binding);
             let value = self.consts.store_value(value.into());
             let inst = Instruction::Declaration {
@@ -301,11 +303,11 @@ mod test {
             self.instructions.push(inst);
         }
 
-        fn local(&mut self, binding: &str, value: impl Into<ValueExpr>) {
+        fn local(&mut self, binding: &str, value: impl Into<ExpressionBanana>) {
             self.decl(Visibility::Local, binding, value)
         }
 
-        fn global(&mut self, binding: &str, value: impl Into<ValueExpr>) {
+        fn global(&mut self, binding: &str, value: impl Into<ExpressionBanana>) {
             self.decl(Visibility::Global, binding, value)
         }
     }

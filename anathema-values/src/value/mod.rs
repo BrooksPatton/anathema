@@ -8,29 +8,29 @@ pub use self::num::Num;
 pub use self::owned::Owned;
 use crate::hashmap::HashMap;
 use crate::map::Map;
-use crate::{Collection, List, State, ValueExpr};
+use crate::{Collection, List, State, ExpressionBanana};
 
 mod num;
 mod owned;
 
 #[derive(Debug, Clone, Copy)]
-pub struct Expressions<'a>(pub &'a [ValueExpr]);
+pub struct Expressions<'a>(pub &'a [ExpressionBanana]);
 
 impl<'a> Expressions<'a> {
-    pub fn new(inner: &'a [ValueExpr]) -> Self {
+    pub fn new(inner: &'a [ExpressionBanana]) -> Self {
         Self(inner)
     }
 
-    pub(crate) fn get(&self, index: usize) -> Option<&'a ValueExpr> {
+    pub(crate) fn get(&self, index: usize) -> Option<&'a ExpressionBanana> {
         self.0.get(index)
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ExpressionMap<'a>(pub &'a HashMap<String, ValueExpr>);
+pub struct ExpressionMap<'a>(pub &'a HashMap<String, ExpressionBanana>);
 
 impl<'a> ExpressionMap<'a> {
-    pub fn new(inner: &'a HashMap<String, ValueExpr>) -> Self {
+    pub fn new(inner: &'a HashMap<String, ExpressionBanana>) -> Self {
         Self(inner)
     }
 }

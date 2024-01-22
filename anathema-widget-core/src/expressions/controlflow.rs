@@ -1,15 +1,15 @@
-use anathema_values::ValueExpr;
+use anathema_values::ExpressionBanana;
 
 use super::Expression;
 
 #[derive(Debug, Clone)]
 pub struct IfExpr {
-    pub cond: ValueExpr,
+    pub cond: ExpressionBanana,
     pub expressions: Vec<Expression>,
 }
 
 #[derive(Debug, Clone)]
 pub struct ElseExpr {
-    pub cond: Option<ValueExpr>,
+    pub cond: Option<ExpressionBanana>,
     pub expressions: Vec<Expression>,
 }

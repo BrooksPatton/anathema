@@ -1,30 +1,11 @@
 use std::rc::Rc;
 
 use anathema_values::hashmap::HashMap;
-use anathema_values::{Owned, Slab, StringId, ValueExpr, ValueId};
+use anathema_values::{Owned, Slab, StringId, ExpressionBanana, ValueId};
 
 use crate::error::{Error, Result};
 
 const INDENT: usize = 4;
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Variable {
-    Owned(Owned),
-    Str(Rc<str>),
-    Deferred(Rc<str>),
-}
-
-impl From<&str> for Variable {
-    fn from(value: &str) -> Self {
-        Self::Str(value.into())
-    }
-}
-
-impl From<Owned> for Variable {
-    fn from(value: Owned) -> Self {
-        Self::Owned(value)
-    }
-}
 
 /// The scope id acts as a path made up of indices
 /// into the scope tree.
@@ -254,7 +235,7 @@ impl Declarations {
 pub struct Variables {
     root: RootScope,
     current: ScopeId,
-    store: Slab<Variable>,
+    store: Slab<ExpressionBanana>,
     declarations: Declarations,
 }
 
@@ -276,13 +257,13 @@ impl Variables {
         value_id
     }
 
-    pub fn declare(&mut self, ident: StringId, value: Variable) -> ValueId {
+    pub fn declare(&mut self, ident: StringId, value: ExpressionBanana) -> ValueId {
         let value_id = self.store.push(value).into();
         let scope_id = self.current.clone();
         self.declare_at(ident, value_id, scope_id)
     }
 
-    pub fn assign(&mut self, ident: StringId, value: Variable) -> Result<ValueId> {
+    pub fn assign(&mut self, ident: StringId, value: ExpressionBanana) -> Result<ValueId> {
         let value_id = self.store.push(value).into();
         let scope = self.root.get_scope_mut(&self.current.0);
         scope.insert(ident, value_id);
@@ -290,13 +271,13 @@ impl Variables {
     }
 
     /// Fetch a value starting from the current path.
-    pub fn fetch(&self, ident: StringId) -> Option<Variable> {
+    pub fn fetch(&self, ident: StringId) -> Option<ExpressionBanana> {
         self.root
             .get_value_id(&self.current, ident)
             .and_then(|id| self.store.get(id).cloned())
     }
 
-    pub fn by_value_ref(&self, value_ref: ValueId) -> Variable {
+    pub fn by_value_ref(&self, value_ref: ValueId) -> ExpressionBanana {
         self.store
             .get(value_ref)
             .cloned()

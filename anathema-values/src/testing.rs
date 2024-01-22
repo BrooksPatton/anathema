@@ -1,5 +1,5 @@
 use crate::map::Map;
-use crate::{Context, Immediate, List, NodeId, Owned, StateValue, ValueExpr, ValueRef};
+use crate::{Context, Immediate, List, NodeId, Owned, StateValue, ExpressionBanana, ValueRef};
 
 #[derive(Debug, crate::State)]
 pub struct Inner {
@@ -47,7 +47,7 @@ impl TestState {
 #[derive(Debug)]
 pub struct TestExpression<'expr, T> {
     pub state: Map<T>,
-    pub expr: &'expr ValueExpr,
+    pub expr: &'expr ExpressionBanana,
     node_id: NodeId,
 }
 
@@ -86,7 +86,7 @@ where
     }
 }
 
-impl ValueExpr {
+impl ExpressionBanana {
     pub fn with_data<T, K: Into<String>>(
         &self,
         inner: impl IntoIterator<Item = (K, T)>,
@@ -110,103 +110,103 @@ impl ValueExpr {
 // -----------------------------------------------------------------------------
 //   - Paths -
 // -----------------------------------------------------------------------------
-pub fn ident(p: &str) -> Box<ValueExpr> {
-    ValueExpr::Ident(p.into()).into()
+pub fn ident(p: &str) -> Box<ExpressionBanana> {
+    ExpressionBanana::Ident(p.into()).into()
 }
 
-pub fn index(lhs: Box<ValueExpr>, rhs: Box<ValueExpr>) -> Box<ValueExpr> {
-    ValueExpr::Index(lhs, rhs).into()
+pub fn index(lhs: Box<ExpressionBanana>, rhs: Box<ExpressionBanana>) -> Box<ExpressionBanana> {
+    ExpressionBanana::Index(lhs, rhs).into()
 }
 
-pub fn dot(lhs: Box<ValueExpr>, rhs: Box<ValueExpr>) -> Box<ValueExpr> {
-    ValueExpr::Dot(lhs, rhs).into()
+pub fn dot(lhs: Box<ExpressionBanana>, rhs: Box<ExpressionBanana>) -> Box<ExpressionBanana> {
+    ExpressionBanana::Dot(lhs, rhs).into()
 }
 
 // -----------------------------------------------------------------------------
 //   - Maths -
 // -----------------------------------------------------------------------------
-pub fn mul(lhs: Box<ValueExpr>, rhs: Box<ValueExpr>) -> Box<ValueExpr> {
-    ValueExpr::Mul(lhs, rhs).into()
+pub fn mul(lhs: Box<ExpressionBanana>, rhs: Box<ExpressionBanana>) -> Box<ExpressionBanana> {
+    ExpressionBanana::Mul(lhs, rhs).into()
 }
 
-pub fn div(lhs: Box<ValueExpr>, rhs: Box<ValueExpr>) -> Box<ValueExpr> {
-    ValueExpr::Div(lhs, rhs).into()
+pub fn div(lhs: Box<ExpressionBanana>, rhs: Box<ExpressionBanana>) -> Box<ExpressionBanana> {
+    ExpressionBanana::Div(lhs, rhs).into()
 }
 
-pub fn modulo(lhs: Box<ValueExpr>, rhs: Box<ValueExpr>) -> Box<ValueExpr> {
-    ValueExpr::Mod(lhs, rhs).into()
+pub fn modulo(lhs: Box<ExpressionBanana>, rhs: Box<ExpressionBanana>) -> Box<ExpressionBanana> {
+    ExpressionBanana::Mod(lhs, rhs).into()
 }
 
-pub fn sub(lhs: Box<ValueExpr>, rhs: Box<ValueExpr>) -> Box<ValueExpr> {
-    ValueExpr::Sub(lhs, rhs).into()
+pub fn sub(lhs: Box<ExpressionBanana>, rhs: Box<ExpressionBanana>) -> Box<ExpressionBanana> {
+    ExpressionBanana::Sub(lhs, rhs).into()
 }
 
-pub fn add(lhs: Box<ValueExpr>, rhs: Box<ValueExpr>) -> Box<ValueExpr> {
-    ValueExpr::Add(lhs, rhs).into()
+pub fn add(lhs: Box<ExpressionBanana>, rhs: Box<ExpressionBanana>) -> Box<ExpressionBanana> {
+    ExpressionBanana::Add(lhs, rhs).into()
 }
 
-pub fn greater_than(lhs: Box<ValueExpr>, rhs: Box<ValueExpr>) -> Box<ValueExpr> {
-    ValueExpr::Greater(lhs, rhs).into()
+pub fn greater_than(lhs: Box<ExpressionBanana>, rhs: Box<ExpressionBanana>) -> Box<ExpressionBanana> {
+    ExpressionBanana::Greater(lhs, rhs).into()
 }
 
-pub fn greater_than_equal(lhs: Box<ValueExpr>, rhs: Box<ValueExpr>) -> Box<ValueExpr> {
-    ValueExpr::GreaterEqual(lhs, rhs).into()
+pub fn greater_than_equal(lhs: Box<ExpressionBanana>, rhs: Box<ExpressionBanana>) -> Box<ExpressionBanana> {
+    ExpressionBanana::GreaterEqual(lhs, rhs).into()
 }
 
-pub fn less_than(lhs: Box<ValueExpr>, rhs: Box<ValueExpr>) -> Box<ValueExpr> {
-    ValueExpr::Less(lhs, rhs).into()
+pub fn less_than(lhs: Box<ExpressionBanana>, rhs: Box<ExpressionBanana>) -> Box<ExpressionBanana> {
+    ExpressionBanana::Less(lhs, rhs).into()
 }
 
-pub fn less_than_equal(lhs: Box<ValueExpr>, rhs: Box<ValueExpr>) -> Box<ValueExpr> {
-    ValueExpr::LessEqual(lhs, rhs).into()
+pub fn less_than_equal(lhs: Box<ExpressionBanana>, rhs: Box<ExpressionBanana>) -> Box<ExpressionBanana> {
+    ExpressionBanana::LessEqual(lhs, rhs).into()
 }
 
 // -----------------------------------------------------------------------------
 //   - Values -
 // -----------------------------------------------------------------------------
-pub fn unum(int: u64) -> Box<ValueExpr> {
-    ValueExpr::Owned(Owned::from(int)).into()
+pub fn unum(int: u64) -> Box<ExpressionBanana> {
+    ExpressionBanana::Owned(Owned::from(int)).into()
 }
 
-pub fn inum(int: i64) -> Box<ValueExpr> {
-    ValueExpr::Owned(Owned::from(int)).into()
+pub fn inum(int: i64) -> Box<ExpressionBanana> {
+    ExpressionBanana::Owned(Owned::from(int)).into()
 }
 
-pub fn boolean(b: bool) -> Box<ValueExpr> {
-    ValueExpr::Owned(Owned::from(b)).into()
+pub fn boolean(b: bool) -> Box<ExpressionBanana> {
+    ExpressionBanana::Owned(Owned::from(b)).into()
 }
 
-pub fn strlit(lit: &str) -> Box<ValueExpr> {
-    ValueExpr::String(lit.into()).into()
+pub fn strlit(lit: &str) -> Box<ExpressionBanana> {
+    ExpressionBanana::String(lit.into()).into()
 }
 
 // -----------------------------------------------------------------------------
 //   - List -
 // -----------------------------------------------------------------------------
-pub fn list<E: Into<ValueExpr>>(input: impl IntoIterator<Item = E>) -> Box<ValueExpr> {
+pub fn list<E: Into<ExpressionBanana>>(input: impl IntoIterator<Item = E>) -> Box<ExpressionBanana> {
     let vec = input.into_iter().map(|val| val.into()).collect::<Vec<_>>();
-    ValueExpr::List(vec.into()).into()
+    ExpressionBanana::List(vec.into()).into()
 }
 
 // -----------------------------------------------------------------------------
 //   - Op -
 // -----------------------------------------------------------------------------
-pub fn neg(expr: Box<ValueExpr>) -> Box<ValueExpr> {
-    ValueExpr::Negative(expr).into()
+pub fn neg(expr: Box<ExpressionBanana>) -> Box<ExpressionBanana> {
+    ExpressionBanana::Negative(expr).into()
 }
 
-pub fn not(expr: Box<ValueExpr>) -> Box<ValueExpr> {
-    ValueExpr::Not(expr).into()
+pub fn not(expr: Box<ExpressionBanana>) -> Box<ExpressionBanana> {
+    ExpressionBanana::Not(expr).into()
 }
 
-pub fn eq(lhs: Box<ValueExpr>, rhs: Box<ValueExpr>) -> Box<ValueExpr> {
-    ValueExpr::Equality(lhs, rhs).into()
+pub fn eq(lhs: Box<ExpressionBanana>, rhs: Box<ExpressionBanana>) -> Box<ExpressionBanana> {
+    ExpressionBanana::Equality(lhs, rhs).into()
 }
 
-pub fn and(lhs: Box<ValueExpr>, rhs: Box<ValueExpr>) -> Box<ValueExpr> {
-    ValueExpr::And(lhs, rhs).into()
+pub fn and(lhs: Box<ExpressionBanana>, rhs: Box<ExpressionBanana>) -> Box<ExpressionBanana> {
+    ExpressionBanana::And(lhs, rhs).into()
 }
 
-pub fn or(lhs: Box<ValueExpr>, rhs: Box<ValueExpr>) -> Box<ValueExpr> {
-    ValueExpr::Or(lhs, rhs).into()
+pub fn or(lhs: Box<ExpressionBanana>, rhs: Box<ExpressionBanana>) -> Box<ExpressionBanana> {
+    ExpressionBanana::Or(lhs, rhs).into()
 }

@@ -1,6 +1,6 @@
 use anathema_values::{StringId, ValueId, ViewId, Visibility};
 
-use self::optimizer::Expression;
+use self::optimizer::Statement;
 pub(crate) use self::optimizer::Optimizer;
 use super::error::Result;
 
@@ -37,8 +37,8 @@ pub enum Instruction {
         value: ValueId,
     },
     Assignment {
-        binding: StringId,
-        value: ValueId,
+        lhs: ValueId,
+        rhs: ValueId,
     },
 }
 
@@ -48,13 +48,13 @@ enum Branch {
 }
 
 pub(super) struct Compiler {
-    expressions: Vec<Expression>,
+    expressions: Vec<Statement>,
     ep: usize,
     output: Vec<Instruction>,
 }
 
 impl Compiler {
-    pub(super) fn new(expressions: impl IntoIterator<Item = Expression>) -> Self {
+    pub(super) fn new(expressions: impl IntoIterator<Item = Statement>) -> Self {
         let expressions = expressions.into_iter().collect::<Vec<_>>();
 
         Self {
@@ -79,27 +79,27 @@ impl Compiler {
         if let Some(expr) = self.expressions.get(self.ep) {
             self.ep += 1;
             match expr {
-                Expression::Node { ident, scope_size } => self.compile_node(*ident, *scope_size),
-                Expression::View(view) => self.compile_view(*view),
-                Expression::LoadText(index) => self.compile_text(*index),
-                Expression::LoadAttribute { key, value } => self.compile_attribute(*key, *value),
-                Expression::If { cond, size } => {
+                Statement::Node { ident, scope_size } => self.compile_node(*ident, *scope_size),
+                Statement::View(view) => self.compile_view(*view),
+                Statement::LoadText(index) => self.compile_text(*index),
+                Statement::LoadAttribute { key, value } => self.compile_attribute(*key, *value),
+                Statement::If { cond, size } => {
                     self.compile_control_flow(Branch::If(*cond), *size)
                 }
-                Expression::Else { cond, size } => {
+                Statement::Else { cond, size } => {
                     self.compile_control_flow(Branch::Else(*cond), *size)
                 }
-                Expression::For {
+                Statement::For {
                     binding,
                     data,
                     size,
                 } => self.compile_for(*binding, *data, *size),
-                Expression::Declaration {
+                Statement::Declaration {
                     visibility,
                     binding,
                     value,
                 } => self.compile_declaration(*visibility, *binding, *value),
-                Expression::Assignment {
+                Statement::Assignment {
                     binding: ident,
                     value,
                 } => panic!(),
@@ -157,7 +157,7 @@ impl Compiler {
         self.compile_inner_scope(size)?;
 
         let size = self.output[instruction_index..].len();
-        if let Some(Expression::Else { .. }) = self.expressions.get(self.ep) {
+        if let Some(Statement::Else { .. }) = self.expressions.get(self.ep) {
             self.compile_expression()?;
         }
 
@@ -300,15 +300,15 @@ mod test {
     #[test]
     fn compile_if() {
         let expressions = vec![
-            Expression::If {
+            Statement::If {
                 cond: 0.into(),
                 size: 1,
             },
-            Expression::Node {
+            Statement::Node {
                 ident: 0.into(),
                 scope_size: 0,
             },
-            Expression::Node {
+            Statement::Node {
                 ident: 1.into(),
                 scope_size: 0,
             },

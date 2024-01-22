@@ -29,7 +29,8 @@ impl VirtualMachine {
 
 #[cfg(test)]
 mod test {
-    use anathema_compiler::{compile, ViewIds};
+    use anathema_compiler::compile;
+    use anathema_values::ViewIds;
     use anathema_widget_core::expressions::SingleNodeExpr;
 
     use super::*;
