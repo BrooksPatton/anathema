@@ -7,7 +7,7 @@ vstack
                     // Iterate over the output
                     // and output the text
                     for msg in output
-                        text msg
+                        text [foreground: "magenta"] msg
 
     // Input
     border

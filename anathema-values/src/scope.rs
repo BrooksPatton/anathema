@@ -4,6 +4,7 @@ use crate::hashmap::HashMap;
 use crate::state::State;
 use crate::{NodeId, Path, ValueExpr, ValueRef, Owned};
 
+/// Values owned by the nodes them selves.
 #[derive(Debug)]
 pub struct OwnedScopeValues<'e>(pub Vec<(&'e str, ScopeValue<'e>)>);
 
