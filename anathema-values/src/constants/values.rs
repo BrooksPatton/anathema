@@ -1,6 +1,5 @@
-use anathema_values::ValueExpr;
-
 use super::Storage;
+use crate::ValueExpr;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct ValueId(usize);

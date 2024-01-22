@@ -1,7 +1,7 @@
 use std::ops::ControlFlow;
 
 use anathema_values::{
-    Change, Context, Deferred, NextNodeId, NodeId, Path, ScopeValue, ValueRef, Scope,
+    Change, Context, Deferred, NextNodeId, NodeId, Path, Scope, ScopeValue, ValueRef,
 };
 
 use super::Nodes;
@@ -73,7 +73,7 @@ impl<'e> LoopNode<'e> {
             let iter = match self.iterations.get_mut(self.current_iteration) {
                 Some(iter) => iter,
                 None => {
-                    let node_id = self.next_node_id.next(&self.node_id); 
+                    let node_id = self.next_node_id.next(&self.node_id);
 
                     self.iterations.push(Iteration {
                         body: Nodes::new(self.expressions, node_id.child(0)),
@@ -86,8 +86,8 @@ impl<'e> LoopNode<'e> {
             };
 
             let mut inner = context.inner();
-            let scopes = inner.scope("loop".into(), ScopeValue::value(iter.loop_index));
-            let scopes = scopes.scope_value(self.binding.into(), iter.loop_value);
+            let scopes = inner.scope("loop", ScopeValue::value(iter.loop_index));
+            let scopes = scopes.scope_value(self.binding, iter.loop_value);
             inner.assign(&scopes);
             let context = inner.into();
 
@@ -150,8 +150,11 @@ impl<'e> LoopNode<'e> {
     pub(super) fn update(&mut self, node_id: &[usize], change: &Change, context: &Context<'_, '_>) {
         for iter in &mut self.iterations {
             let mut inner_context = context.inner();
-            let mut scopes = inner_context.scope("loop".into(), ScopeValue::Value(ValueRef::Owned(iter.loop_index.into())));
-            scopes.scope_value(self.binding.into(), iter.loop_value);
+            let mut scopes = inner_context.scope(
+                "loop",
+                ScopeValue::Value(ValueRef::Owned(iter.loop_index.into())),
+            );
+            scopes.scope_value(self.binding, iter.loop_value);
             inner_context.assign(&scopes);
             let context = inner_context.into();
 

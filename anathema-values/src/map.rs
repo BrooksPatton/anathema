@@ -119,11 +119,17 @@ mod test {
     #[test]
     fn access_map() {
         let state = TestState::new();
-        let path = Path::from("generic_map").compose("inner").compose("second");
         let node_id = 0.into();
-        let ValueRef::Owned(Owned::Num(x)) = state.state_get(&path, &node_id) else {
+
+        let ValueRef::Map(map) = state.state_get("generic_map".into(), &node_id) else {
             panic!()
         };
-        assert_eq!(x.to_i128(), 2);
+        let ValueRef::Map(map) = state.state_get("inner".into(), &node_id) else {
+            panic!()
+        };
+        let ValueRef::Str(name) = map.state_get("name".into(), &node_id) else {
+            panic!()
+        };
+        assert_eq!(name, &*state.inner.name);
     }
 }

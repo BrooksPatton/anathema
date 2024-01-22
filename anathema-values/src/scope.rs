@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use crate::hashmap::HashMap;
 use crate::state::State;
-use crate::{NodeId, Path, ValueExpr, ValueRef, Owned};
+use crate::{NodeId, Owned, Path, ValueExpr, ValueRef};
 
 /// Values owned by the nodes them selves.
 #[derive(Debug)]
@@ -24,7 +24,7 @@ impl<'e> OwnedScopeValues<'e> {
 
 // Scopes can only borrow values with the same lifetime as an expressions.
 // Any scoped value that belongs to or contains state can only be scoped as a deferred expression.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ScopeValue<'expr> {
     Value(ValueRef<'expr>),
     Deferred(&'expr ValueExpr),
@@ -34,6 +34,12 @@ pub enum ScopeValue<'expr> {
 impl<'e> ScopeValue<'e> {
     pub fn value(val: impl Into<Owned>) -> Self {
         Self::Value(ValueRef::Owned(val.into()))
+    }
+}
+
+impl<'expr, T: Into<ValueRef<'expr>>> From<T> for ScopeValue<'expr> {
+    fn from(value: T) -> Self {
+        Self::Value(value.into())
     }
 }
 
@@ -58,8 +64,15 @@ impl<'frame, 'expr> Scopes<'frame, 'expr> {
     }
 
     #[must_use]
-    pub fn scope_value(&'frame self, path: Path<'expr>, value: ScopeValue<'expr>) -> Self {
-        let scope = Scope { path, value };
+    pub fn scope_value(
+        &'frame self,
+        path: impl Into<Path<'expr>>,
+        value: impl Into<ScopeValue<'expr>>,
+    ) -> Self {
+        let scope = Scope {
+            path: path.into(),
+            value: value.into(),
+        };
 
         Self {
             current: scope,
@@ -83,31 +96,26 @@ pub struct InnerContext<'frame, 'expr> {
 }
 
 impl<'frame, 'expr> InnerContext<'frame, 'expr> {
-    // fn get(&self, key: &str, node_id: Option<&NodeId>) -> Option<ScopeValue<'expr>> {
-    //     if let Some(val) = self.state.state_get(key, node_id) {
-    //         return Some(ScopeValue::Val(val));
-    //     }
-
-    //     let scopes = self.scopes?;
-    //     let val = scopes.get(key)?;
-    //     match val {
-    //         val @ ScopeValue::Val(_) => Some(val),
-    //         ScopeValue::Deferred(key) => self.state.get(key).map(|val| ScopeValue::Val(val)),
-    //     }
-    // }
-
     /// Scope a value and return the scopes.
     /// Once the scopes are updated, create a new context with the new scopes:
     /// ```
-    /// # fn run(context: &Context, value: ScopeValue<'_>, other_value: ScopeValue<'_>) {
-    /// let inner = context.inner();
-    /// let mut scopes = inner.scope("key".into(), value);
-    /// scopes.scope("other_key".into(), other_value);
-    /// inner.assign(scopes);
+    /// # use anathema_values::Context;
+    /// # fn run(context: &Context, value: usize, other_value: usize) {
+    /// let mut inner = context.inner();
+    /// let scopes = inner.scope("key", value);
+    /// let scopes = scopes.scope_value("other_key", other_value);
+    /// inner.assign(&scopes);
     /// # }
     /// ```
-    pub fn scope(&self, path: Path<'expr>, value: ScopeValue<'expr>) -> Scopes<'frame, 'expr> {
-        let scope = Scope { path, value };
+    pub fn scope(
+        &self,
+        path: impl Into<Path<'expr>>,
+        value: impl Into<ScopeValue<'expr>>,
+    ) -> Scopes<'frame, 'expr> {
+        let scope = Scope {
+            path: path.into(),
+            value: value.into(),
+        };
 
         Scopes {
             current: scope,
@@ -217,31 +225,20 @@ mod test {
 
     #[test]
     fn scope_value() {
-        let mut store = ScopeStorage::new();
-        store.value("value", ValueRef::Str("hello world"));
-        let scope = Scope {
-            store: &store,
-            parent: None,
-        };
+        let context = Context::root(&());
+        let mut inner = context.inner();
+        let scopes = inner.scope("a", 1);
+        let scopes = scopes.scope_value("b", 1);
+        inner.assign(&scopes);
+        let scopes = inner.scope("a", 2);
+        inner.assign(&scopes);
 
-        {
-            let mut store = ScopeStorage::new();
-            store.value("value", ValueRef::Str("inner hello"));
-            let scope = Scope {
-                store: &store,
-                parent: Some(&scope),
-            };
+        let context: Context<'_, '_> = inner.into();
 
-            let ScopeValue::Value(ValueRef::Str(lhs)) = scope.get(&"value".into()).unwrap() else {
-                panic!()
-            };
-            assert_eq!(lhs, "inner hello");
-        }
+        let a = context.lookup().scopes("a".into()).unwrap();
+        assert_eq!(a, 2.into());
 
-        let ScopeValue::Value(ValueRef::Str(lhs)) = scope.get(&"value".into()).unwrap() else {
-            panic!()
-        };
-
-        assert_eq!(lhs, "hello world");
+        let b = context.lookup().scopes("b".into()).unwrap();
+        assert_eq!(b, 1.into());
     }
 }

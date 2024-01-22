@@ -113,17 +113,17 @@ impl<'a> Into<ValueRef<'a>> for &'a str {
     }
 }
 
-impl<'a> Into<ValueRef<'a>> for Owned {
-    fn into(self) -> ValueRef<'a> {
-        ValueRef::Owned(self)
-    }
-}
+// impl<'a> Into<ValueRef<'a>> for Owned {
+//     fn into(self) -> ValueRef<'a> {
+//         ValueRef::Owned(self)
+//     }
+// }
 
-impl<'a, T> From<&'a T> for ValueRef<'a>
+impl<'a, T> From<T> for ValueRef<'a>
 where
-    &'a T: Into<Owned>,
+    T: Into<Owned>,
 {
-    fn from(val: &'a T) -> ValueRef<'a> {
+    fn from(val: T) -> ValueRef<'a> {
         Self::Owned(val.into())
     }
 }

@@ -1,4 +1,3 @@
-use anathema_values::ValueExpr;
 pub(crate) use storage::Storage;
 
 pub use self::strings::StringId;
@@ -6,6 +5,7 @@ use self::strings::Strings;
 pub use self::values::ValueId;
 use self::values::Values;
 pub use self::views::{ViewId, ViewIds};
+use crate::ValueExpr;
 
 mod storage;
 mod strings;

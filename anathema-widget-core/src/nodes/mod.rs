@@ -10,7 +10,7 @@
 //       text y
 //   ```
 //   Needs to resolve the value all the way to the state value:
-//   `y` -> `x` -> `state_value`, replacing `y` in the text widget with 
+//   `y` -> `x` -> `state_value`, replacing `y` in the text widget with
 //   `state_value`.
 //
 //   TODO: currently this will resolve `y` to `x` producing an incorrect
@@ -24,7 +24,7 @@
 //   ```
 //   Needs to build up the scope based on the `Iteration` wrapping the text:
 //   ```
-//       For 
+//       For
 //          Iteration (val -> values[N])
 //              text val
 //   ```
@@ -50,7 +50,7 @@
 //   Here a local variable `x` needs to be accessible to the text widget.
 //   This is done by copying the value of `x` into the text widget.
 //
-//   In fact, the local variable doesn't need to exist after the creation 
+//   In fact, the local variable doesn't need to exist after the creation
 //   of the node.
 //
 //   NOTE: might be an idea to simply generate the values into temporary
@@ -328,23 +328,22 @@ impl<'expr> Nodes<'expr> {
         // If not do the next step
         match expr {
             Expression::Assignment(value) => match value {
-                _ => panic!()
-                // ValueExpr::Declaration {
-                //     visibility,
-                //     binding,
-                //     value,
-                // } => {
-                //     let mut resolver = Deferred::new(context.lookup());
-                //     match value.eval(&mut resolver) {
-                //         ValueRef::Deferred => {
-                //             self.scope_values.insert(binding, ScopeValue::Deferred(value))
-                //         }
-                //         value => self.scope_values.insert(binding, ScopeValue::Value(value)),
-                //     }
+                _ => panic!(), // ValueExpr::Declaration {
+                               //     visibility,
+                               //     binding,
+                               //     value,
+                               // } => {
+                               //     let mut resolver = Deferred::new(context.lookup());
+                               //     match value.eval(&mut resolver) {
+                               //         ValueRef::Deferred => {
+                               //             self.scope_values.insert(binding, ScopeValue::Deferred(value))
+                               //         }
+                               //         value => self.scope_values.insert(binding, ScopeValue::Value(value)),
+                               //     }
 
-                //     return Some(Ok(()));
-                // }
-                // _ => panic!(),
+                               //     return Some(Ok(()));
+                               // }
+                               // _ => panic!(),
             },
             // Expression::Assignment => panic!(),
             _ => {}
@@ -353,21 +352,19 @@ impl<'expr> Nodes<'expr> {
         // TODO: this and the update function has the same gross stuff in it.
         // Make it less gross plz
         match self.scope_values.head_tail() {
-            None => {
-                match expr.eval(context, self.next_node_id.next(&self.root_id)) {
-                    Ok(node) => self.inner.push(node),
-                    Err(e) => return Some(Err(e)),
-                }
-            }
+            None => match expr.eval(context, self.next_node_id.next(&self.root_id)) {
+                Ok(node) => self.inner.push(node),
+                Err(e) => return Some(Err(e)),
+            },
             Some((key, val, tail)) => {
                 let mut inner = context.inner();
-                let mut scopes = inner.scope(key.into(), val);
+                let mut scopes = inner.scope(key, val);
 
                 // Resolve the value
                 let mut inner = context.inner();
 
                 for (key, value) in tail {
-                     let scopes = scopes.scope_value((*key).into(), *value);
+                    let scopes = scopes.scope_value(*key, *value);
                 }
 
                 inner.assign(&scopes);
@@ -522,10 +519,10 @@ fn update(nodes: &mut [Node<'_>], node_id: &[usize], change: &Change, context: &
                         let inner = context.inner();
 
                         let mut inner = context.inner();
-                        let mut scopes = inner.scope(key.into(), val);
+                        let mut scopes = inner.scope(key, val);
 
                         for (key, value) in tail {
-                            scopes.scope_value((*key).into(), *value);
+                            scopes.scope_value(*key, *value);
                         }
 
                         inner.assign(&scopes);
@@ -533,7 +530,6 @@ fn update(nodes: &mut [Node<'_>], node_id: &[usize], change: &Change, context: &
                         return children.update(node_id, change, &context);
                     }
                 };
-
             }
             NodeKind::Loop(loop_node) => {
                 return loop_node.update(node_id, change, &context);

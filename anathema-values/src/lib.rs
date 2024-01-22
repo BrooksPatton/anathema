@@ -3,20 +3,23 @@ use std::cell::RefCell;
 pub use anathema_value_derive::State;
 
 pub use self::collection::Collection;
+pub use self::constants::{Constants, StringId, ValueId, ViewId, ViewIds};
 pub use self::id::{NextNodeId, NodeId};
 pub use self::list::List;
 pub use self::map::Map;
 pub use self::path::Path;
-pub use self::scope::{Context, Scope, Scopes, ScopeValue, OwnedScopeValues};
+pub use self::scope::{Context, OwnedScopeValues, Scope, ScopeValue, Scopes};
 pub use self::slab::Slab;
 pub use self::state::{Change, State, StateValue};
 pub use self::value::{ExpressionMap, Expressions, Num, Owned, ValueRef};
 pub use self::value_expr::{Deferred, Immediate, Resolver, ValueExpr, Visibility};
+pub use self::variables::{Variable, Variables};
 
 pub mod hashmap;
 mod path;
 
 mod collection;
+mod constants;
 mod id;
 mod list;
 mod map;
@@ -25,6 +28,7 @@ mod slab;
 pub mod state;
 mod value;
 mod value_expr;
+mod variables;
 
 // -----------------------------------------------------------------------------
 //   - Macro requirements -

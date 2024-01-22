@@ -1,9 +1,8 @@
-use anathema_values::{ValueExpr, Visibility};
+use anathema_values::{Constants, StringId, ValueExpr, ValueId, ViewId, ViewIds, Visibility};
 
 use super::pratt::{eval, expr};
 use crate::error::{src_line_no, Error, ErrorKind, Result};
 use crate::token::{Kind, Operator, Tokens, Value};
-use crate::{Constants, StringId, ValueId, ViewId, ViewIds};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Expression {
@@ -553,7 +552,10 @@ mod test {
     }
 
     fn parse_err(src: &str) -> Error {
-        parse(src).into_iter().collect::<Result<Vec<_>>>().unwrap_err()
+        parse(src)
+            .into_iter()
+            .collect::<Result<Vec<_>>>()
+            .unwrap_err()
     }
 
     #[test]
@@ -806,7 +808,10 @@ mod test {
     fn parse_declaration() {
         let src = "local x = 1";
         let mut expressions = parse_ok(src);
-        assert!(matches!(expressions.remove(0), Expression::Declaration { .. }));
+        assert!(matches!(
+            expressions.remove(0),
+            Expression::Declaration { .. }
+        ));
     }
 
     #[test]

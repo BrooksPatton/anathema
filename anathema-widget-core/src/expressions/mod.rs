@@ -1,7 +1,7 @@
 use anathema_render::Size;
 use anathema_values::{
     Attributes, Context, Deferred, DynValue, ExpressionMap, Expressions, Immediate, NextNodeId,
-    NodeId, Path, State, Value, ValueExpr, ValueRef, Scope, OwnedScopeValues,
+    NodeId, OwnedScopeValues, Path, Scope, State, Value, ValueExpr, ValueRef,
 };
 
 pub use self::controlflow::{ElseExpr, IfExpr};
@@ -42,8 +42,7 @@ impl SingleNodeExpr {
         let text = self
             .text
             .as_ref()
-            .map(|text| 
-                String::init_value(context, &node_id, text))
+            .map(|text| String::init_value(context, &node_id, text))
             .unwrap_or_default();
 
         let context = FactoryContext::new(
@@ -223,8 +222,7 @@ impl ViewExpr {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct AssignmentExpr {
-}
+pub struct AssignmentExpr {}
 
 // -----------------------------------------------------------------------------
 //   - Expression -
@@ -290,7 +288,7 @@ impl Expression {
             Self::Loop(loop_expr) => loop_expr.eval(context, node_id),
             Self::ControlFlow(controlflow) => controlflow.eval(context, node_id),
             Self::View(view_expr) => view_expr.eval(context, node_id),
-            _ => unreachable!("declarations and assignments are handled separately")
+            _ => unreachable!("declarations and assignments are handled separately"),
         }
     }
 }

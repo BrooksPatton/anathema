@@ -1,10 +1,11 @@
-use anathema_compiler::{Constants, Instruction};
+use anathema_compiler::Instruction;
+use anathema_values::Constants;
 use anathema_widget_core::expressions::Expression;
 
 use crate::error::Result;
 use crate::scope::Scope;
-use crate::ViewTemplates;
 use crate::variables::Variables;
+use crate::ViewTemplates;
 
 pub struct VirtualMachine {
     instructions: Vec<Instruction>,

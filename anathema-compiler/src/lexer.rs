@@ -2,10 +2,10 @@ use std::iter::Peekable;
 use std::str::CharIndices;
 
 use anathema_render::Color;
+use anathema_values::Constants;
 
 use crate::error::{Error, Result};
 use crate::token::{Kind, Operator, Token, Value};
-use crate::Constants;
 
 impl<'src, 'consts> Iterator for Lexer<'src, 'consts> {
     type Item = Result<Token>;

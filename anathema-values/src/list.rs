@@ -173,11 +173,15 @@ mod test {
     #[test]
     fn access_list() {
         let state = TestState::new();
-        let path = Path::from("generic_list").compose(1);
         let node_id = 0.into();
-        let ValueRef::Owned(Owned::Num(x)) = state.state_get(&path, &node_id) else {
+        let ValueRef::List(list) = state.state_get("generic_list".into(), &node_id) else {
             panic!()
         };
+
+        let ValueRef::Owned(Owned::Num(x)) = list.state_get(1.into(), &0.into()) else {
+            panic!()
+        };
+
         assert_eq!(x.to_i128(), 2);
     }
 

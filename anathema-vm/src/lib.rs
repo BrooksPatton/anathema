@@ -3,8 +3,8 @@ mod scope;
 mod variables;
 mod vm;
 
-use anathema_compiler::{ViewId, ViewIds};
 use anathema_values::hashmap::HashMap;
+use anathema_values::{ViewId, ViewIds};
 use anathema_widget_core::expressions::{root_view, Expression};
 use anathema_widget_core::views::{AnyView, RegisteredViews, View};
 pub use vm::VirtualMachine;

@@ -1,8 +1,7 @@
 use std::fmt::{self, Display, Formatter};
 
 use anathema_render::Color;
-
-use crate::StringId;
+use anathema_values::StringId;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Operator {

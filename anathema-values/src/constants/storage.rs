@@ -1,4 +1,4 @@
-use anathema_values::Slab;
+use crate::Slab;
 
 #[derive(Debug)]
 pub struct Storage<T>(pub(crate) Slab<T>);

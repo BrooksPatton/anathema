@@ -1,9 +1,8 @@
-use anathema_values::Visibility;
+use anathema_values::{StringId, ValueId, ViewId, Visibility};
 
 use self::optimizer::Expression;
 pub(crate) use self::optimizer::Optimizer;
 use super::error::Result;
-use crate::{StringId, ValueId, ViewId};
 
 mod optimizer;
 
@@ -95,15 +94,31 @@ impl Compiler {
                     data,
                     size,
                 } => self.compile_for(*binding, *data, *size),
-                Expression::Declaration { visibility, binding, value } => self.compile_declaration(*visibility, *binding, *value),
-                Expression::Assignment { binding: ident, value } => panic!()
+                Expression::Declaration {
+                    visibility,
+                    binding,
+                    value,
+                } => self.compile_declaration(*visibility, *binding, *value),
+                Expression::Assignment {
+                    binding: ident,
+                    value,
+                } => panic!(),
             }?;
         }
         Ok(())
     }
 
-    fn compile_declaration(&mut self, visibility: Visibility, binding: StringId, value: ValueId) -> Result<()> {
-        self.output.push(Instruction::Declaration { visibility, binding, value });
+    fn compile_declaration(
+        &mut self,
+        visibility: Visibility,
+        binding: StringId,
+        value: ValueId,
+    ) -> Result<()> {
+        self.output.push(Instruction::Declaration {
+            visibility,
+            binding,
+            value,
+        });
         Ok(())
     }
 

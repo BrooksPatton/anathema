@@ -1,11 +1,10 @@
 use std::rc::Rc;
 
 use anathema_values::hashmap::HashMap;
-use anathema_values::{Num, Owned, ValueExpr, Visibility};
+use anathema_values::{Constants, Num, Owned, ValueExpr, Visibility};
 
 use super::Expr;
 use crate::token::Operator;
-use crate::Constants;
 
 pub fn eval(expr: Expr, consts: &Constants) -> ValueExpr {
     match expr {

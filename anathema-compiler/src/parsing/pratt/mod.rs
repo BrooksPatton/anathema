@@ -1,10 +1,10 @@
 use std::fmt::Display;
 
 use anathema_render::Color;
+use anathema_values::StringId;
 
 pub use self::eval::eval;
 use crate::token::{Kind, Operator, Tokens, Value};
-use crate::StringId;
 
 mod eval;
 
@@ -136,7 +136,11 @@ fn expr_bp(tokens: &mut Tokens, precedence: u8) -> Expr {
             left
         }
         Kind::Local => match expr_bp(tokens, precedence) {
-            Expr::Binary { lhs, rhs, op: Operator::Equal } => match *lhs {
+            Expr::Binary {
+                lhs,
+                rhs,
+                op: Operator::Equal,
+            } => match *lhs {
                 Expr::Ident(ident) => return Expr::Local { ident, value: rhs },
                 _ => panic!("invalid identifier"),
             },
@@ -144,13 +148,17 @@ fn expr_bp(tokens: &mut Tokens, precedence: u8) -> Expr {
             _ => panic!("invalid declaration"),
         },
         Kind::Global => match expr_bp(tokens, precedence) {
-            Expr::Binary { lhs, rhs, op: Operator::Equal } => match *lhs {
+            Expr::Binary {
+                lhs,
+                rhs,
+                op: Operator::Equal,
+            } => match *lhs {
                 Expr::Ident(ident) => return Expr::Global { ident, value: rhs },
                 _ => panic!("invalid identifier"),
             },
             w => panic!("{w:#?}"),
             _ => panic!("invalid declaration"),
-        }
+        },
         Kind::Op(op) => Expr::Unary {
             op,
             expr: Box::new(expr_bp(tokens, prec::PREFIX)),

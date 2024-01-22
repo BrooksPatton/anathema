@@ -3,8 +3,8 @@ use crate::{Context, Immediate, List, NodeId, Owned, StateValue, ValueExpr, Valu
 
 #[derive(Debug, crate::State)]
 pub struct Inner {
-    name: StateValue<String>,
-    names: List<String>,
+    pub name: StateValue<String>,
+    pub names: List<String>,
 }
 
 impl Inner {

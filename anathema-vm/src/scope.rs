@@ -1,15 +1,15 @@
 use std::rc::Rc;
 
-use anathema_compiler::{Constants, Instruction, StringId, ViewId};
+use anathema_compiler::Instruction;
 use anathema_values::hashmap::HashMap;
-use anathema_values::{Attributes, ValueExpr, Visibility};
+use anathema_values::{Attributes, Constants, StringId, ValueExpr, ViewId, Visibility};
 use anathema_widget_core::expressions::{
     ControlFlow, ElseExpr, Expression, IfExpr, LoopExpr, SingleNodeExpr, ViewExpr,
 };
 
 use crate::error::Result;
-use crate::ViewTemplates;
 use crate::variables::Variables;
+use crate::ViewTemplates;
 
 pub(crate) struct Scope<'vm> {
     instructions: Vec<Instruction>,
@@ -24,7 +24,11 @@ impl<'vm> Scope<'vm> {
         }
     }
 
-    pub fn exec(&mut self, views: &mut ViewTemplates, vars: &mut Variables) -> Result<Vec<Expression>> {
+    pub fn exec(
+        &mut self,
+        views: &mut ViewTemplates,
+        vars: &mut Variables,
+    ) -> Result<Vec<Expression>> {
         let mut nodes = vec![];
 
         if self.instructions.is_empty() {
@@ -37,9 +41,10 @@ impl<'vm> Scope<'vm> {
                 Instruction::View(ident) => {
                     nodes.push(self.view(ident, views)?);
                 }
-                Instruction::Node { ident, size: scope_size } => {
-                    nodes.push(self.node(ident, scope_size, views, vars)?)
-                }
+                Instruction::Node {
+                    ident,
+                    size: scope_size,
+                } => nodes.push(self.node(ident, scope_size, views, vars)?),
                 Instruction::For {
                     binding,
                     data,
@@ -107,7 +112,11 @@ impl<'vm> Scope<'vm> {
                 Instruction::LoadAttribute { .. } | Instruction::LoadValue(_) => {
                     unreachable!("these instructions are only executed in the `node` function")
                 }
-                Instruction::Declaration { visibility, binding, value } => {
+                Instruction::Declaration {
+                    visibility,
+                    binding,
+                    value,
+                } => {
                     let value = self.consts.lookup_value(value);
                     let binding = self.consts.lookup_string(binding);
                     // insert the declaration into the var table
@@ -264,29 +273,20 @@ mod test {
 
         fn if_stmt(&mut self, cond: impl Into<ValueExpr>, size: usize) {
             let cond = self.consts.store_value(cond.into());
-            let inst = Instruction::If {
-                cond,
-                size,
-            };
+            let inst = Instruction::If { cond, size };
             self.instructions.push(inst);
         }
 
         fn else_stmt(&mut self, cond: Option<impl Into<ValueExpr>>, size: usize) {
             let cond = cond.map(|cond| self.consts.store_value(cond.into()));
-            let inst = Instruction::Else {
-                cond,
-                size,
-            };
+            let inst = Instruction::Else { cond, size };
             self.instructions.push(inst);
         }
 
         fn attrib(&mut self, key: &str, value: impl Into<ValueExpr>) {
             let key = self.consts.store_string(key);
             let value = self.consts.store_value(value.into());
-            let inst = Instruction::LoadAttribute {
-                key,
-                value,
-            };
+            let inst = Instruction::LoadAttribute { key, value };
             self.instructions.push(inst);
         }
 

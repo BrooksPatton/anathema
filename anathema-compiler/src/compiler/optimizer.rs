@@ -1,7 +1,6 @@
-use anathema_values::Visibility;
+use anathema_values::{StringId, ValueId, ViewId, Visibility};
 
 use crate::parsing::parser::Expression as ParseExpr;
-use crate::{StringId, ValueId, ViewId};
 
 enum ControlFlow {
     If(ValueId),
@@ -138,9 +137,15 @@ impl Optimizer {
                 &ParseExpr::LoadAttribute { key, value } => {
                     Expression::LoadAttribute { key, value }
                 }
-                &ParseExpr::Declaration { visibility, binding, value } => {
-                    Expression::Declaration { visibility, binding, value }
-                }
+                &ParseExpr::Declaration {
+                    visibility,
+                    binding,
+                    value,
+                } => Expression::Declaration {
+                    visibility,
+                    binding,
+                    value,
+                },
                 // ParseExpr::Assignment { .. } => panic!(),
                 ParseExpr::Eof => continue, // noop, we don't care about EOF
                 ParseExpr::ScopeEnd => unreachable!("scopes are consumed by `opt_scope`"),

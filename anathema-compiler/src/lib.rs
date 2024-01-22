@@ -1,16 +1,14 @@
 pub mod error;
 
 pub(crate) mod compiler;
-mod constants;
 pub(crate) mod lexer;
 pub(crate) mod parsing;
 pub(crate) mod token;
 
+use anathema_values::{Constants, ViewIds};
 pub use compiler::Instruction;
-pub use constants::{StringId, ValueId, ViewId, ViewIds};
 
 use self::token::Tokens;
-pub use crate::constants::Constants;
 
 /// Compile source into instructions and constants.
 pub fn compile(src: &str, view_ids: &mut ViewIds) -> error::Result<(Vec<Instruction>, Constants)> {

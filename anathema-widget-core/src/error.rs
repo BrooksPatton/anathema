@@ -9,7 +9,6 @@ pub enum Error {
     // /// Failed to lookup id
     // #[error("failed to lookup path")]
     // IdNotFound(Path),
-
     /// Failed to lookup widget by the ident
     #[error("unregistered widget: {0}")]
     UnregisteredWidget(String),
