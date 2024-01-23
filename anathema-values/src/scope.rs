@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use crate::hashmap::HashMap;
 use crate::state::State;
-use crate::{NodeId, Owned, Path, ExpressionBanana, ValueRef};
+use crate::{NodeId, Owned, Path, Expression, ValueRef};
 
 /// Values owned by the nodes them selves.
 #[derive(Debug)]
@@ -27,8 +27,8 @@ impl<'e> OwnedScopeValues<'e> {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ScopeValue<'expr> {
     Value(ValueRef<'expr>),
-    Deferred(&'expr ExpressionBanana),
-    DeferredList(usize, &'expr ExpressionBanana),
+    Deferred(&'expr Expression),
+    DeferredList(usize, &'expr Expression),
 }
 
 impl<'e> ScopeValue<'e> {

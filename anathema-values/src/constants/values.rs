@@ -1,5 +1,5 @@
 use super::Storage;
-use crate::ExpressionBanana;
+use crate::Expression;
 
 // TODO: rename to ExpressionId
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -18,18 +18,18 @@ impl From<ValueId> for usize {
 }
 
 #[derive(Debug)]
-pub struct Values(Storage<ExpressionBanana>);
+pub struct Values(Storage<Expression>);
 
 impl Values {
     pub(crate) fn empty() -> Self {
         Self(Storage::empty())
     }
 
-    pub(crate) fn push(&mut self, value: ExpressionBanana) -> ValueId {
+    pub(crate) fn push(&mut self, value: Expression) -> ValueId {
         ValueId(self.0.push(value))
     }
 
-    pub(crate) fn get(&self, index: ValueId) -> Option<&ExpressionBanana> {
+    pub(crate) fn get(&self, index: ValueId) -> Option<&Expression> {
         self.0.get(index.0)
     }
 }

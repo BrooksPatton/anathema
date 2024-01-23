@@ -91,7 +91,6 @@ impl<'e> Runtime<'e> {
         register_default_widgets()?;
 
         let nodes = make_it_so(expressions);
-
         let size: Size = size()?.into();
         let constraints = Constraints::new(Some(size.width), Some(size.height));
         let screen = Screen::new(size);

@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use anathema_values::hashmap::HashMap;
-use anathema_values::{Owned, Slab, StringId, ExpressionBanana, ValueId};
+use anathema_values::{Owned, Slab, StringId, Expression, ValueId};
 
 use crate::error::{Error, Result};
 
@@ -235,7 +235,7 @@ impl Declarations {
 pub struct Variables {
     root: RootScope,
     current: ScopeId,
-    store: Slab<ExpressionBanana>,
+    store: Slab<Expression>,
     declarations: Declarations,
 }
 
@@ -257,27 +257,39 @@ impl Variables {
         value_id
     }
 
-    pub fn declare(&mut self, ident: StringId, value: ExpressionBanana) -> ValueId {
+    pub fn declare(&mut self, ident: StringId, value: Expression) -> ValueId {
         let value_id = self.store.push(value).into();
         let scope_id = self.current.clone();
         self.declare_at(ident, value_id, scope_id)
     }
 
-    pub fn assign(&mut self, ident: StringId, value: ExpressionBanana) -> Result<ValueId> {
+    // TODO: check if the value is declared and within reach,
+    // else return an error
+    pub fn assign(&mut self, ident: StringId, value: Expression) -> Result<ValueId> {
+        let (decl_scope_id, decl_value_id) = self.declarations.get(ident, &self.current).unwrap();
+
         let value_id = self.store.push(value).into();
         let scope = self.root.get_scope_mut(&self.current.0);
         scope.insert(ident, value_id);
+
+        if decl_scope_id < &self.current {
+            // insert dyn value with the new value id and the original value id
+            let dyn_value = Value2::Dyn(decl_value_id, value_id);
+            let dyn_value_id = self.store.push(dyn_value);
+            self.declare_at(ident, dyn_value_id, decl_scope_id.clone());
+        }
+
         Ok(value_id)
     }
 
     /// Fetch a value starting from the current path.
-    pub fn fetch(&self, ident: StringId) -> Option<ExpressionBanana> {
+    pub fn fetch(&self, ident: StringId) -> Option<Expression> {
         self.root
             .get_value_id(&self.current, ident)
             .and_then(|id| self.store.get(id).cloned())
     }
 
-    pub fn by_value_ref(&self, value_ref: ValueId) -> ExpressionBanana {
+    pub fn by_value_ref(&self, value_ref: ValueId) -> Expression {
         self.store
             .get(value_ref)
             .cloned()

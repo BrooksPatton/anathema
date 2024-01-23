@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use anathema_render::Size;
 use anathema_values::{
-    impl_dyn_value, Context, DynValue, Expressions, Immediate, NodeId, Value, ExpressionBanana, ValueRef,
+    impl_dyn_value, Context, DynValue, Expressions, Immediate, NodeId, Value, Expression, ValueRef,
 };
 use anathema_widget_core::contexts::{PaintCtx, PositionCtx, WithSize};
 use anathema_widget_core::error::Result;
@@ -60,7 +60,7 @@ impl Default for Sides {
 }
 
 impl DynValue for Sides {
-    fn init_value(context: &Context<'_, '_>, node_id: &NodeId, expr: &ExpressionBanana) -> Value<Self> {
+    fn init_value(context: &Context<'_, '_>, node_id: &NodeId, expr: &Expression) -> Value<Self> {
         // TODO: smells like copy and past in here!
         let mut resolver = Immediate::new(context.lookup(), node_id);
         let value = expr.eval(&mut resolver);
@@ -146,8 +146,8 @@ impl From<Vec<String>> for Sides {
     }
 }
 
-impl Into<ExpressionBanana> for Sides {
-    fn into(self) -> ExpressionBanana {
+impl Into<Expression> for Sides {
+    fn into(self) -> Expression {
         let mut sides = vec![];
 
         for side in self {
@@ -168,7 +168,7 @@ impl Into<ExpressionBanana> for Sides {
             }
         }
 
-        ExpressionBanana::List(sides.into())
+        Expression::List(sides.into())
     }
 }
 
@@ -522,7 +522,7 @@ mod test {
         width: Option<usize>,
         height: Option<usize>,
         text: Option<&'static str>,
-    ) -> ExpressionBanana {
+    ) -> Expression {
         let mut attribs = vec![("border-style".into(), border_style.to_string().into())];
 
         if let Some(width) = width {

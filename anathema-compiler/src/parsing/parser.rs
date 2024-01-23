@@ -1,4 +1,4 @@
-use anathema_values::{Constants, StringId, ExpressionBanana, ValueId, ViewId, ViewIds, Visibility};
+use anathema_values::{Constants, StringId, Expression, ValueId, ViewId, ViewIds, Visibility};
 
 use super::pratt::{eval, expr};
 use crate::error::{src_line_no, Error, ErrorKind, Result};
@@ -326,7 +326,7 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
             Kind::Local | Kind::Global => {
                 let expr = expr(&mut self.tokens);
                 match eval(expr, self.consts) {
-                    ExpressionBanana::Declaration {
+                    Expression::Declaration {
                         visibility,
                         binding,
                         value,
@@ -477,7 +477,7 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
         let value_id = match values.len() {
             0 => panic!("invalid state"),
             1 => self.consts.store_value(values.remove(0)),
-            _ => self.consts.store_value(ExpressionBanana::List(values.into())),
+            _ => self.consts.store_value(Expression::List(values.into())),
         };
 
         self.next_state();

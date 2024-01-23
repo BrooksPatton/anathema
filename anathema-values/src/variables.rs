@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::hashmap::HashMap;
-use crate::{Owned, Slab, StringId, ExpressionBanana, ValueId};
+use crate::{Owned, Slab, StringId, Expression, ValueId};
 
 const INDENT: usize = 4;
 

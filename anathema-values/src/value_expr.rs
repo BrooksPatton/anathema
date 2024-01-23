@@ -43,7 +43,7 @@ pub struct Deferred<'a, 'expr> {
 
 impl<'a, 'expr> Deferred<'a, 'expr> {
     pub fn new(context: ContextRef<'a, 'expr>) -> Self {
-        Self { context }
+        Self { context,  }
     }
 }
 
@@ -184,53 +184,53 @@ impl<'frame> Resolver<'frame> for Immediate<'frame> {
 // -----------------------------------------------------------------------------
 // TODO: rename this to `Expression` and rename `compiler::Expression` to something else
 #[derive(Debug, Clone, PartialEq)]
-pub enum ExpressionBanana {
+pub enum Expression {
     Owned(Owned),
     String(Rc<str>),
 
-    Not(Box<ExpressionBanana>),
-    Negative(Box<ExpressionBanana>),
-    And(Box<ExpressionBanana>, Box<ExpressionBanana>),
-    Or(Box<ExpressionBanana>, Box<ExpressionBanana>),
-    Equality(Box<ExpressionBanana>, Box<ExpressionBanana>),
-    Greater(Box<ExpressionBanana>, Box<ExpressionBanana>),
-    GreaterEqual(Box<ExpressionBanana>, Box<ExpressionBanana>),
-    Less(Box<ExpressionBanana>, Box<ExpressionBanana>),
-    LessEqual(Box<ExpressionBanana>, Box<ExpressionBanana>),
+    Not(Box<Expression>),
+    Negative(Box<Expression>),
+    And(Box<Expression>, Box<Expression>),
+    Or(Box<Expression>, Box<Expression>),
+    Equality(Box<Expression>, Box<Expression>),
+    Greater(Box<Expression>, Box<Expression>),
+    GreaterEqual(Box<Expression>, Box<Expression>),
+    Less(Box<Expression>, Box<Expression>),
+    LessEqual(Box<Expression>, Box<Expression>),
 
     Ident(Rc<str>),
-    Dot(Box<ExpressionBanana>, Box<ExpressionBanana>),
-    Index(Box<ExpressionBanana>, Box<ExpressionBanana>),
+    Dot(Box<Expression>, Box<Expression>),
+    Index(Box<Expression>, Box<Expression>),
 
     // List and Map are both Rc'd as expressions are
     // cloned for `Value<T>` and a few other places.
-    List(Rc<[ExpressionBanana]>),
-    Map(Rc<HashMap<String, ExpressionBanana>>),
+    List(Rc<[Expression]>),
+    Map(Rc<HashMap<String, Expression>>),
 
-    Add(Box<ExpressionBanana>, Box<ExpressionBanana>),
-    Sub(Box<ExpressionBanana>, Box<ExpressionBanana>),
-    Div(Box<ExpressionBanana>, Box<ExpressionBanana>),
-    Mul(Box<ExpressionBanana>, Box<ExpressionBanana>),
-    Mod(Box<ExpressionBanana>, Box<ExpressionBanana>),
+    Add(Box<Expression>, Box<Expression>),
+    Sub(Box<Expression>, Box<Expression>),
+    Div(Box<Expression>, Box<Expression>),
+    Mul(Box<Expression>, Box<Expression>),
+    Mod(Box<Expression>, Box<Expression>),
 
     Call {
-        fun: Box<ExpressionBanana>,
-        args: Vec<ExpressionBanana>,
+        fun: Box<Expression>,
+        args: Vec<Expression>,
     },
 
     Declaration {
         visibility: Visibility,
         binding: Rc<str>,
-        value: Box<ExpressionBanana>,
+        value: Box<Expression>,
     },
 
     Assignment {
-        lhs: Box<ExpressionBanana>,
-        rhs: Box<ExpressionBanana>,
+        lhs: Box<Expression>,
+        rhs: Box<Expression>,
     },
 }
 
-impl Display for ExpressionBanana {
+impl Display for Expression {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Owned(val) => write!(f, "{val}"),
@@ -302,7 +302,7 @@ macro_rules! eval_num {
     };
 }
 
-impl ExpressionBanana {
+impl Expression {
     pub fn eval_string<'expr>(&'expr self, resolver: &mut impl Resolver<'expr>) -> Option<String> {
         match self.eval(resolver) {
             ValueRef::Str(s) => Some(s.into()),
@@ -445,14 +445,14 @@ impl ExpressionBanana {
             Self::Dot(lhs, rhs) => match lhs.eval(resolver) {
                 ValueRef::ExpressionMap(map) => {
                     let key = match &**rhs {
-                        ExpressionBanana::Ident(key) => key,
+                        Expression::Ident(key) => key,
                         _ => return ValueRef::Empty,
                     };
                     return map.0[&**key].eval(resolver);
                 }
                 ValueRef::Map(map) => {
                     let key = match &**rhs {
-                        ExpressionBanana::Ident(key) => key,
+                        Expression::Ident(key) => key,
                         _ => return ValueRef::Empty,
                     };
                     resolver.resolve_map(map, key)
@@ -472,7 +472,7 @@ impl ExpressionBanana {
             // -----------------------------------------------------------------------------
             Self::Call { fun, args } => {
                 let _fun_name = match &**fun {
-                    ExpressionBanana::Ident(name) => name,
+                    Expression::Ident(name) => name,
                     _ => return ValueRef::Empty,
                 };
                 let _args = args.iter().map(|expr| expr.eval(resolver));
@@ -499,13 +499,13 @@ impl ExpressionBanana {
     }
 }
 
-impl From<Box<ExpressionBanana>> for ExpressionBanana {
-    fn from(val: Box<ExpressionBanana>) -> Self {
+impl From<Box<Expression>> for Expression {
+    fn from(val: Box<Expression>) -> Self {
         *val
     }
 }
 
-impl<T> From<T> for ExpressionBanana
+impl<T> From<T> for Expression
 where
     T: Into<Owned>,
 {
@@ -514,22 +514,22 @@ where
     }
 }
 
-impl From<String> for ExpressionBanana {
+impl From<String> for Expression {
     fn from(val: String) -> Self {
         Self::String(val.into())
     }
 }
 
-impl From<&str> for ExpressionBanana {
+impl From<&str> for Expression {
     fn from(val: &str) -> Self {
         Self::String(val.into())
     }
 }
 
-impl<const N: usize> From<[usize; N]> for ExpressionBanana {
+impl<const N: usize> From<[usize; N]> for Expression {
     fn from(value: [usize; N]) -> Self {
-        let list = value.map(|n| ExpressionBanana::from(n));
-        ExpressionBanana::List(list.into())
+        let list = value.map(|n| Expression::from(n));
+        Expression::List(list.into())
     }
 }
 

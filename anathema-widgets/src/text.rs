@@ -210,7 +210,7 @@ impl WidgetFactory for SpanFactory {
 
 #[cfg(test)]
 mod test {
-    use anathema_values::ExpressionBanana;
+    use anathema_values::Expression;
     use anathema_widget_core::testing::{expression, FakeTerm};
 
     use crate::testing::test_widget;
@@ -256,7 +256,7 @@ mod test {
             expression(
                 "text",
                 Some("hello how are you".into()),
-                [("wrap".into(), ExpressionBanana::from("overflow"))],
+                [("wrap".into(), Expression::from("overflow"))],
                 [],
             ),
             FakeTerm::from_str(
@@ -277,7 +277,7 @@ mod test {
             expression(
                 "text",
                 Some("hellohowareyoudoing".into()),
-                [("wrap".into(), ExpressionBanana::from("break"))],
+                [("wrap".into(), Expression::from("break"))],
                 [],
             ),
             FakeTerm::from_str(
@@ -322,7 +322,7 @@ mod test {
             expression(
                 "text",
                 Some("a one xxxxxxxxxxxxxxxxxx".into()),
-                [("text-align".into(), ExpressionBanana::from("right"))],
+                [("text-align".into(), Expression::from("right"))],
                 [],
             ),
             FakeTerm::from_str(
@@ -343,7 +343,7 @@ mod test {
             expression(
                 "text",
                 Some("a one xxxxxxxxxxxxxxxxxx".into()),
-                [("text-align".into(), ExpressionBanana::from("center"))],
+                [("text-align".into(), Expression::from("center"))],
                 [],
             ),
             FakeTerm::from_str(

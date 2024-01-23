@@ -2,8 +2,8 @@ use std::rc::Rc;
 
 use anathema_compiler::Instruction;
 use anathema_values::hashmap::HashMap;
-use anathema_values::{Attributes, Constants, StringId, ExpressionBanana, ViewId, Visibility};
-use anathema_widget_core::expressions::{
+use anathema_values::{Attributes, Constants, StringId, Expression, ViewId, Visibility};
+use anathema_widget_core::nodes::{
     ControlFlow, ElseExpr, Node, IfExpr, LoopExpr, SingleNodeExpr, ViewExpr,
 };
 
@@ -121,9 +121,13 @@ impl<'vm> Scope<'vm> {
                         panic!("store globals in the vars, not done yet");
                     }
 
-                    let lhs = ExpressionBanana::Ident(self.consts.lookup_string(binding).into()).into();
-                    let rhs = self.consts.lookup_value(value).into();
-                    let expr = Node::Assignment { lhs, rhs };
+                    let ident = self.consts.lookup_string(binding).into();
+                    let lhs = Expression::Ident(ident).into();
+                    let rhs = self.consts.lookup_value(value);
+                    let expr = Node::Assignment { lhs, rhs: rhs.clone() };
+
+                    vars.declare(binding, rhs);
+
                     nodes.push(expr);
                 }
                 Instruction::Assignment { lhs, rhs } => {
@@ -167,7 +171,7 @@ impl<'vm> Scope<'vm> {
     ) -> Result<Node> {
         let ident = self.consts.lookup_string(ident);
 
-        let mut text = None::<ExpressionBanana>;
+        let mut text = None::<Expression>;
         // let mut attributes = Attributes::new();
         let attributes = self.attributes();
         let mut ip = 0;
@@ -241,7 +245,7 @@ mod test {
             }
         }
 
-        fn exec(mut self) -> Result<Box<[ExpressionBanana]>> {
+        fn exec(mut self) -> Result<Box<[Expression]>> {
             let Self {
                 consts,
                 mut views,
@@ -262,7 +266,7 @@ mod test {
             self.instructions.push(inst);
         }
 
-        fn for_loop(&mut self, binding: &str, data: impl Into<ExpressionBanana>, size: usize) {
+        fn for_loop(&mut self, binding: &str, data: impl Into<Expression>, size: usize) {
             let binding = self.consts.store_string(binding);
             let data = self.consts.store_value(data.into());
             let inst = Instruction::For {
@@ -273,26 +277,26 @@ mod test {
             self.instructions.push(inst);
         }
 
-        fn if_stmt(&mut self, cond: impl Into<ExpressionBanana>, size: usize) {
+        fn if_stmt(&mut self, cond: impl Into<Expression>, size: usize) {
             let cond = self.consts.store_value(cond.into());
             let inst = Instruction::If { cond, size };
             self.instructions.push(inst);
         }
 
-        fn else_stmt(&mut self, cond: Option<impl Into<ExpressionBanana>>, size: usize) {
+        fn else_stmt(&mut self, cond: Option<impl Into<Expression>>, size: usize) {
             let cond = cond.map(|cond| self.consts.store_value(cond.into()));
             let inst = Instruction::Else { cond, size };
             self.instructions.push(inst);
         }
 
-        fn attrib(&mut self, key: &str, value: impl Into<ExpressionBanana>) {
+        fn attrib(&mut self, key: &str, value: impl Into<Expression>) {
             let key = self.consts.store_string(key);
             let value = self.consts.store_value(value.into());
             let inst = Instruction::LoadAttribute { key, value };
             self.instructions.push(inst);
         }
 
-        fn decl(&mut self, visibility: Visibility, binding: &str, value: impl Into<ExpressionBanana>) {
+        fn decl(&mut self, visibility: Visibility, binding: &str, value: impl Into<Expression>) {
             let binding = self.consts.store_string(binding);
             let value = self.consts.store_value(value.into());
             let inst = Instruction::Declaration {
@@ -303,11 +307,11 @@ mod test {
             self.instructions.push(inst);
         }
 
-        fn local(&mut self, binding: &str, value: impl Into<ExpressionBanana>) {
+        fn local(&mut self, binding: &str, value: impl Into<Expression>) {
             self.decl(Visibility::Local, binding, value)
         }
 
-        fn global(&mut self, binding: &str, value: impl Into<ExpressionBanana>) {
+        fn global(&mut self, binding: &str, value: impl Into<Expression>) {
             self.decl(Visibility::Global, binding, value)
         }
     }

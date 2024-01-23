@@ -5,7 +5,7 @@ mod vm;
 
 use anathema_values::hashmap::HashMap;
 use anathema_values::{ViewId, ViewIds};
-use anathema_widget_core::expressions::{root_view, Node};
+use anathema_widget_core::nodes::{root_view, Node};
 use anathema_widget_core::views::{AnyView, RegisteredViews, View};
 pub use vm::VirtualMachine;
 

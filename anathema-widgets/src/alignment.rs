@@ -90,18 +90,18 @@ impl WidgetFactory for AlignmentFactory {
 
 #[cfg(test)]
 mod test {
-    use anathema_values::ExpressionBanana;
+    use anathema_values::Expression;
     use anathema_widget_core::testing::{expression, FakeTerm};
 
     use super::*;
     use crate::testing::test_widget;
 
     fn align_widget(align: Align, expected: FakeTerm) {
-        let text = expression("text", ExpressionBanana::String("AB".into()), [], []);
+        let text = expression("text", Expression::String("AB".into()), [], []);
         let alignment = expression(
             "alignment",
             None,
-            [("align".into(), ExpressionBanana::String(align.to_string().into()))],
+            [("align".into(), Expression::String(align.to_string().into()))],
             [text],
         );
         test_widget(alignment, expected);
