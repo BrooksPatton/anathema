@@ -91,14 +91,14 @@ use std::ops::ControlFlow;
 
 use anathema_values::{
     Change, Context, Deferred, Immediate, NextNodeId, NodeId, OwnedScopeValues, ScopeValue, Scopes,
-    Value, ExpressionBanana, ValueRef,
+    Value, Expression, ValueRef,
 };
 
 pub(crate) use self::controlflow::IfElse;
 pub(crate) use self::loops::LoopNode;
 use self::query::Query;
 use crate::error::Result;
-use crate::expressions::{Collection, Node, ViewState};
+use crate::nodes::{Collection, Node, ViewState};
 use crate::views::{AnyView, Views};
 use crate::{Event, WidgetContainer};
 
@@ -106,7 +106,7 @@ mod controlflow;
 mod loops;
 mod query;
 
-pub fn make_it_so<'e>(expressions: &'e [crate::expressions::Node]) -> Elements<'e> {
+pub fn make_it_so<'e>(expressions: &'e [crate::nodes::Node]) -> Elements<'e> {
     Elements::new(expressions, 0.into())
 }
 
@@ -553,7 +553,7 @@ fn update(nodes: &mut [Element<'_>], node_id: &[usize], change: &Change, context
 mod test {
     use anathema_render::Size;
     use anathema_values::testing::{ident, list};
-    use anathema_values::ExpressionBanana;
+    use anathema_values::Expression;
 
     use crate::testing::expressions::{expression, for_expression, if_expression};
     use crate::testing::nodes::*;
@@ -579,7 +579,7 @@ mod test {
 
     #[test]
     fn for_loop_from_state() {
-        let string = ExpressionBanana::Ident("item".into());
+        let string = Expression::Ident("item".into());
         let body = expression("test", Some(string), [], []);
         let exprs = vec![for_expression("item", ident("generic_list"), [body])];
         let mut runtime = test_runtime(&exprs);

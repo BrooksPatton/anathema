@@ -1,13 +1,13 @@
-use anathema_values::{Attributes, Path, ExpressionBanana};
+use anathema_values::{Attributes, Path, Expression};
 
-use crate::expressions::{
+use crate::nodes::{
     ControlFlow, ElseExpr, Node, IfExpr, LoopExpr, SingleNodeExpr, ViewExpr,
 };
 
 pub fn expression(
     ident: impl Into<String>,
-    text: impl Into<Option<ExpressionBanana>>,
-    attributes: impl IntoIterator<Item = (String, ExpressionBanana)>,
+    text: impl Into<Option<Expression>>,
+    attributes: impl IntoIterator<Item = (String, Expression)>,
     children: impl Into<Vec<Node>>,
 ) -> Node {
     let children = children.into();
@@ -22,7 +22,7 @@ pub fn expression(
 #[allow(clippy::boxed_local)]
 pub fn for_expression<'e>(
     binding: impl Into<String>,
-    collection: Box<ExpressionBanana>,
+    collection: Box<Expression>,
     body: impl Into<Vec<Node>>,
 ) -> Node {
     Node::Loop(LoopExpr {
@@ -33,8 +33,8 @@ pub fn for_expression<'e>(
 }
 
 pub fn if_expression(
-    if_true: (ExpressionBanana, Vec<Node>),
-    elses: Vec<(Option<ExpressionBanana>, Vec<Node>)>,
+    if_true: (Expression, Vec<Node>),
+    elses: Vec<(Option<Expression>, Vec<Node>)>,
 ) -> Node {
     Node::ControlFlow(ControlFlow {
         if_expr: IfExpr {
@@ -51,7 +51,7 @@ pub fn if_expression(
     })
 }
 
-pub fn view_expression(id: usize, state: Option<ExpressionBanana>, body: Vec<Node>) -> Node {
+pub fn view_expression(id: usize, state: Option<Expression>, body: Vec<Node>) -> Node {
     Node::View(ViewExpr {
         id,
         state,

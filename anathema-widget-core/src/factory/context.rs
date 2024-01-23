@@ -56,7 +56,7 @@ impl<'a> FactoryContext<'a> {
 #[cfg(test)]
 mod test {
     use anathema_values::testing::TestState;
-    use anathema_values::ExpressionBanana;
+    use anathema_values::Expression;
 
     use super::*;
 
@@ -65,7 +65,7 @@ mod test {
         let state = TestState::new();
         let ctx = Context::root(&state);
         let mut attributes = Attributes::new();
-        attributes.insert("name".to_string(), ExpressionBanana::Ident("name".into()));
+        attributes.insert("name".to_string(), Expression::Ident("name".into()));
 
         let ctx = FactoryContext::new(&ctx, 0.into(), "border", &attributes, Value::Empty);
 

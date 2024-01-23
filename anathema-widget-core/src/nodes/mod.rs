@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use anathema_render::Size;
 use anathema_values::{
-    Attributes, Context, Deferred, DynValue, ExpressionBanana, ExpressionMap, Expressions,
+    Attributes, Context, Deferred, DynValue, Expression, ExpressionMap, Expressions,
     Immediate, NextNodeId, NodeId, OwnedScopeValues, Path, Scope, State, Value, ValueId, ValueRef,
 };
 
@@ -33,7 +33,7 @@ pub fn root_view(body: Vec<Node>, id: usize) -> Node {
 #[derive(Debug, Clone)]
 pub struct SingleNodeExpr {
     pub ident: String,
-    pub text: Option<ExpressionBanana>,
+    pub text: Option<Expression>,
     pub attributes: Attributes,
     pub children: Vec<Node>,
 }
@@ -84,10 +84,10 @@ impl SingleNodeExpr {
 // -----------------------------------------------------------------------------
 #[derive(Debug)]
 pub(crate) enum Collection<'e> {
-    Static(&'e [ExpressionBanana]),
+    Static(&'e [Expression]),
     State {
         len: usize,
-        expr: &'e ExpressionBanana,
+        expr: &'e Expression,
     },
     Empty,
 }
@@ -96,14 +96,14 @@ pub(crate) enum Collection<'e> {
 pub struct LoopExpr {
     pub body: Vec<Node>, // make this Rc<[Expression]>,
     pub binding: String,             // TODO: make this an Rc<str>
-    pub collection: ExpressionBanana,
+    pub collection: Expression,
 }
 
 impl LoopExpr {
     fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId) -> Result<Element<'e>> {
         // Need to know if this is a collection or a path
         let collection = match &self.collection {
-            ExpressionBanana::List(list) => Collection::Static(list),
+            Expression::List(list) => Collection::Static(list),
             col => {
                 let mut resolver = Deferred::new(context.lookup());
                 let val = col.eval(&mut resolver);
@@ -176,7 +176,7 @@ impl ControlFlow {
 
 pub(crate) enum ViewState<'e> {
     Dynamic(&'e dyn State),
-    External { expr: &'e ExpressionBanana },
+    External { expr: &'e Expression },
     Map(ExpressionMap<'e>),
     Internal,
 }
@@ -184,7 +184,7 @@ pub(crate) enum ViewState<'e> {
 #[derive(Debug, Clone)]
 pub struct ViewExpr {
     pub id: usize,
-    pub state: Option<ExpressionBanana>,
+    pub state: Option<Expression>,
     pub body: Vec<Node>,
     pub attributes: Attributes,
 }
@@ -226,9 +226,6 @@ impl ViewExpr {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct AssignmentExpr {}
-
 // -----------------------------------------------------------------------------
 //   - Expression -
 // -----------------------------------------------------------------------------
@@ -240,8 +237,8 @@ pub enum Node {
     ControlFlow(ControlFlow),
     // Declaration(ValueExpr),
     Assignment {
-        lhs: ExpressionBanana,
-        rhs: ExpressionBanana,
+        lhs: Expression,
+        rhs: Expression,
     },
 }
 
@@ -311,7 +308,7 @@ mod test {
     use crate::testing::expressions::{expression, for_expression, if_expression, view_expression};
     use crate::testing::nodes::*;
 
-    impl ExpressionBanana {
+    impl Expression {
         pub fn test(self) -> TestExpression<TestState> {
             register_test_widget();
 

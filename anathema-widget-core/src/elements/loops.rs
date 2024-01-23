@@ -6,7 +6,7 @@ use anathema_values::{
 
 use super::Elements;
 use crate::error::Result;
-use crate::expressions::{Collection, Node};
+use crate::nodes::{Collection, Node};
 use crate::WidgetContainer;
 
 /// An iteration inside a loop node.
