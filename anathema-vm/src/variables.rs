@@ -274,8 +274,8 @@ impl Variables {
 
         if decl_scope_id < &self.current {
             // insert dyn value with the new value id and the original value id
-            let dyn_value = Value2::Dyn(decl_value_id, value_id);
-            let dyn_value_id = self.store.push(dyn_value);
+            let dyn_value = panic!(); //Value2::Dyn(decl_value_id, value_id);
+            let dyn_value_id = self.store.push(dyn_value).into();
             self.declare_at(ident, dyn_value_id, decl_scope_id.clone());
         }
 
