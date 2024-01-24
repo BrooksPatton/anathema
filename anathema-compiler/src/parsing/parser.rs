@@ -1,4 +1,4 @@
-use anathema_values::{Constants, StringId, Expression, ValueId, ViewId, ViewIds, Visibility};
+use anathema_values::{Constants, Expression, StringId, ValueId, ViewId, ViewIds, Visibility};
 
 use super::pratt::{eval, expr};
 use crate::error::{src_line_no, Error, ErrorKind, Result};
@@ -23,8 +23,8 @@ pub enum Statement {
         value: ValueId,
     },
     Assignment {
-        binding: StringId,
-        value: ValueId,
+        lhs: ValueId,
+        rhs: ValueId,
     },
     If(ValueId),
     Else(Option<ValueId>),
@@ -39,6 +39,7 @@ enum State {
     ExitScope,
     ParseFor,
     ParseIf,
+    ParseAssignment,
     ParseDeclaration,
     ParseView,
     ParseIdent,
@@ -121,6 +122,7 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
                 State::ParseFor => self.parse_for(),
                 State::ParseIf => self.parse_if(),
                 State::ParseDeclaration => self.parse_declaration(),
+                State::ParseAssignment => self.parse_assignment(),
                 State::ParseView => self.parse_view(),
                 State::ExitScope => self.exit_scope(),
                 State::ParseIdent => self.parse_ident(),
@@ -148,7 +150,8 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
             State::ExitScope => self.state = State::ParseFor,
             State::ParseFor => self.state = State::ParseIf,
             State::ParseIf => self.state = State::ParseDeclaration,
-            State::ParseDeclaration => self.state = State::ParseView,
+            State::ParseDeclaration => self.state = State::ParseAssignment,
+            State::ParseAssignment => self.state = State::ParseView,
             State::ParseView => self.state = State::ParseIdent,
             State::ParseIdent => self.state = State::ParseAttributes,
             State::ParseAttributes => self.state = State::ParseAttribute,
@@ -159,7 +162,7 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
     }
 
     // -----------------------------------------------------------------------------
-    //     - Stage 1: Parse enter / exit scopes -
+    //     - Stage 1: Parse enter / exit scopes and assignments -
     // -----------------------------------------------------------------------------
     fn enter_scope(&mut self) -> Result<Option<Statement>> {
         let indent = self.tokens.read_indent();
@@ -254,14 +257,6 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
 
         let ident = self.read_ident()?;
 
-        // If the next value is `=` then it's an assignment
-
-        // NOTE: this doesn't quite work as we need the ident for the binary expr
-        // if the next token is `=` then parse assignment instead
-        // if Kind::Newline == self.tokens.peek() {
-        //     return self.parse_assignment(ident);
-        // }
-
         self.tokens.consume_indent();
         self.next_state();
         Ok(Some(Statement::Node(ident)))
@@ -321,40 +316,55 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
         }
     }
 
-    fn parse_declaration(&mut self) -> std::result::Result<Option<Statement>, Error> {
-        match self.tokens.peek_skip_indent() {
-            Kind::Local | Kind::Global => {
-                let expr = expr(&mut self.tokens);
-                match eval(expr, self.consts) {
-                    Expression::Declaration {
-                        visibility,
-                        binding,
-                        value,
-                    } => {
-                        let binding = self.consts.store_string(&*binding);
-                        let value = self.consts.store_value(*value);
-                        Ok(Some(Statement::Declaration {
-                            visibility,
-                            binding,
-                            value,
-                        }))
-                    }
-                    _ => panic!("change this to an Error::InvalidDeclaration"),
-                }
+    fn parse_assignment(&mut self) -> Result<Option<Statement>> {
+        // If the current line contains Op::Equal then it's an assignment
+        self.next_state();
+        if self.tokens.line_contains(Kind::Equal) {
+            let lhs = eval(expr(&mut self.tokens), self.consts);
+
+            if let Kind::Equal = self.tokens.peek_skip_indent() {
+                self.tokens.consume();
             }
-            _ => {
-                self.next_state();
-                Ok(None)
-            }
+
+            let rhs = eval(expr(&mut self.tokens), self.consts);
+            let lhs = self.consts.store_value(lhs);
+            let rhs = self.consts.store_value(rhs);
+            Ok(Some(Statement::Assignment { lhs, rhs }))
+        } else {
+            Ok(None)
         }
     }
 
-    // fn parse_assignment(&mut self, ident: StringId) -> std::result::Result<Option<Expression>, Error> {
-    //     // local x = 1 <- declr
-    //     // x = 1       <- assignment
+    fn parse_declaration(&mut self) -> Result<Option<Statement>> {
+        let visibility = match self.tokens.peek_skip_indent() {
+            Kind::Local => Visibility::Local,
+            Kind::Global => Visibility::Global,
+            _ => {
+                self.next_state();
+                return Ok(None);
+            }
+        };
+        self.tokens.consume();
 
-    //     panic!()
-    // }
+        let binding = self.read_ident()?;
+
+        if let Kind::Equal = self.tokens.peek_skip_indent() {
+            self.tokens.consume();
+            let expr = expr(&mut self.tokens);
+            let value_expr = eval(expr, self.consts);
+            let value = self.consts.store_value(value_expr);
+            self.next_state();
+            let statement = Statement::Declaration {
+                visibility,
+                binding,
+                value,
+            };
+            return Ok(Some(statement));
+        }
+
+        self.next_state();
+        return Ok(None);
+    }
 
     fn parse_view(&mut self) -> Result<Option<Statement>> {
         if Kind::View != self.tokens.peek_skip_indent() {
@@ -820,9 +830,28 @@ mod test {
     }
 
     #[test]
+    fn parse_ident_assignment() {
+        let src = "x = 1";
+        let mut expressions = parse_ok(src);
+        assert!(matches!(
+            expressions.remove(0),
+            Statement::Assignment { .. }
+        ));
+    }
+
+    #[test]
+    fn parse_complex_assignment() {
+        let src = "x[1]['omg'] = x[2]";
+        let mut expressions = parse_ok(src);
+        assert!(matches!(
+            expressions.remove(0),
+            Statement::Assignment { .. }
+        ));
+    }
+
+    #[test]
     fn parse_invalid_declaration() {
         let src = "local x = global y = 1";
-        let mut expressions = parse_err(src);
-        // assert!(matches!(expressions.remove(0), Expression::Declaration { .. }));
+        let err = parse_err(src);
     }
 }

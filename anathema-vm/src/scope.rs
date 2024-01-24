@@ -2,13 +2,12 @@ use std::rc::Rc;
 
 use anathema_compiler::Instruction;
 use anathema_values::hashmap::HashMap;
-use anathema_values::{Attributes, Constants, StringId, Expression, ViewId, Visibility};
+use anathema_values::{Attributes, Constants, StringId, Expression, ViewId, Visibility, Variables};
 use anathema_widget_core::nodes::{
     ControlFlow, ElseExpr, Node, IfExpr, LoopExpr, SingleNodeExpr, ViewExpr,
 };
 
 use crate::error::Result;
-use crate::variables::Variables;
 use crate::ViewTemplates;
 
 pub(crate) struct Scope<'vm> {
@@ -121,8 +120,8 @@ impl<'vm> Scope<'vm> {
                         panic!("store globals in the vars, not done yet");
                     }
 
-                    let ident = self.consts.lookup_string(binding).into();
-                    let lhs = Expression::Ident(ident).into();
+                    let binding: Rc<str> = self.consts.lookup_string(binding).into();
+                    let lhs = Expression::Ident(binding.clone()).into();
                     let rhs = self.consts.lookup_value(value);
                     let expr = Node::Assignment { lhs, rhs: rhs.clone() };
 

@@ -23,7 +23,6 @@ pub enum Operator {
     MulEqual,
     DivEqual,
     ModEqual,
-    Equal,
     EqualEqual,
     LessThan,
     LessThanOrEqual,
@@ -54,7 +53,6 @@ impl Display for Operator {
             Self::MulEqual => write!(f, "*="),
             Self::DivEqual => write!(f, "/="),
             Self::ModEqual => write!(f, "%="),
-            Self::Equal => write!(f, "="),
             Self::EqualEqual => write!(f, "=="),
             Self::LessThan => write!(f, "<"),
             Self::LessThanOrEqual => write!(f, "<="),
@@ -99,6 +97,7 @@ impl Display for Value {
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub(crate) enum Kind {
+    Equal,
     For,
     In,
     If,
@@ -125,6 +124,7 @@ impl Kind {
 impl Display for Kind {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Equal => write!(f, "="),
             Self::For => write!(f, "<for>"),
             Self::In => write!(f, "<in>"),
             Self::If => write!(f, "<if>"),
@@ -258,5 +258,20 @@ impl Tokens {
             }
             _ => None,
         }
+    }
+
+    pub(crate) fn line_contains(&self, kind: Kind) -> bool {
+        let tokens = &self.inner[self.index..];
+        for token in tokens {
+            if token.0 == kind {
+                return true;
+            }
+
+            match token.0 {
+                Kind::Newline | Kind::Eof => break,
+                _ => continue
+            }
+        }
+        false
     }
 }

@@ -25,22 +25,6 @@ pub fn eval(expr: Expr, consts: &Constants) -> Expression {
             let index = eval(*index, consts);
             Expression::Index(lhs.into(), index.into())
         }
-        Expr::Local { ident, value } => {
-            let ident = consts.lookup_string(ident);
-            Expression::Declaration {
-                visibility: Visibility::Local,
-                binding: Rc::from(ident),
-                value: eval(*value, consts).into(),
-            }
-        }
-        Expr::Global { ident, value } => {
-            let ident = consts.lookup_string(ident);
-            Expression::Declaration {
-                visibility: Visibility::Global,
-                binding: Rc::from(ident),
-                value: eval(*value, consts).into(),
-            }
-        }
         Expr::Binary { op, lhs, rhs } => match op {
             Operator::Dot => Expression::Dot(eval(*lhs, consts).into(), eval(*rhs, consts).into()),
             Operator::Mul | Operator::Plus | Operator::Minus | Operator::Div | Operator::Mod => {
@@ -280,17 +264,5 @@ mod test {
     fn function_call() {
         let expr = eval_str("fun(5, 4)");
         assert_eq!(expr.to_string(), "fun(5, 4)");
-    }
-
-    #[test]
-    fn global_declaration() {
-        let expr = eval_str("global a = 2");
-        assert_eq!(expr.to_string(), "global a = 2");
-    }
-
-    #[test]
-    fn local_declaration() {
-        let expr = eval_str("local a = b + 2");
-        assert_eq!(expr.to_string(), "local a = b + 2");
     }
 }

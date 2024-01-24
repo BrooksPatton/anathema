@@ -22,7 +22,6 @@ pub mod prec {
 
 fn get_precedence(op: Operator) -> u8 {
     match op {
-        Operator::Equal => prec::ASSIGNMENT,
         Operator::GreaterThan
         | Operator::GreaterThanOrEqual
         | Operator::LessThan
@@ -57,14 +56,6 @@ pub enum Expr {
     Call {
         fun: Box<Expr>,
         args: Vec<Expr>,
-    },
-    Local {
-        ident: StringId,
-        value: Box<Expr>,
-    },
-    Global {
-        ident: StringId,
-        value: Box<Expr>,
     },
     Array {
         lhs: Box<Expr>,
@@ -110,8 +101,6 @@ impl Display for Expr {
                     .join(", ");
                 write!(f, "{fun}({s})")
             }
-            Expr::Local { ident, value } => write!(f, "local {ident} = {value}"),
-            Expr::Global { ident, value } => write!(f, "global {ident} = {value}"),
         }
     }
 }
@@ -135,30 +124,6 @@ fn expr_bp(tokens: &mut Tokens, precedence: u8) -> Expr {
             ));
             left
         }
-        Kind::Local => match expr_bp(tokens, precedence) {
-            Expr::Binary {
-                lhs,
-                rhs,
-                op: Operator::Equal,
-            } => match *lhs {
-                Expr::Ident(ident) => return Expr::Local { ident, value: rhs },
-                _ => panic!("invalid identifier"),
-            },
-            w => panic!("{w:#?}"),
-            _ => panic!("invalid declaration"),
-        },
-        Kind::Global => match expr_bp(tokens, precedence) {
-            Expr::Binary {
-                lhs,
-                rhs,
-                op: Operator::Equal,
-            } => match *lhs {
-                Expr::Ident(ident) => return Expr::Global { ident, value: rhs },
-                _ => panic!("invalid identifier"),
-            },
-            w => panic!("{w:#?}"),
-            _ => panic!("invalid declaration"),
-        },
         Kind::Op(op) => Expr::Unary {
             op,
             expr: Box::new(expr_bp(tokens, prec::PREFIX)),
@@ -405,31 +370,5 @@ mod test {
     fn map() {
         let input = "{a: 1, b: c}";
         assert_eq!(parse(input), "{<sid 0>: 1, <sid 1>: <sid 2>}");
-    }
-
-    #[test]
-    fn global_declaration() {
-        let input = "global key = val + 1";
-        let output = parse_expr(input);
-        assert_eq!(parse(input), "global <sid 0> = (+ <sid 1> 1)");
-    }
-
-    #[test]
-    fn local_declaration() {
-        let input = "local key = val";
-        let output = parse_expr(input);
-        assert_eq!(parse(input), "local <sid 0> = <sid 1>");
-    }
-
-    #[test]
-    fn ident_assignment() {
-        let input = "key = val";
-        assert_eq!(parse(input), "(= <sid 0> <sid 1>)");
-    }
-
-    #[test]
-    fn map_assignment() {
-        let input = "key['lol'] = flopp";
-        assert_eq!(parse(input), "(= <sid 0>[\"<sid 1>\"] <sid 2>)");
     }
 }

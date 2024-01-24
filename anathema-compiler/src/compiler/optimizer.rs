@@ -38,8 +38,8 @@ pub(crate) enum Statement {
         value: ValueId,
     },
     Assignment {
-        binding: StringId,
-        value: ValueId,
+        lhs: ValueId,
+        rhs: ValueId,
     },
 }
 
@@ -146,8 +146,8 @@ impl Optimizer {
                     binding,
                     value,
                 },
-                &ParseStatement::Assignment { binding, value } => {
-                    Statement::Assignment { binding, value }
+                &ParseStatement::Assignment { lhs, rhs } => {
+                    Statement::Assignment { lhs, rhs }
                 }
                 ParseStatement::Eof => continue, // noop, we don't care about EOF
                 ParseStatement::ScopeEnd => unreachable!("scopes are consumed by `opt_scope`"),

@@ -1,10 +1,9 @@
 use anathema_compiler::Instruction;
-use anathema_values::Constants;
+use anathema_values::{Constants, Variables};
 use anathema_widget_core::nodes::Node;
 
 use crate::error::Result;
 use crate::scope::Scope;
-use crate::variables::Variables;
 use crate::ViewTemplates;
 
 pub struct VirtualMachine {

@@ -1,9 +1,24 @@
 use std::rc::Rc;
 
 use crate::hashmap::HashMap;
-use crate::{Owned, Slab, StringId, Expression, ValueId};
+use crate::{Expression, Owned, Slab};
 
 const INDENT: usize = 4;
+
+#[derive(Debug, Copy, Clone)]
+pub struct VarId(usize);
+
+impl From<usize> for VarId {
+    fn from(value: usize) -> Self {
+        Self(value)
+    }
+}
+
+impl From<VarId> for usize {
+    fn from(value: VarId) -> Self {
+        value.0
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Variable {
@@ -108,13 +123,13 @@ impl RootScope {
         self.0.create_child()
     }
 
-    fn insert(&mut self, ident: StringId, value: ValueId) {
-        self.0.insert(ident, value)
+    fn insert(&mut self, ident: Rc<str>, var: VarId) {
+        self.0.insert(ident, var)
     }
 
-    fn insert_at(&mut self, ident: StringId, value: ValueId, id: impl AsRef<[u16]>) {
+    fn insert_at(&mut self, ident: Rc<str>, var: VarId, id: impl AsRef<[u16]>) {
         let scope = self.get_scope_mut(id);
-        scope.insert(ident, value)
+        scope.insert(ident, var)
     }
 
     fn get_scope_mut(&mut self, id: impl AsRef<[u16]>) -> &mut Scope {
@@ -141,12 +156,12 @@ impl RootScope {
     //
     // If there is no value with the given ident within reach
     // then return `None`.
-    fn get_value_id(&self, id: impl AsRef<[u16]>, ident: StringId) -> Option<ValueId> {
+    fn get_var_id(&self, id: impl AsRef<[u16]>, ident: Rc<str>) -> Option<VarId> {
         let mut scope = &self.0;
         let mut id = &id.as_ref()[1..];
-        let mut value = self
+        let mut var = self
             .0
-            .values
+            .variables
             .get(&ident)
             .and_then(|values| values.last())
             .copied();
@@ -156,23 +171,23 @@ impl RootScope {
             id = &id[1..];
 
             if let val @ Some(_) = scope
-                .values
+                .variables
                 .get(&ident)
                 .and_then(|values| values.last())
                 .copied()
             {
-                value = val;
+                var = val;
             }
         }
 
-        value
+        var
     }
 }
 
 /// A scope stores versioned values
 #[derive(Debug)]
 pub struct Scope {
-    values: HashMap<StringId, Vec<ValueId>>,
+    variables: HashMap<Rc<str>, Vec<VarId>>,
     id: ScopeId,
     children: Vec<Scope>,
 }
@@ -181,7 +196,7 @@ impl Scope {
     fn new(id: ScopeId) -> Self {
         Self {
             id,
-            values: Default::default(),
+            variables: Default::default(),
             children: vec![],
         }
     }
@@ -209,30 +224,30 @@ impl Scope {
     }
 
     // Every call to `insert` will shadow the previous value, not replace it.
-    fn insert(&mut self, ident: StringId, value: ValueId) {
-        let entry = self.values.entry(ident).or_default();
+    fn insert(&mut self, ident: Rc<str>, value: VarId) {
+        let entry = self.variables.entry(ident).or_default();
         entry.push(value);
     }
 }
 
 #[derive(Debug)]
-struct Declarations(HashMap<StringId, Vec<(ScopeId, ValueId)>>);
+struct Declarations(HashMap<Rc<str>, Vec<(ScopeId, VarId)>>);
 
 impl Declarations {
     fn new() -> Self {
         Self(HashMap::new())
     }
 
-    fn add(&mut self, ident: StringId, id: impl Into<ScopeId>, value_id: impl Into<ValueId>) {
+    fn add(&mut self, ident: Rc<str>, id: impl Into<ScopeId>, value_id: impl Into<VarId>) {
         let value_id = value_id.into();
         let ids = self.0.entry(ident).or_default();
         ids.push((id.into(), value_id));
     }
 
     // Get the scope id that is closest to the argument
-    fn get(&self, ident: StringId, id: impl AsRef<[u16]>) -> Option<(&ScopeId, ValueId)> {
+    fn get(&self, ident: &str, id: impl AsRef<[u16]>) -> Option<(&ScopeId, VarId)> {
         self.0
-            .get(&ident)
+            .get(&*ident)
             .unwrap()
             .iter()
             .rev()
@@ -252,7 +267,7 @@ impl Declarations {
 pub struct Variables {
     root: RootScope,
     current: ScopeId,
-    store: Slab<Variable>,
+    store: Slab<Expression>,
     declarations: Declarations,
 }
 
@@ -267,36 +282,45 @@ impl Variables {
         }
     }
 
-    fn declare_at(&mut self, ident: StringId, value_id: ValueId, id: ScopeId) -> ValueId {
+    fn declare_at(&mut self, ident: Rc<str>, var_id: VarId, id: ScopeId) -> VarId {
         let scope = self.root.get_scope_mut(id);
-        scope.insert(ident, value_id);
-        self.declarations.add(ident, scope.id.clone(), value_id);
-        value_id
+        scope.insert(ident.clone(), var_id);
+        self.declarations.add(ident, scope.id.clone(), var_id);
+        var_id
     }
 
-    pub fn declare(&mut self, ident: StringId, value: Variable) -> ValueId {
-        let value_id = self.store.push(value).into();
+    pub fn declare(&mut self, ident: Rc<str>, value: Expression) -> VarId {
+        let var_id = self.store.push(value).into();
         let scope_id = self.current.clone();
-        self.declare_at(ident, value_id, scope_id)
+        self.declare_at(ident, var_id, scope_id)
     }
 
-    pub fn assign(&mut self, ident: StringId, value: Variable) -> ValueId {
-        let value_id = self.store.push(value).into();
+    pub fn assign(&mut self, ident: Rc<str>, value: Expression) -> VarId {
+        let var_id = self.store.push(value).into();
         let scope = self.root.get_scope_mut(&self.current.0);
-        scope.insert(ident, value_id);
-        value_id
+        scope.insert(ident, var_id);
+
+        // Insert effect
+        if decl_scope_id < &self.current {
+            // insert dyn value with the new value id and the original value id
+            let dyn_value = Value2::Dyn(decl_value_id, value_id);
+            let dyn_value_id = self.store.push(dyn_value);
+            self.declare_at(ident, dyn_value_id, decl_scope_id.clone());
+        }
+
+        var_id
     }
 
     /// Fetch a value starting from the current path.
-    pub fn fetch(&self, ident: StringId) -> Option<Variable> {
+    pub fn fetch(&self, ident: Rc<str>) -> Option<Expression> {
         self.root
-            .get_value_id(&self.current, ident)
+            .get_var_id(&self.current, ident)
             .and_then(|id| self.store.get(id).cloned())
     }
 
-    pub fn by_value_ref(&self, value_ref: ValueId) -> Variable {
+    pub fn by_value_ref(&self, var: VarId) -> Expression {
         self.store
-            .get(value_ref)
+            .get(var)
             .cloned()
             .expect("it would be an Anathema compilation error if this failed")
     }
@@ -359,7 +383,7 @@ mod test {
 
         let mut root = RootScope::new();
         root.insert(VAR_IDENT, expected);
-        let actual = root.get_value_id(root.id(), VAR_IDENT).unwrap();
+        let actual = root.get_var_id(root.id(), VAR_IDENT).unwrap();
         assert_eq!(expected, actual);
     }
 
@@ -371,7 +395,7 @@ mod test {
         let child_id = root.create_child();
         let child = root.get_scope_mut(&child_id);
         child.insert(VAR_IDENT, expected);
-        let actual = root.get_value_id(&child_id, VAR_IDENT).unwrap();
+        let actual = root.get_var_id(&child_id, VAR_IDENT).unwrap();
         assert_eq!(expected, actual);
     }
 

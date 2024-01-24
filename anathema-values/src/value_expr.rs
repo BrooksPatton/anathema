@@ -218,12 +218,6 @@ pub enum Expression {
         args: Vec<Expression>,
     },
 
-    Declaration {
-        visibility: Visibility,
-        binding: Rc<str>,
-        value: Box<Expression>,
-    },
-
     Assignment {
         lhs: Box<Expression>,
         rhs: Box<Expression>,
@@ -282,11 +276,11 @@ impl Display for Expression {
                         .join(", ")
                 )
             }
-            Self::Declaration {
-                visibility,
-                binding: ident,
-                value,
-            } => write!(f, "{visibility} {ident} = {value}"),
+            // Self::Declaration {
+            //     visibility,
+            //     binding: ident,
+            //     value,
+            // } => write!(f, "{visibility} {ident} = {value}"),
             Self::Assignment { lhs, rhs } => write!(f, "{lhs} = {rhs}"),
         }
     }
@@ -483,13 +477,13 @@ impl Expression {
             // -----------------------------------------------------------------------------
             //   - Declaration and assignment -
             // -----------------------------------------------------------------------------
-            Self::Declaration {
-                visibility,
-                binding: ident,
-                value,
-            } => {
-                panic!()
-            }
+            // Self::Declaration {
+            //     visibility,
+            //     binding: ident,
+            //     value,
+            // } => {
+            //     panic!()
+            // }
 
             Self::Assignment { .. } => {
                 // NO NO NO: assignment to a non-existent value does NOT cause declaration

@@ -105,7 +105,7 @@ impl<'src, 'consts> Lexer<'src, 'consts> {
             ('%', _) => Ok(Kind::Op(Operator::Mod).to_token(index)),
             ('>', _) => Ok(Kind::Op(Operator::GreaterThan).to_token(index)),
             ('<', _) => Ok(Kind::Op(Operator::LessThan).to_token(index)),
-            ('=', _) => Ok(Kind::Op(Operator::Equal).to_token(index)),
+            ('=', _) => Ok(Kind::Equal.to_token(index)),
             ('\n', _) => Ok(Kind::Newline.to_token(index)),
             ('@', _) => Ok(Kind::View.to_token(index)),
 

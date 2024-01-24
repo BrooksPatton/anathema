@@ -1,6 +1,5 @@
 mod error;
 mod scope;
-mod variables;
 mod vm;
 
 use anathema_values::hashmap::HashMap;

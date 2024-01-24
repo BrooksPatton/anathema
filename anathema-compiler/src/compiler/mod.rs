@@ -1,7 +1,7 @@
 use anathema_values::{StringId, ValueId, ViewId, Visibility};
 
-use self::optimizer::Statement;
 pub(crate) use self::optimizer::Optimizer;
+use self::optimizer::Statement;
 use super::error::Result;
 
 mod optimizer;
@@ -83,9 +83,7 @@ impl Compiler {
                 Statement::View(view) => self.compile_view(*view),
                 Statement::LoadText(index) => self.compile_text(*index),
                 Statement::LoadAttribute { key, value } => self.compile_attribute(*key, *value),
-                Statement::If { cond, size } => {
-                    self.compile_control_flow(Branch::If(*cond), *size)
-                }
+                Statement::If { cond, size } => self.compile_control_flow(Branch::If(*cond), *size),
                 Statement::Else { cond, size } => {
                     self.compile_control_flow(Branch::Else(*cond), *size)
                 }
@@ -99,10 +97,7 @@ impl Compiler {
                     binding,
                     value,
                 } => self.compile_declaration(*visibility, *binding, *value),
-                Statement::Assignment {
-                    binding: ident,
-                    value,
-                } => panic!(),
+                Statement::Assignment { lhs, rhs } => self.compile_assignment(*lhs, *rhs),
             }?;
         }
         Ok(())
@@ -118,6 +113,18 @@ impl Compiler {
             visibility,
             binding,
             value,
+        });
+        Ok(())
+    }
+
+    fn compile_assignment(
+        &mut self,
+        lhs: ValueId,
+        rhs: ValueId,
+    ) -> Result<()> {
+        self.output.push(Instruction::Assignment {
+            lhs,
+            rhs,
         });
         Ok(())
     }
