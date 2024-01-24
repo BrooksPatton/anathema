@@ -296,17 +296,21 @@ impl Variables {
     }
 
     pub fn assign(&mut self, ident: Rc<str>, value: Expression) -> VarId {
+        // Find a parent declaration / assignment and push to phi values 
+
         let var_id = self.store.push(value).into();
         let scope = self.root.get_scope_mut(&self.current.0);
         scope.insert(ident, var_id);
 
+
         // Insert effect
-        if decl_scope_id < &self.current {
-            // insert dyn value with the new value id and the original value id
-            let dyn_value = Value2::Dyn(decl_value_id, value_id);
-            let dyn_value_id = self.store.push(dyn_value);
-            self.declare_at(ident, dyn_value_id, decl_scope_id.clone());
-        }
+        panic!("insert effect");
+        // if decl_scope_id < &self.current {
+        //     // insert dyn value with the new value id and the original value id
+        //     let dyn_value = panic!();//Expression::Dyn(decl_value_id, value_id);
+        //     let dyn_value_id = self.store.push(dyn_value);
+        //     self.declare_at(ident, dyn_value_id, decl_scope_id.clone());
+        // }
 
         var_id
     }
@@ -328,6 +332,7 @@ impl Variables {
     /// Create a new child and set the new childs id as the `current` id.
     /// Any operations done from here on out are acting upon the new child scope.
     pub fn new_child(&mut self) {
+        panic!("drain and insert phi");
         let parent = self.root.get_scope_mut(&self.current);
         self.current = parent.create_child();
     }
@@ -338,6 +343,7 @@ impl Variables {
     /// E.e if the current id is `[0, 1, 2]` `pop` would result in a new
     /// id of `[0, 1]`.
     pub fn pop(&mut self) {
+        panic!("drain and insert phi");
         self.current = self.current.parent().into();
     }
 }
