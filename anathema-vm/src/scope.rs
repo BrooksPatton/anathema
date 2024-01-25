@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use anathema_compiler::Instruction;
 use anathema_values::hashmap::HashMap;
-use anathema_values::{Attributes, Constants, StringId, Expression, ViewId, Visibility, Variables};
+use anathema_values::{Attributes, Constants, StringId, Expression, ViewId, Visibility, Variables, Locals};
 use anathema_widget_core::nodes::{
     ControlFlow, ElseExpr, Node, IfExpr, LoopExpr, SingleNodeExpr, ViewExpr,
 };

@@ -3,7 +3,7 @@ use std::rc::Rc;
 use anathema_render::Size;
 use anathema_values::{
     Attributes, Context, Deferred, DynValue, Expression, ExpressionMap, Expressions,
-    Immediate, NextNodeId, NodeId, OwnedScopeValues, Path, Scope, State, Value, ValueId, ValueRef,
+    Immediate, NextNodeId, NodeId, OwnedScopeValues, Path, Scope, State, Value, ValueId, ValueRef, Map, Locals,
 };
 
 pub use self::controlflow::{ElseExpr, IfExpr};
@@ -219,6 +219,7 @@ impl ViewExpr {
                 nodes: Elements::new(&self.body, node_id.child(0)),
                 state,
                 tabindex,
+                locals: panic!(),
             }),
             node_id,
         };

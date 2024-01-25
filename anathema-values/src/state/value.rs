@@ -73,6 +73,12 @@ where
     }
 }
 
+impl<T> Clone for StateValue<T> where T: Clone {
+    fn clone(&self) -> Self {
+        todo!()
+    }
+}
+
 impl<T> StateValue<T>
 where
     for<'b> &'b T: Into<ValueRef<'b>>,

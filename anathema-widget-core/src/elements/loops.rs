@@ -156,10 +156,10 @@ impl<'e> LoopNode<'e> {
             );
             scopes.scope_value(self.binding, iter.loop_value);
             inner_context.assign(&scopes);
-            let context = inner_context.into();
+            let mut context = inner_context.into();
 
             if iter.node_id.contains(node_id) {
-                iter.body.update(node_id, change, &context);
+                iter.body.update(node_id, change, &mut context);
                 break;
             }
         }

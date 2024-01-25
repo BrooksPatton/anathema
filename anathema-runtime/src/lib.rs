@@ -1,6 +1,7 @@
 use std::io::{stdout, Stdout};
 use std::time::{Duration, Instant};
 
+use anathema::Locals;
 use anathema_render::{size, Screen, Size};
 use anathema_values::{drain_dirty_nodes, Context};
 use anathema_vm::CompiledTemplates;
@@ -76,6 +77,7 @@ pub struct Runtime<'e> {
     needs_layout: bool,
     meta: meta::Meta,
     tabindex: TabIndexing,
+    locals: Locals,
 }
 
 impl<'e> Drop for Runtime<'e> {
@@ -110,13 +112,14 @@ impl<'e> Runtime<'e> {
             tabindex: TabIndexing::new(),
             enable_ctrlc: true,
             enable_tabindex: false,
+            locals: Locals::default(),
         };
 
         Ok(inst)
     }
 
     fn layout(&mut self) -> Result<()> {
-        let mut context = Context::root(&self.meta);
+        let mut context = Context::root(&self.meta, Some(&mut self.locals));
 
         let mut nodes = LayoutNodes::new(&mut self.nodes, self.constraints, &mut context);
 
@@ -150,10 +153,10 @@ impl<'e> Runtime<'e> {
         self.needs_layout = true;
 
         let state = &self.meta;
-        let context = Context::root(state);
+        let mut context = Context::root(&self.meta, Some(&mut self.locals));
 
         for (node_id, change) in dirty_nodes {
-            self.nodes.update(node_id.as_slice(), &change, &context);
+            self.nodes.update(node_id.as_slice(), &change, &mut context);
         }
     }
 

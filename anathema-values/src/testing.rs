@@ -56,27 +56,31 @@ where
     for<'a> &'a T: Into<ValueRef<'a>>,
 {
     pub fn cmp(&self, other: ValueRef<'_>) {
-        let context = Context::root(&self.state);
+        let mut map = Default::default();
+        let context = Context::root(&self.state, Some(&mut map));
         let mut resolver = Immediate::new(context.lookup(), &self.node_id);
         let val = self.expr.eval(&mut resolver);
         assert_eq!(val, other)
     }
 
     pub fn expect_string(&self, cmp: &str) {
-        let context = Context::root(&self.state);
+        let mut map = Default::default();
+        let context = Context::root(&self.state, Some(&mut map));
         let mut resolver = Immediate::new(context.lookup(), &self.node_id);
         let s = self.expr.eval_string(&mut resolver).unwrap();
         assert_eq!(s, cmp);
     }
 
     pub fn eval_bool(&self, b: bool) -> bool {
-        let context = Context::root(&self.state);
+        let mut map = Default::default();
+        let context = Context::root(&self.state, Some(&mut map));
         let mut resolver = Immediate::new(context.lookup(), &self.node_id);
         self.expr.eval(&mut resolver).is_true() == b
     }
 
     pub fn expect_owned(&self, expected: impl Into<Owned>) {
-        let context = Context::root(&self.state);
+        let mut map = Default::default();
+        let context = Context::root(&self.state, Some(&mut map));
         let mut resolver = Immediate::new(context.lookup(), &self.node_id);
         let val = self.expr.eval(&mut resolver);
         let ValueRef::Owned(owned) = val else {

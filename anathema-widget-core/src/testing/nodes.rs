@@ -101,7 +101,7 @@ pub struct TestExpression<S> {
 
 impl<S: State> TestExpression<S> {
     pub fn ctx(&self) -> Context<'_, '_> {
-        Context::root(&self.state)
+        Context::root(&self.state, None)
     }
 
     pub fn eval(&self) -> Result<Element<'_>> {

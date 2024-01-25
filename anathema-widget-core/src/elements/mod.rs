@@ -90,8 +90,8 @@ use std::iter::once;
 use std::ops::ControlFlow;
 
 use anathema_values::{
-    Change, Context, Deferred, Immediate, NextNodeId, NodeId, OwnedScopeValues, ScopeValue, Scopes,
-    Value, Expression, ValueRef,
+    Change, Context, Deferred, Expression, Immediate, Map, NextNodeId, NodeId, OwnedScopeValues,
+    ScopeValue, Scopes, Value, ValueRef, Locals,
 };
 
 pub(crate) use self::controlflow::IfElse;
@@ -117,7 +117,11 @@ fn c_and_b<'expr, F>(
     f: &mut F,
 ) -> Result<ControlFlow<(), ()>>
 where
-    F: FnMut(&mut WidgetContainer<'expr>, &mut Elements<'expr>, &mut Context<'_, 'expr>) -> Result<()>,
+    F: FnMut(
+        &mut WidgetContainer<'expr>,
+        &mut Elements<'expr>,
+        &mut Context<'_, 'expr>,
+    ) -> Result<()>,
 {
     while let Ok(res) = nodes.next(context, f) {
         match res {
@@ -136,7 +140,11 @@ pub struct Element<'e> {
 }
 
 impl<'e> Element<'e> {
-    pub fn next<F>(&mut self, context: &mut Context<'_, 'e>, f: &mut F) -> Result<ControlFlow<(), ()>>
+    pub fn next<F>(
+        &mut self,
+        context: &mut Context<'_, 'e>,
+        f: &mut F,
+    ) -> Result<ControlFlow<(), ()>>
     where
         F: FnMut(&mut WidgetContainer<'e>, &mut Elements<'e>, &mut Context<'_, 'e>) -> Result<()>,
     {
@@ -155,11 +163,16 @@ impl<'e> Element<'e> {
                 c_and_b(body, context, f)
             }
             NodeKind::View(View {
-                nodes, state, view, ..
+                nodes,
+                state,
+                view,
+                locals,
+                ..
             }) => match state {
                 ViewState::Dynamic(state) => {
-                    let context = context.with_state(*state);
-                    let mut context = context.with_state(view.get_any_state());
+                    let context = context.from_state(*state);
+                    let mut context = context.from_state(view.get_any_state());
+                    context.locals = Some(locals);
                     c_and_b(nodes, &mut context, f)
                 }
                 ViewState::External { expr, .. } => {
@@ -167,8 +180,9 @@ impl<'e> Element<'e> {
 
                     match expr.eval(&mut resolver) {
                         ValueRef::Map(state) => {
-                            let context = context.with_state(state);
-                            let mut context = context.with_state(view.get_any_state());
+                            let context = context.from_state(state);
+                            let mut context = context.from_state(view.get_any_state());
+                            context.locals = Some(locals);
                             c_and_b(nodes, &mut context, f)
                         }
                         _ => c_and_b(nodes, context, f),
@@ -184,11 +198,13 @@ impl<'e> Element<'e> {
                     //     }
                     // }
 
-                    let mut context = context.with_state(view.get_any_state());
+                    let mut context = context.from_state(view.get_any_state());
+                    context.locals = Some(locals);
                     c_and_b(nodes, &mut context, f)
                 }
                 ViewState::Internal => {
-                    let mut context = context.with_state(view.get_any_state());
+                    let mut context = context.from_state(view.get_any_state());
+                    context.locals = Some(locals);
                     c_and_b(nodes, &mut context, f)
                 }
             },
@@ -207,7 +223,7 @@ impl<'e> Element<'e> {
     // Update this node.
     // This means that the update was specifically for this node,
     // and not one of its children
-    fn update(&mut self, change: &Change, context: &Context<'_, '_>) {
+    fn update(&mut self, change: &Change, context: &mut Context<'_, '_>) {
         match &mut self.kind {
             NodeKind::Single(Single { widget, .. }) => widget.update(context, &self.node_id),
             NodeKind::Loop(loop_node) => {
@@ -229,7 +245,7 @@ impl<'e> Element<'e> {
                 }
             }
             NodeKind::View(View {
-                tabindex, state: _, ..
+                tabindex, state, ..
             }) => {
                 tabindex.resolve(context, &self.node_id);
                 Views::update(&self.node_id, tabindex.value());
@@ -254,6 +270,7 @@ pub struct View<'e> {
     pub(crate) view: Box<dyn AnyView>,
     pub(crate) nodes: Elements<'e>,
     pub(crate) state: ViewState<'e>,
+    pub(crate) locals: Locals,
     pub tabindex: Value<u32>,
 }
 
@@ -290,14 +307,13 @@ pub enum NodeKind<'e> {
     Loop(LoopNode<'e>),
     ControlFlow(IfElse<'e>),
     View(View<'e>),
-    // Assignment
 }
 
 #[derive(Debug)]
 pub struct Elements<'expr> {
     expressions: &'expr [Node],
     inner: Vec<Element<'expr>>,
-    expr_index: usize,
+    node_index: usize,
     root_id: NodeId,
     next_node_id: NextNodeId,
     cache_index: usize,
@@ -321,20 +337,38 @@ impl<'expr> Elements<'expr> {
     }
 
     fn new_node(&mut self, context: &mut Context<'_, 'expr>) -> Option<Result<()>> {
-        let expr = self.expressions.get(self.expr_index)?;
-        self.expr_index += 1;
+        let node = self.expressions.get(self.node_index)?;
+        self.node_index += 1;
 
         // Check if the expression is a declaration or assignment and evaluate it.
         // If not do the next step
-        match expr {
-            Node::Assignment { .. } => panic!(),
+
+        // local m = {a: 1, x: {y: {z: ""}}}
+        //
+        // m.x.y.z = 1;
+        match node {
+            Node::Assignment { lhs, rhs } => {
+                if let Some(ref mut locals) = context.locals {
+                    let mut resolver = Deferred::new(context.lookup());
+                    let value_ref = lhs.eval(&mut resolver);
+
+                    let mut resolver = Deferred::new(context.lookup());
+                    let value_ref = rhs.eval(&mut resolver);
+
+//                     let mut resolver = ??;
+//                     let value = rhs.eval(&mut resolver);
+
+//                     locals.insert("a".into(), Expression::Owned(1usize.into()));
+                }
+                return Some(Ok(()));
+            }
             _ => {}
         }
 
         // TODO: this and the update function has the same gross stuff in it.
         // Make it less gross plz
         match self.scope_values.head_tail() {
-            None => match expr.eval(context, self.next_node_id.next(&self.root_id)) {
+            None => match node.eval(context, self.next_node_id.next(&self.root_id)) {
                 Ok(node) => self.inner.push(node),
                 Err(e) => return Some(Err(e)),
             },
@@ -351,7 +385,7 @@ impl<'expr> Elements<'expr> {
 
                 inner.assign(&scopes);
                 let mut context = inner.into();
-                match expr.eval(&mut context, self.next_node_id.next(&self.root_id)) {
+                match node.eval(&mut context, self.next_node_id.next(&self.root_id)) {
                     Ok(node) => self.inner.push(node),
                     Err(e) => return Some(Err(e)),
                 };
@@ -367,7 +401,11 @@ impl<'expr> Elements<'expr> {
         f: &mut F,
     ) -> Result<ControlFlow<(), ()>>
     where
-        F: FnMut(&mut WidgetContainer<'expr>, &mut Elements<'expr>, &mut Context<'_, 'expr>) -> Result<()>,
+        F: FnMut(
+            &mut WidgetContainer<'expr>,
+            &mut Elements<'expr>,
+            &mut Context<'_, 'expr>,
+        ) -> Result<()>,
     {
         match self.inner.get_mut(self.cache_index) {
             Some(n) => {
@@ -387,7 +425,11 @@ impl<'expr> Elements<'expr> {
 
     pub fn for_each<F>(&mut self, context: &mut Context<'_, 'expr>, mut f: F) -> Result<()>
     where
-        F: FnMut(&mut WidgetContainer<'expr>, &mut Elements<'expr>, &mut Context<'_, 'expr>) -> Result<()>,
+        F: FnMut(
+            &mut WidgetContainer<'expr>,
+            &mut Elements<'expr>,
+            &mut Context<'_, 'expr>,
+        ) -> Result<()>,
     {
         #[allow(clippy::while_let_loop)]
         loop {
@@ -402,7 +444,7 @@ impl<'expr> Elements<'expr> {
     /// Update and apply the change to the specific node.
     /// This is currently done by the runtime
     #[doc(hidden)]
-    pub fn update(&mut self, node_id: &[usize], change: &Change, context: &Context<'_, '_>) {
+    pub fn update(&mut self, node_id: &[usize], change: &Change, context: &mut Context<'_, '_>) {
         update(&mut self.inner, node_id, change, context);
     }
 
@@ -410,7 +452,7 @@ impl<'expr> Elements<'expr> {
         Self {
             expressions,
             inner: vec![],
-            expr_index: 0,
+            node_index: 0,
             next_node_id: NextNodeId::new(root_id.last()),
             root_id,
             cache_index: 0,
@@ -478,7 +520,12 @@ fn count_widgets<'a>(nodes: impl Iterator<Item = &'a Element<'a>>) -> usize {
 }
 
 // Apply change / update to relevant nodes
-fn update(nodes: &mut [Element<'_>], node_id: &[usize], change: &Change, context: &Context<'_, '_>) {
+fn update(
+    nodes: &mut [Element<'_>],
+    node_id: &[usize],
+    change: &Change,
+    context: &mut Context<'_, '_>,
+) {
     for node in nodes {
         if !node.node_id.contains(node_id) {
             continue;
@@ -495,7 +542,7 @@ fn update(nodes: &mut [Element<'_>], node_id: &[usize], change: &Change, context
                 ..
             }) => {
                 match scope_values.head_tail() {
-                    None => return children.update(node_id, change, &context),
+                    None => return children.update(node_id, change, context),
                     Some((key, val, tail)) => {
                         // Resolve the value
                         let inner = context.inner();
@@ -508,15 +555,15 @@ fn update(nodes: &mut [Element<'_>], node_id: &[usize], change: &Change, context
                         }
 
                         inner.assign(&scopes);
-                        let context = inner.into();
-                        return children.update(node_id, change, &context);
+                        let mut context = inner.into();
+                        return children.update(node_id, change, &mut context);
                     }
                 };
             }
             NodeKind::Loop(loop_node) => {
                 return loop_node.update(node_id, change, &context);
             }
-            NodeKind::ControlFlow(if_else) => return if_else.update(node_id, change, &context),
+            NodeKind::ControlFlow(if_else) => return if_else.update(node_id, change, context),
             NodeKind::View(view) => {
                 // TODO: make this into its own function.
                 //       also note: it's strange to return a unit here for a bogus state
@@ -537,13 +584,14 @@ fn update(nodes: &mut [Element<'_>], node_id: &[usize], change: &Change, context
                     ViewState::Internal => view.view.get_any_state(),
                 };
 
-                let context = context.with_state(state);
+                let mut context = context.from_state(state);
+                context.locals = Some(&mut view.locals);
                 // TODO: this is silly. see above TODO
                 // let context = context.with_state(view.view.get_any_state());
                 // let scope = context.new_scope(&node.scope);
                 // let context = context.with_scope(&scope);
 
-                return view.nodes.update(node_id, change, &context);
+                return view.nodes.update(node_id, change, &mut context);
             }
         }
     }

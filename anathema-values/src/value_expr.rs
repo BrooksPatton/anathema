@@ -106,9 +106,10 @@ impl Immediate<'_> {
 
 impl<'frame> Resolver<'frame> for Immediate<'frame> {
     fn resolve(&mut self, path: Path<'_>) -> ValueRef<'frame> {
-        // 1. state
-        // 2. scope -> state, scope, [parent]---+
-        // 3. parent                            |
+        // 1. locals
+        // 2. state
+        // 3. scope -> state, scope, [parent]---+
+        // 4. parent                            |
         //    |                                 |
         // +--+---------------------------------+
         // |  __________________________________
@@ -124,6 +125,19 @@ impl<'frame> Resolver<'frame> for Immediate<'frame> {
         //     if resolver.is_deferred {
         //         self.is_deferred = true;
         //     }
+
+        // TODO
+        // Dubious looking code.
+        // Needs some debuggery
+        match self.context.local(path, self.node_id) {
+            Some(expr) => {
+                let value = expr.eval(self);
+                self.is_deferred = true;
+                return value;
+            }
+            None => {
+            }
+        }
 
         match self.context.state(path, self.node_id) {
             ValueRef::Empty => match self.context.scopes(path) {
@@ -182,7 +196,9 @@ impl<'frame> Resolver<'frame> for Immediate<'frame> {
 // -----------------------------------------------------------------------------
 //   - Value expressoin -
 // -----------------------------------------------------------------------------
-// TODO: rename this to `Expression` and rename `compiler::Expression` to something else
+// TODO
+// Change Box<T> to Rc<T> once there are some 
+// benchmarks in place to justify this change
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     Owned(Owned),
@@ -215,7 +231,7 @@ pub enum Expression {
 
     Call {
         fun: Box<Expression>,
-        args: Vec<Expression>,
+        args: Rc<[Expression]>,
     },
 
     Assignment {

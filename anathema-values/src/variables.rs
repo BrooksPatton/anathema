@@ -332,7 +332,7 @@ impl Variables {
     /// Create a new child and set the new childs id as the `current` id.
     /// Any operations done from here on out are acting upon the new child scope.
     pub fn new_child(&mut self) {
-        panic!("drain and insert phi");
+        // panic!("drain and insert phi");
         let parent = self.root.get_scope_mut(&self.current);
         self.current = parent.create_child();
     }
@@ -343,7 +343,7 @@ impl Variables {
     /// E.e if the current id is `[0, 1, 2]` `pop` would result in a new
     /// id of `[0, 1]`.
     pub fn pop(&mut self) {
-        panic!("drain and insert phi");
+        // panic!("drain and insert phi");
         self.current = self.current.parent().into();
     }
 }
