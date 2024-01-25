@@ -59,7 +59,7 @@ impl<'e> LoopNode<'e> {
         f: &mut F,
     ) -> Result<ControlFlow<(), ()>>
     where
-        F: FnMut(&mut WidgetContainer<'e>, &mut Elements<'e>, &Context<'_, 'e>) -> Result<()>,
+        F: FnMut(&mut WidgetContainer<'e>, &mut Elements<'e>, &mut Context<'_, 'e>) -> Result<()>,
     {
         loop {
             let Some(scope_val) = self.scope_next_value(context) else {
@@ -89,10 +89,10 @@ impl<'e> LoopNode<'e> {
             let scopes = inner.scope("loop", ScopeValue::value(iter.loop_index));
             let scopes = scopes.scope_value(self.binding, iter.loop_value);
             inner.assign(&scopes);
-            let context = inner.into();
+            let mut context = inner.into();
 
             loop {
-                let res = iter.body.next(&context, f)?;
+                let res = iter.body.next(&mut context, f)?;
                 match res {
                     ControlFlow::Continue(()) => continue,
                     ControlFlow::Break(()) => break,

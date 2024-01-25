@@ -103,7 +103,7 @@ impl WidgetContainer<'_> {
         &mut self,
         children: &mut Elements<'e>,
         constraints: Constraints,
-        data: &Context<'_, 'e>,
+        data: &mut Context<'_, 'e>,
     ) -> Result<Size> {
         match self.display.value_or_default() {
             Display::Exclude => self.size = Size::ZERO,

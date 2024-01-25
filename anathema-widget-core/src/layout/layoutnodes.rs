@@ -8,16 +8,16 @@ use crate::error::Result;
 use crate::{Elements, WidgetContainer};
 
 pub struct LayoutNodes<'nodes, 'state, 'expr> {
-    nodes: &'nodes mut Elements<'expr>,
+    pub nodes: &'nodes mut Elements<'expr>,
     pub constraints: Constraints,
-    context: &'state Context<'state, 'expr>,
+    pub context: &'nodes mut Context<'state, 'expr>,
 }
 
 impl<'nodes, 'state, 'expr> LayoutNodes<'nodes, 'state, 'expr> {
     pub fn new(
         nodes: &'nodes mut Elements<'expr>,
         constraints: Constraints,
-        context: &'state Context<'state, 'expr>,
+        context: &'nodes mut Context<'state, 'expr>,
     ) -> Self {
         Self {
             nodes,
@@ -32,16 +32,15 @@ impl<'nodes, 'state, 'expr> LayoutNodes<'nodes, 'state, 'expr> {
 
     pub fn next<F>(&mut self, mut f: F) -> Result<()>
     where
-        F: FnMut(LayoutNode<'_, '_, 'expr>) -> Result<()>,
+        F: FnMut(LayoutNode<'_, 'expr>, &mut Context<'_, 'expr>) -> Result<()>,
     {
         self.nodes
             .next(self.context, &mut |widget, children, context| {
                 let node = LayoutNode {
                     widget,
                     children,
-                    context,
                 };
-                f(node)
+                f(node, context)
             })?;
 
         Ok(())
@@ -49,7 +48,7 @@ impl<'nodes, 'state, 'expr> LayoutNodes<'nodes, 'state, 'expr> {
 
     pub fn for_each<F>(&mut self, mut f: F) -> Result<()>
     where
-        F: FnMut(LayoutNode<'_, '_, 'expr>) -> Result<()>,
+        F: FnMut(LayoutNode<'_, 'expr>, &mut Context<'_, 'expr>) -> Result<()>,
     {
         loop {
             let res = self
@@ -58,9 +57,8 @@ impl<'nodes, 'state, 'expr> LayoutNodes<'nodes, 'state, 'expr> {
                     let node = LayoutNode {
                         widget,
                         children,
-                        context,
                     };
-                    f(node)
+                    f(node, context)
                 })?;
 
             match res {
@@ -70,7 +68,7 @@ impl<'nodes, 'state, 'expr> LayoutNodes<'nodes, 'state, 'expr> {
         }
     }
 
-    pub fn filter<F>(&mut self, f: F) -> impl Iterator<Item = LayoutNode<'_, 'state, 'expr>> + '_
+    pub fn filter<F>(&mut self, f: F) -> impl Iterator<Item = LayoutNode<'_, 'expr>> + '_
     where
         F: Fn(&WidgetContainer<'expr>) -> bool + 'static,
     {
@@ -80,24 +78,35 @@ impl<'nodes, 'state, 'expr> LayoutNodes<'nodes, 'state, 'expr> {
             .map(|(widget, children)| LayoutNode {
                 widget,
                 children,
-                context: self.context,
             })
     }
 }
 
-pub struct LayoutNode<'widget, 'state, 'expr> {
+pub struct LayoutNode<'widget, 'expr> {
     widget: &'widget mut WidgetContainer<'expr>,
     children: &'widget mut Elements<'expr>,
-    context: &'widget Context<'state, 'expr>,
 }
 
-impl<'widget, 'state, 'expr> LayoutNode<'widget, 'state, 'expr> {
-    pub fn layout(&mut self, constraints: Constraints) -> Result<Size> {
-        self.widget.layout(self.children, constraints, self.context)
+impl<'widget, 'expr> LayoutNode<'widget, 'expr> {
+    pub fn layout(
+        &mut self,
+        constraints: Constraints,
+        context: &mut Context<'_, 'expr>,
+    ) -> Result<Size> {
+        self.widget.layout(self.children, constraints, context)
     }
 }
 
-impl<'widget, 'state, 'expr> Deref for LayoutNode<'widget, 'state, 'expr> {
+impl<'widget, 'expr> From<(&'widget mut WidgetContainer<'expr>, &'widget mut Elements<'expr>)> for LayoutNode<'widget, 'expr> {
+    fn from((widget, children): (&'widget mut WidgetContainer<'expr>, &'widget mut Elements<'expr>)) -> Self {
+        Self {
+            widget,
+            children,
+        }
+    }
+}
+
+impl<'widget, 'expr> Deref for LayoutNode<'widget, 'expr> {
     type Target = WidgetContainer<'expr>;
 
     fn deref(&self) -> &Self::Target {
@@ -105,7 +114,7 @@ impl<'widget, 'state, 'expr> Deref for LayoutNode<'widget, 'state, 'expr> {
     }
 }
 
-impl<'widget, 'state, 'expr> DerefMut for LayoutNode<'widget, 'state, 'expr> {
+impl<'widget, 'expr> DerefMut for LayoutNode<'widget, 'expr> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.widget
     }

@@ -12,8 +12,8 @@ impl Layout for Stacked {
 
         let constraints = nodes.constraints;
 
-        nodes.for_each(|mut node| {
-            let widget_size = match node.layout(constraints) {
+        nodes.for_each(|mut node, context| {
+            let widget_size = match node.layout(constraints, context) {
                 Ok(s) => s,
                 err @ Err(_) => err?,
             };

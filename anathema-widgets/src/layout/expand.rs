@@ -1,7 +1,7 @@
 use anathema_render::Size;
 use anathema_widget_core::error::Result;
 use anathema_widget_core::layout::{Axis, Constraints};
-use anathema_widget_core::LayoutNodes;
+use anathema_widget_core::{LayoutNode, LayoutNodes};
 
 use crate::Expand;
 
@@ -47,9 +47,12 @@ fn distribute_size(weights: &[usize], mut total: usize) -> Vec<usize> {
 
 pub fn layout(nodes: &mut LayoutNodes<'_, '_, '_>, axis: Axis) -> Result<Size> {
     let constraints = nodes.constraints;
+    let context = &mut *nodes.context;
 
     let expansions = nodes
-        .filter(|node| node.kind() == Expand::KIND)
+        .nodes
+        .iter_mut()
+        .filter_map(|node| (node.0.kind() == Expand::KIND).then_some(LayoutNode::from(node)))
         .collect::<Vec<_>>();
 
     let factors = expansions
@@ -87,7 +90,7 @@ pub fn layout(nodes: &mut LayoutNodes<'_, '_, '_>, axis: Axis) -> Result<Size> {
             }
         };
 
-        let widget_size = widget.layout(constraints)?;
+        let widget_size = widget.layout(constraints, context)?;
 
         match axis {
             Axis::Horizontal => {

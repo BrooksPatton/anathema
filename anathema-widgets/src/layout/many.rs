@@ -123,7 +123,7 @@ impl Layout for Many {
 
         let mut size = Size::ZERO;
 
-        let res = nodes.for_each(|mut node| {
+        let res = nodes.for_each(|mut node, context| {
             if [Spacer::KIND, Expand::KIND].contains(&node.kind()) {
                 return Ok(());
             }
@@ -139,7 +139,7 @@ impl Layout for Many {
                 constraints
             };
 
-            let mut widget_size = node.layout(widget_constraints)?;
+            let mut widget_size = node.layout(widget_constraints, context)?;
 
             if self.offset.skip(&mut widget_size) {
                 return Ok(());

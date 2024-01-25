@@ -510,7 +510,7 @@ impl WidgetFactory for BorderFactory {
 
 #[cfg(test)]
 mod test {
-    use anathema_widget_core::expressions::Node;
+    use anathema_widget_core::nodes::Node;
     use anathema_widget_core::testing::{expression, FakeTerm};
 
     use super::*;
@@ -522,7 +522,7 @@ mod test {
         width: Option<usize>,
         height: Option<usize>,
         text: Option<&'static str>,
-    ) -> Expression {
+    ) -> Node {
         let mut attribs = vec![("border-style".into(), border_style.to_string().into())];
 
         if let Some(width) = width {

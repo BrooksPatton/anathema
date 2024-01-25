@@ -1,7 +1,7 @@
 use anathema_render::Size;
 use anathema_widget_core::error::Result;
 use anathema_widget_core::layout::{Axis, Layout};
-use anathema_widget_core::LayoutNodes;
+use anathema_widget_core::{LayoutNode, LayoutNodes};
 
 use crate::Spacer;
 
@@ -40,8 +40,15 @@ pub fn layout(nodes: &mut LayoutNodes<'_, '_, '_>, axis: Axis) -> Result<Size> {
     };
     nodes.set_constraints(constraints);
 
-    for mut spacer in nodes.filter(|widget| widget.kind() == Spacer::KIND) {
-        let size = spacer.layout(constraints)?;
+    let context = &mut *nodes.context;
+    let spacers = nodes
+        .nodes
+        .iter_mut()
+        .filter_map(|node| (node.0.kind() == Spacer::KIND).then_some(LayoutNode::from(node)))
+        .collect::<Vec<_>>();
+
+    for mut spacer in spacers {
+        let size = spacer.layout(constraints, context)?;
 
         match axis {
             Axis::Horizontal => {

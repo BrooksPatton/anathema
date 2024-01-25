@@ -1,8 +1,45 @@
-use anathema_values::{NodeId, Expression};
+use anathema_values::{Expression, NodeId};
 
-use super::{LoopNode, Element, Single, View};
+use super::{Element, LoopNode, Single, View};
 use crate::elements::NodeKind;
 use crate::{Elements, WidgetContainer};
+
+// pub struct QueryIter<'nodes, 'expr, F> {
+// }
+
+// impl<'nodes, 'expr: 'nodes, F: Filter> QueryIter<'nodes, 'expr, F> {
+//     fn for_each_nodes<Fun>(filter: &F, nodes: &mut Elements<'expr>, fun: &mut Fun)
+//     where
+//         Fun: FnMut(&mut WidgetContainer<'_>),
+//     {
+//         for node in &mut nodes.inner {
+//             match &mut node.kind {
+//                 NodeKind::Single(Single {
+//                     widget, children, ..
+//                 }) => {
+//                     if filter.filter(widget) {
+//                         fun(widget);
+//                     }
+
+//                     Self::for_each_nodes(filter, children, fun)
+//                 }
+//                 NodeKind::View(View { nodes, .. }) => Self::for_each_nodes(filter, nodes, fun),
+//                 NodeKind::Loop(LoopNode { iterations, .. }) => {
+//                     for iteration in iterations {
+//                         Self::for_each_nodes(filter, &mut iteration.body, fun);
+//                     }
+//                 }
+//                 NodeKind::ControlFlow(if_else) => {
+//                     if let Some(body) = if_else.body_mut() {
+//                         Self::for_each_nodes(filter, body, fun);
+//                     }
+//                 }
+//             }
+//         }
+//     }
+// }
+
+
 
 pub struct Query<'nodes, 'expr, F> {
     pub(super) nodes: &'nodes mut Elements<'expr>,
@@ -23,18 +60,18 @@ impl<'nodes, 'expr: 'nodes, F: Filter> Query<'nodes, 'expr, F> {
         }
     }
 
-    pub fn by_tag(self, tag: &str) -> Query<'nodes, 'expr, impl Filter> {
-        let filter = ByTag(tag.into());
+    // pub fn by_tag(self, tag: &str) -> Query<'nodes, 'expr, impl Filter> {
+    //     let filter = ByTag(tag.into());
 
-        Query {
-            nodes: self.nodes,
-            filter: self.filter.chain(filter),
-        }
-    }
+    //     Query {
+    //         nodes: self.nodes,
+    //         filter: self.filter.chain(filter),
+    //     }
+    // }
 
     pub fn filter<Fun>(self, f: Fun) -> Query<'nodes, 'expr, impl Filter>
     where
-        Fun: Fn(&Element<'_>) -> bool,
+        Fun: Fn(&WidgetContainer<'_>) -> bool,
     {
         let filter = FilterFn(f);
         Query {
@@ -47,12 +84,15 @@ impl<'nodes, 'expr: 'nodes, F: Filter> Query<'nodes, 'expr, F> {
         let mut indices = vec![];
 
         for (index, node) in nodes.inner.iter_mut().enumerate() {
-            if filter.filter(node) {
-                indices.push(index);
-            }
-
             match &mut node.kind {
-                NodeKind::Single(Single { children, .. }) => Self::remove_nodes(filter, children),
+                NodeKind::Single(Single {
+                    widget, children, ..
+                }) => {
+                    if filter.filter(widget) {
+                        indices.push(index);
+                    }
+                    Self::remove_nodes(filter, children)
+                }
                 NodeKind::View(View { nodes, .. }) => Self::remove_nodes(filter, nodes),
                 NodeKind::Loop(LoopNode { iterations, .. }) => {
                     for iteration in iterations {
@@ -75,15 +115,17 @@ impl<'nodes, 'expr: 'nodes, F: Filter> Query<'nodes, 'expr, F> {
 
     fn for_each_nodes<Fun>(filter: &F, nodes: &mut Elements<'expr>, fun: &mut Fun)
     where
-        Fun: FnMut(&mut Element<'_>),
+        Fun: FnMut(&mut WidgetContainer<'_>),
     {
         for node in &mut nodes.inner {
-            if filter.filter(node) {
-                fun(node);
-            }
-
             match &mut node.kind {
-                NodeKind::Single(Single { children, .. }) => {
+                NodeKind::Single(Single {
+                    widget, children, ..
+                }) => {
+                    if filter.filter(widget) {
+                        fun(widget);
+                    }
+
                     Self::for_each_nodes(filter, children, fun)
                 }
                 NodeKind::View(View { nodes, .. }) => Self::for_each_nodes(filter, nodes, fun),
@@ -107,21 +149,26 @@ impl<'nodes, 'expr: 'nodes, F: Filter> Query<'nodes, 'expr, F> {
 
     pub fn for_each<Fun>(self, mut fun: Fun)
     where
-        Fun: FnMut(&mut Element<'_>),
+        Fun: FnMut(&mut WidgetContainer<'_>),
     {
         Self::for_each_nodes(&self.filter, self.nodes, &mut fun);
     }
 
     fn first_node<'a>(
-        filter: &F,
+        filter: &mut F,
         nodes: &'a mut Elements<'expr>,
     ) -> Option<&'a mut WidgetContainer<'expr>> {
         for node in nodes.inner.iter_mut() {
-            let found = filter.filter(node);
-
             let n = match &mut node.kind {
-                NodeKind::Single(Single { widget, .. }) if found => return Some(widget),
-                NodeKind::Single(Single { children, .. }) => Self::first_node(filter, children),
+                NodeKind::Single(Single {
+                    widget, children, ..
+                }) => {
+                    if filter.filter(widget) {
+                        return Some(widget);
+                    } else {
+                        Self::first_node(filter, children)
+                    }
+                }
                 NodeKind::View(View { nodes, .. }) => Self::first_node(filter, nodes),
                 NodeKind::Loop(LoopNode { iterations, .. }) => {
                     for iteration in iterations {
@@ -149,10 +196,13 @@ impl<'nodes, 'expr: 'nodes, F: Filter> Query<'nodes, 'expr, F> {
     }
 
     pub fn first(&mut self) -> Option<&mut WidgetContainer<'expr>> {
-        Self::first_node(&self.filter, self.nodes)
+        Self::first_node(&mut self.filter, self.nodes)
     }
 
-    fn get_node<'a>(node_id: &NodeId, nodes: &'a mut Elements<'expr>) -> Option<&'a mut Element<'expr>> {
+    fn get_node<'a>(
+        node_id: &NodeId,
+        nodes: &'a mut Elements<'expr>,
+    ) -> Option<&'a mut Element<'expr>> {
         for node in &mut nodes.inner {
             // Found the node
             if node.node_id.eq(node_id) {
@@ -190,7 +240,7 @@ impl<'nodes, 'expr: 'nodes, F: Filter> Query<'nodes, 'expr, F> {
 }
 
 pub trait Filter {
-    fn filter(&self, _node: &Element<'_>) -> bool {
+    fn filter(&self, _widget: &WidgetContainer<'_>) -> bool {
         true
     }
 
@@ -215,7 +265,7 @@ where
     A: Filter,
     B: Filter,
 {
-    fn filter(&self, node: &Element<'_>) -> bool {
+    fn filter(&self, node: &WidgetContainer<'_>) -> bool {
         if self.lhs.filter(node) {
             self.rhs.filter(node)
         } else {
@@ -232,36 +282,33 @@ struct ByAttribute(String, Expression);
 //       Alternatively we can resolve all attributes upon creation,
 //       and thus having a cached value for lookups
 impl Filter for ByAttribute {
-    fn filter(&self, node: &Element<'_>) -> bool {
-        match &node.kind {
-            NodeKind::Single(Single { widget, .. }) => widget
-                .attributes
-                .get(&self.0)
-                .map(|a| a.eq(&self.1))
-                .unwrap_or(false),
-            _ => false,
-        }
+    fn filter(&self, widget: &WidgetContainer<'_>) -> bool {
+        widget
+            .attributes
+            .get(&self.0)
+            .map(|a| a.eq(&self.1))
+            .unwrap_or(false)
     }
 }
 
-struct ByTag(String);
+// struct ByTag(String);
 
-impl Filter for ByTag {
-    fn filter(&self, node: &Element<'_>) -> bool {
-        match node.kind {
-            NodeKind::Single(Single { ident, .. }) => ident == self.0,
-            _ => false,
-        }
-    }
-}
+// impl Filter for ByTag {
+//     fn filter(&self, node: &mut WidgetContainer<'_>) -> bool {
+//         match node.kind {
+//             NodeKind::Single(Single { ident, .. }) => ident == self.0,
+//             _ => false,
+//         }
+//     }
+// }
 
 struct FilterFn<F>(F);
 
 impl<F> Filter for FilterFn<F>
 where
-    F: Fn(&Element<'_>) -> bool,
+    F: Fn(&WidgetContainer<'_>) -> bool,
 {
-    fn filter(&self, node: &Element<'_>) -> bool {
+    fn filter(&self, node: &WidgetContainer<'_>) -> bool {
         (self.0)(node)
     }
 }

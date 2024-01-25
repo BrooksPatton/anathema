@@ -103,7 +103,7 @@ impl Widget for Text {
 
         self.layout.process(self.text.str());
 
-        let _ = nodes.for_each(|mut span| {
+        let _ = nodes.for_each(|mut span, context| {
             // Ignore any widget that isn't a span
             if span.kind() != TextSpan::KIND {
                 return Ok(());

@@ -30,7 +30,6 @@ impl VirtualMachine {
 mod test {
     use anathema_compiler::compile;
     use anathema_values::ViewIds;
-    use anathema_widget_core::expressions::SingleNodeExpr;
 
     use super::*;
 
@@ -40,7 +39,7 @@ mod test {
         let vm = VirtualMachine::new(instructions, consts);
         let vstack = vm.exec(&mut ViewTemplates::new()).unwrap().remove(0);
 
-        assert!(matches!(vstack, Node::Single(SingleNodeExpr { .. })));
+        assert!(matches!(vstack, Node::Single(..)));
     }
 
     #[test]

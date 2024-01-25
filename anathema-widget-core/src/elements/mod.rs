@@ -113,11 +113,11 @@ pub fn make_it_so<'e>(expressions: &'e [crate::nodes::Node]) -> Elements<'e> {
 // TODO: good grief rename this function!
 fn c_and_b<'expr, F>(
     nodes: &mut Elements<'expr>,
-    context: &Context<'_, 'expr>,
+    context: &mut Context<'_, 'expr>,
     f: &mut F,
 ) -> Result<ControlFlow<(), ()>>
 where
-    F: FnMut(&mut WidgetContainer<'expr>, &mut Elements<'expr>, &Context<'_, 'expr>) -> Result<()>,
+    F: FnMut(&mut WidgetContainer<'expr>, &mut Elements<'expr>, &mut Context<'_, 'expr>) -> Result<()>,
 {
     while let Ok(res) = nodes.next(context, f) {
         match res {
@@ -136,9 +136,9 @@ pub struct Element<'e> {
 }
 
 impl<'e> Element<'e> {
-    pub fn next<F>(&mut self, context: &Context<'_, 'e>, f: &mut F) -> Result<ControlFlow<(), ()>>
+    pub fn next<F>(&mut self, context: &mut Context<'_, 'e>, f: &mut F) -> Result<ControlFlow<(), ()>>
     where
-        F: FnMut(&mut WidgetContainer<'e>, &mut Elements<'e>, &Context<'_, 'e>) -> Result<()>,
+        F: FnMut(&mut WidgetContainer<'e>, &mut Elements<'e>, &mut Context<'_, 'e>) -> Result<()>,
     {
         match &mut self.kind {
             NodeKind::Single(Single {
@@ -159,8 +159,8 @@ impl<'e> Element<'e> {
             }) => match state {
                 ViewState::Dynamic(state) => {
                     let context = context.with_state(*state);
-                    let context = context.with_state(view.get_any_state());
-                    c_and_b(nodes, &context, f)
+                    let mut context = context.with_state(view.get_any_state());
+                    c_and_b(nodes, &mut context, f)
                 }
                 ViewState::External { expr, .. } => {
                     let mut resolver = Immediate::new(context.lookup(), &self.node_id);
@@ -168,10 +168,10 @@ impl<'e> Element<'e> {
                     match expr.eval(&mut resolver) {
                         ValueRef::Map(state) => {
                             let context = context.with_state(state);
-                            let context = context.with_state(view.get_any_state());
-                            c_and_b(nodes, &context, f)
+                            let mut context = context.with_state(view.get_any_state());
+                            c_and_b(nodes, &mut context, f)
                         }
-                        _ => c_and_b(nodes, &context, f),
+                        _ => c_and_b(nodes, context, f),
                     }
                 }
                 ViewState::Map(map) => {
@@ -184,12 +184,12 @@ impl<'e> Element<'e> {
                     //     }
                     // }
 
-                    let context = context.with_state(view.get_any_state());
-                    c_and_b(nodes, &context, f)
+                    let mut context = context.with_state(view.get_any_state());
+                    c_and_b(nodes, &mut context, f)
                 }
                 ViewState::Internal => {
-                    let context = context.with_state(view.get_any_state());
-                    c_and_b(nodes, &context, f)
+                    let mut context = context.with_state(view.get_any_state());
+                    c_and_b(nodes, &mut context, f)
                 }
             },
         }
@@ -320,7 +320,7 @@ impl<'expr> Elements<'expr> {
         }
     }
 
-    fn new_node(&mut self, context: &Context<'_, 'expr>) -> Option<Result<()>> {
+    fn new_node(&mut self, context: &mut Context<'_, 'expr>) -> Option<Result<()>> {
         let expr = self.expressions.get(self.expr_index)?;
         self.expr_index += 1;
 
@@ -350,8 +350,8 @@ impl<'expr> Elements<'expr> {
                 }
 
                 inner.assign(&scopes);
-                let context = inner.into();
-                match expr.eval(&context, self.next_node_id.next(&self.root_id)) {
+                let mut context = inner.into();
+                match expr.eval(&mut context, self.next_node_id.next(&self.root_id)) {
                     Ok(node) => self.inner.push(node),
                     Err(e) => return Some(Err(e)),
                 };
@@ -363,11 +363,11 @@ impl<'expr> Elements<'expr> {
 
     pub(crate) fn next<F>(
         &mut self,
-        context: &Context<'_, 'expr>,
+        context: &mut Context<'_, 'expr>,
         f: &mut F,
     ) -> Result<ControlFlow<(), ()>>
     where
-        F: FnMut(&mut WidgetContainer<'expr>, &mut Elements<'expr>, &Context<'_, 'expr>) -> Result<()>,
+        F: FnMut(&mut WidgetContainer<'expr>, &mut Elements<'expr>, &mut Context<'_, 'expr>) -> Result<()>,
     {
         match self.inner.get_mut(self.cache_index) {
             Some(n) => {
@@ -385,9 +385,9 @@ impl<'expr> Elements<'expr> {
         }
     }
 
-    pub fn for_each<F>(&mut self, context: &Context<'_, 'expr>, mut f: F) -> Result<()>
+    pub fn for_each<F>(&mut self, context: &mut Context<'_, 'expr>, mut f: F) -> Result<()>
     where
-        F: FnMut(&mut WidgetContainer<'expr>, &mut Elements<'expr>, &Context<'_, 'expr>) -> Result<()>,
+        F: FnMut(&mut WidgetContainer<'expr>, &mut Elements<'expr>, &mut Context<'_, 'expr>) -> Result<()>,
     {
         #[allow(clippy::while_let_loop)]
         loop {

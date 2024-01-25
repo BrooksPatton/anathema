@@ -19,13 +19,14 @@ impl Layout for TestLayoutMany {
         let mut size = Size::ZERO;
 
         let mut constraints = nodes.constraints;
-        nodes.for_each(|mut node| {
-            let s = node.layout(constraints)?;
-            size.height += s.height;
-            size.width = size.width.max(s.width);
-            constraints.max_height -= size.height;
-            Ok(())
-        })?;
+        panic!();
+        // nodes.for_each(|mut node| {
+        //     let s = node.layout(constraints)?;
+        //     size.height += s.height;
+        //     size.width = size.width.max(s.width);
+        //     constraints.max_height -= size.height;
+        //     Ok(())
+        // })?;
 
         Ok(size)
     }
@@ -121,19 +122,20 @@ pub struct TestRuntime<'e> {
 
 impl TestRuntime<'_> {
     pub fn layout(&mut self) -> Result<Size> {
-        self.nodes.reset_cache();
-        let context = Context::root(&self.state);
-        let mut nodes = LayoutNodes::new(&mut self.nodes, self.constraints, &context);
+        panic!()
+        // self.nodes.reset_cache();
+        // let context = Context::root(&self.state);
+        // let mut nodes = LayoutNodes::new(&mut self.nodes, self.constraints, &context);
 
-        let mut size = Size::ZERO;
-        nodes.for_each(|mut node| {
-            let node_size = node.layout(self.constraints)?;
-            size.width = size.width.max(node_size.width);
-            size.height += node_size.height;
-            Ok(())
-        })?;
+        // let mut size = Size::ZERO;
+        // nodes.for_each(|mut node| {
+        //     let node_size = node.layout(self.constraints)?;
+        //     size.width = size.width.max(node_size.width);
+        //     size.height += node_size.height;
+        //     Ok(())
+        // })?;
 
-        Ok(size)
+        // Ok(size)
     }
 }
 

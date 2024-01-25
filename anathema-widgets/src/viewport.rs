@@ -158,7 +158,7 @@ impl WidgetFactory for ViewportFactory {
 
 #[cfg(test)]
 mod test {
-    use anathema_widget_core::expressions::Node;
+    use anathema_widget_core::nodes::Node;
     use anathema_widget_core::testing::{expression, FakeTerm};
 
     use crate::testing::test_widget;

@@ -39,7 +39,7 @@ pub struct SingleNodeExpr {
 }
 
 impl SingleNodeExpr {
-    fn eval<'e>(&'e self, context: &Context<'_, 'e>, node_id: NodeId) -> Result<Element<'e>> {
+    fn eval<'e>(&'e self, context: &mut Context<'_, 'e>, node_id: NodeId) -> Result<Element<'e>> {
         let scope_values = OwnedScopeValues::new();
         let text = self
             .text
@@ -262,7 +262,7 @@ pub enum Node {
 impl Node {
     pub(crate) fn eval<'expr>(
         &'expr self,
-        context: &Context<'_, 'expr>,
+        context: &mut Context<'_, 'expr>,
         node_id: NodeId,
     ) -> Result<Element<'expr>> {
         // The scope storage needs to be cloned here, otherwise the values could

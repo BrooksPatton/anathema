@@ -10,8 +10,8 @@ impl Layout for Single {
         let constraints = nodes.constraints;
         let mut size = Size::ZERO;
 
-        nodes.next(|mut node| {
-            size = node.layout(constraints)?;
+        nodes.next(|mut node, context| {
+            size = node.layout(constraints, context)?;
             Ok(())
         })?;
 

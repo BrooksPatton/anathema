@@ -44,7 +44,7 @@ impl Layout for BorderLayout {
 
         let mut size = Size::ZERO;
 
-        nodes.next(|mut node| {
+        nodes.next(|mut node, context| {
             // Shrink the constraint for the child to fit inside the border
             let mut constraints = constraints;
             constraints.max_width = match constraints.max_width.checked_sub(border_size.width) {
@@ -69,7 +69,7 @@ impl Layout for BorderLayout {
                 return Err(Error::InsufficientSpaceAvailble);
             }
 
-            let inner_size = node.layout(constraints)?;
+            let inner_size = node.layout(constraints, context)?;
 
             size = inner_size + border_size;
 

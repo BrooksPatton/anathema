@@ -244,7 +244,7 @@ mod test {
             }
         }
 
-        fn exec(mut self) -> Result<Box<[Expression]>> {
+        fn exec(mut self) -> Result<Box<[Node]>> {
             let Self {
                 consts,
                 mut views,

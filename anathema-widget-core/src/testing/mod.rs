@@ -99,18 +99,17 @@ impl FakeTerm {
 
 pub fn test_widget(expr: Node, expected: FakeTerm) {
     let state = TestState::new();
-    let context = Context::root(&state);
-    panic!()
-    // let mut node = expr.eval(&context, 0.into()).unwrap();
-    // let (widget, nodes) = node.single();
+    let mut context = Context::root(&state);
+    let mut node = expr.eval(&mut context, 0.into()).unwrap();
+    let (widget, nodes) = node.single();
 
-    // test_widget_container(widget, nodes, &context, expected)
+    test_widget_container(widget, nodes, &mut context, expected)
 }
 
 pub fn test_widget_container<'e>(
     widget: &mut WidgetContainer<'e>,
     children: &mut Elements<'e>,
-    context: &Context<'_, 'e>,
+    context: &mut Context<'_, 'e>,
     mut expected: FakeTerm,
 ) {
     // Layout

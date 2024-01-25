@@ -116,12 +116,12 @@ impl<'e> Runtime<'e> {
     }
 
     fn layout(&mut self) -> Result<()> {
-        let context = Context::root(&self.meta);
+        let mut context = Context::root(&self.meta);
 
-        let mut nodes = LayoutNodes::new(&mut self.nodes, self.constraints, &context);
+        let mut nodes = LayoutNodes::new(&mut self.nodes, self.constraints, &mut context);
 
-        nodes.for_each(|mut node| {
-            node.layout(self.constraints)?;
+        nodes.for_each(|mut node, context| {
+            node.layout(self.constraints, context)?;
             Ok(())
         })?;
 
