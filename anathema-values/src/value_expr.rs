@@ -131,7 +131,7 @@ impl<'frame> Resolver<'frame> for Immediate<'frame> {
         // Needs some debuggery
         match self.context.local(path, self.node_id) {
             Some(expr) => {
-                let value = expr.eval(self);
+                let value = expr.eval_value(self);
                 self.is_deferred = true;
                 return value;
             }
@@ -156,15 +156,15 @@ impl<'frame> Resolver<'frame> for Immediate<'frame> {
                 Some(ScopeValue::Value(val)) => val,
                 Some(ScopeValue::Deferred(expr)) => {
                     self.is_deferred = true;
-                    expr.eval(self)
+                    expr.eval_value(self)
                 }
                 Some(ScopeValue::DeferredList(index, expr)) => {
                     self.is_deferred = true;
-                    match expr.eval(self) {
+                    match expr.eval_value(self) {
                         ValueRef::Expressions(expressions) => expressions
                             .get(index)
                             .expect("Index bounds check in loop expression")
-                            .eval(self),
+                            .eval_value(self),
                         ValueRef::List(list) => {
                             let path = index.into();
                             list.state_get(path, self.node_id)
@@ -202,7 +202,7 @@ impl<'frame> Resolver<'frame> for Immediate<'frame> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     Owned(Owned),
-    String(Rc<str>),
+    Str(Rc<str>),
 
     Not(Box<Expression>),
     Negative(Box<Expression>),
@@ -244,7 +244,7 @@ impl Display for Expression {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Owned(val) => write!(f, "{val}"),
-            Self::String(val) => write!(f, "{val}"),
+            Self::Str(val) => write!(f, "{val}"),
             Self::Ident(s) => write!(f, "{s}"),
             Self::Index(lhs, idx) => write!(f, "{lhs}[{idx}]"),
             Self::Dot(lhs, rhs) => write!(f, "{lhs}.{rhs}"),
@@ -304,7 +304,7 @@ impl Display for Expression {
 
 macro_rules! eval_num {
     ($e:expr, $resolver:expr) => {
-        match $e.eval($resolver) {
+        match $e.eval_value($resolver) {
             ValueRef::Owned(Owned::Num(num)) => num,
             ValueRef::Deferred => return ValueRef::Deferred,
             _ => return ValueRef::Empty,
@@ -314,7 +314,7 @@ macro_rules! eval_num {
 
 impl Expression {
     pub fn eval_string<'expr>(&'expr self, resolver: &mut impl Resolver<'expr>) -> Option<String> {
-        match self.eval(resolver) {
+        match self.eval_value(resolver) {
             ValueRef::Str(s) => Some(s.into()),
             ValueRef::Owned(s) => Some(s.to_string()),
             ValueRef::Expressions(Expressions(list)) => {
@@ -339,11 +339,11 @@ impl Expression {
         &'expr self,
         resolver: &mut impl Resolver<'expr>,
     ) -> Option<Vec<ValueRef<'_>>> {
-        match self.eval(resolver) {
+        match self.eval_value(resolver) {
             ValueRef::Expressions(Expressions(list)) => {
                 let mut v = Vec::with_capacity(list.len());
                 for expr in list {
-                    let res = expr.eval(resolver);
+                    let res = expr.eval_value(resolver);
                     v.push(res);
                 }
                 Some(v)
@@ -357,10 +357,10 @@ impl Expression {
     // Static values originate from expressions and will have the aforementioned lifetime,
     // however a value could also stem from a state (by resolving a deferred value).
     // A value that originates from `State` can only live for the duration of the layout phase.
-    pub fn eval<'expr>(&'expr self, resolver: &mut impl Resolver<'expr>) -> ValueRef<'expr> {
+    pub fn eval_value<'expr>(&'expr self, resolver: &mut impl Resolver<'expr>) -> ValueRef<'expr> {
         match self {
             Self::Owned(value) => ValueRef::Owned(*value),
-            Self::String(value) => ValueRef::Str(value),
+            Self::Str(value) => ValueRef::Str(value),
 
             // -----------------------------------------------------------------------------
             //   - Maths -
@@ -405,22 +405,22 @@ impl Expression {
             //   - Conditions -
             // -----------------------------------------------------------------------------
             Self::Not(expr) => {
-                let b = expr.eval(resolver).is_true();
+                let b = expr.eval_value(resolver).is_true();
                 ValueRef::Owned((!b).into())
             }
             Self::Equality(lhs, rhs) => {
-                let lhs = lhs.eval(resolver);
-                let rhs = rhs.eval(resolver);
+                let lhs = lhs.eval_value(resolver);
+                let rhs = rhs.eval_value(resolver);
                 ValueRef::Owned((lhs == rhs).into())
             }
             Self::Or(lhs, rhs) => {
-                let lhs = lhs.eval(resolver);
-                let rhs = rhs.eval(resolver);
+                let lhs = lhs.eval_value(resolver);
+                let rhs = rhs.eval_value(resolver);
                 ValueRef::Owned((lhs.is_true() || rhs.is_true()).into())
             }
             Self::And(lhs, rhs) => {
-                let lhs = lhs.eval(resolver);
-                let rhs = rhs.eval(resolver);
+                let lhs = lhs.eval_value(resolver);
+                let rhs = rhs.eval_value(resolver);
                 ValueRef::Owned((lhs.is_true() && rhs.is_true()).into())
             }
 
@@ -431,15 +431,15 @@ impl Expression {
                 let path = Path::from(&**ident);
                 resolver.resolve(path)
             }
-            Self::Index(lhs, index) => match lhs.eval(resolver) {
+            Self::Index(lhs, index) => match lhs.eval_value(resolver) {
                 ValueRef::Expressions(list) => {
                     let index = eval_num!(index, resolver).to_usize();
-                    return list.0[index].eval(resolver);
+                    return list.0[index].eval_value(resolver);
                 }
                 ValueRef::ExpressionMap(map) => {
                     let key = index.eval_string(resolver).unwrap_or(String::new());
                     let expr = &map.0[&key];
-                    expr.eval(resolver)
+                    expr.eval_value(resolver)
                 }
                 ValueRef::List(list) => {
                     let index = eval_num!(index, resolver).to_usize();
@@ -452,13 +452,13 @@ impl Expression {
                 deferred @ ValueRef::Deferred => deferred,
                 _ => ValueRef::Empty,
             },
-            Self::Dot(lhs, rhs) => match lhs.eval(resolver) {
+            Self::Dot(lhs, rhs) => match lhs.eval_value(resolver) {
                 ValueRef::ExpressionMap(map) => {
                     let key = match &**rhs {
                         Expression::Ident(key) => key,
                         _ => return ValueRef::Empty,
                     };
-                    return map.0[&**key].eval(resolver);
+                    return map.0[&**key].eval_value(resolver);
                 }
                 ValueRef::Map(map) => {
                     let key = match &**rhs {
@@ -485,7 +485,7 @@ impl Expression {
                     Expression::Ident(name) => name,
                     _ => return ValueRef::Empty,
                 };
-                let _args = args.iter().map(|expr| expr.eval(resolver));
+                let _args = args.iter().map(|expr| expr.eval_value(resolver));
 
                 panic!()
             }
@@ -526,13 +526,13 @@ where
 
 impl From<String> for Expression {
     fn from(val: String) -> Self {
-        Self::String(val.into())
+        Self::Str(val.into())
     }
 }
 
 impl From<&str> for Expression {
     fn from(val: &str) -> Self {
-        Self::String(val.into())
+        Self::Str(val.into())
     }
 }
 

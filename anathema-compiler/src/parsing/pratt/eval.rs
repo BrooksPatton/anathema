@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use anathema_values::hashmap::HashMap;
-use anathema_values::{Constants, Num, Owned, Expression, Visibility};
+use anathema_values::{Constants, Num, Owned, Expression};
 
 use super::Expr;
 use crate::token::Operator;
@@ -16,7 +16,7 @@ pub fn eval(expr: Expr, consts: &Constants) -> Expression {
         }
         Expr::Str(string_id) => {
             let string = consts.lookup_string(string_id);
-            Expression::String(Rc::from(string))
+            Expression::Str(Rc::from(string))
         }
         Expr::Num(num) => Expression::Owned(Owned::Num(num.into())),
         Expr::Float(num) => Expression::Owned(Owned::Num(Num::Float(num))),

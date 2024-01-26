@@ -63,7 +63,7 @@ impl DynValue for Sides {
     fn init_value(context: &Context<'_, '_>, node_id: &NodeId, expr: &Expression) -> Value<Self> {
         // TODO: smells like copy and past in here!
         let mut resolver = Immediate::new(context.lookup(), node_id);
-        let value = expr.eval(&mut resolver);
+        let value = expr.eval_value(&mut resolver);
 
         let inner = match value {
             ValueRef::Str(s) => s.into(),
@@ -72,7 +72,7 @@ impl DynValue for Sides {
 
                 values
                     .iter()
-                    .map(|expr| expr.eval(&mut Immediate::new(context.lookup(), node_id)))
+                    .map(|expr| expr.eval_value(&mut Immediate::new(context.lookup(), node_id)))
                     .for_each(|val| {
                         if let ValueRef::Str(s) = val {
                             sides |= s.into();
@@ -96,7 +96,7 @@ impl DynValue for Sides {
     fn resolve(value: &mut Value<Self>, context: &Context<'_, '_>, node_id: &NodeId) {
         if let Value::Dyn { inner, expr } = value {
             let mut resolver = Immediate::new(context.lookup(), node_id);
-            let value = expr.eval(&mut resolver);
+            let value = expr.eval_value(&mut resolver);
 
             *inner = match value {
                 ValueRef::Str(s) => s.into(),
@@ -105,7 +105,7 @@ impl DynValue for Sides {
 
                     values
                         .iter()
-                        .map(|expr| expr.eval(&mut Immediate::new(context.lookup(), node_id)))
+                        .map(|expr| expr.eval_value(&mut Immediate::new(context.lookup(), node_id)))
                         .for_each(|val| {
                             if let ValueRef::Str(s) = val {
                                 sides |= s.into();

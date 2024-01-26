@@ -10,7 +10,6 @@ mod eval;
 
 pub mod prec {
     pub const INITIAL: u8 = 0;
-    pub const ASSIGNMENT: u8 = 1;
     pub const CONDITIONAL: u8 = 2;
     pub const LOGICAL: u8 = 3;
     pub const SUM: u8 = 4;

@@ -105,8 +105,7 @@ impl<S: State> TestExpression<S> {
     }
 
     pub fn eval(&self) -> Result<Element<'_>> {
-        panic!()
-        // self.expr.eval(&self.ctx(), 0.into())
+        self.expr.eval(&mut self.ctx(), 0.into())
     }
 }
 
@@ -122,20 +121,19 @@ pub struct TestRuntime<'e> {
 
 impl TestRuntime<'_> {
     pub fn layout(&mut self) -> Result<Size> {
-        panic!()
-        // self.nodes.reset_cache();
-        // let context = Context::root(&self.state);
-        // let mut nodes = LayoutNodes::new(&mut self.nodes, self.constraints, &context);
+        self.nodes.reset_cache();
+        let mut context = Context::root(&self.state, None);
+        let mut nodes = LayoutNodes::new(&mut self.nodes, self.constraints, &mut context);
 
-        // let mut size = Size::ZERO;
-        // nodes.for_each(|mut node| {
-        //     let node_size = node.layout(self.constraints)?;
-        //     size.width = size.width.max(node_size.width);
-        //     size.height += node_size.height;
-        //     Ok(())
-        // })?;
+        let mut size = Size::ZERO;
+        nodes.for_each(|mut node, context| {
+            let node_size = node.layout(self.constraints, context)?;
+            size.width = size.width.max(node_size.width);
+            size.height += node_size.height;
+            Ok(())
+        })?;
 
-        // Ok(size)
+        Ok(size)
     }
 }
 

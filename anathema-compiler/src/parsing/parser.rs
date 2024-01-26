@@ -363,7 +363,7 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
         }
 
         self.next_state();
-        return Ok(None);
+        Ok(None)
     }
 
     fn parse_view(&mut self) -> Result<Option<Statement>> {
@@ -854,4 +854,21 @@ mod test {
         let src = "local x = global y = 1";
         let err = parse_err(src);
     }
+
+    #[test]
+    fn multi_line_assignment() {
+        let src = "
+        x[1]['omg'] = {
+            'a': 1,
+            'b': {
+                'a': 2,
+            },
+        }";
+        let mut expressions = parse_ok(src);
+        assert!(matches!(
+            expressions.remove(0),
+            Statement::Assignment { .. }
+        ));
+    }
+
 }

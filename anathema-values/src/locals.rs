@@ -1,4 +1,6 @@
-use crate::{Expression, Map, NodeId, Path};
+use std::rc::Rc;
+
+use crate::{Expression, Map, NodeId, Path, Deferred};
 
 #[derive(Debug, Default)]
 pub struct Locals {
@@ -13,6 +15,7 @@ impl Locals {
         }
     }
 
-    pub fn assign(&mut self, lhs: &Expression, rhs: &Expression) {
+    pub fn declare(&mut self, binding: Rc<str>, rhs: Expression) {
+        self.map.insert(binding.to_string(), rhs);
     }
 }

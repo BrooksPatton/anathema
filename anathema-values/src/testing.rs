@@ -1,3 +1,4 @@
+use crate::hashmap::HashMap;
 use crate::map::Map;
 use crate::{Context, Immediate, List, NodeId, Owned, StateValue, Expression, ValueRef};
 
@@ -59,7 +60,7 @@ where
         let mut map = Default::default();
         let context = Context::root(&self.state, Some(&mut map));
         let mut resolver = Immediate::new(context.lookup(), &self.node_id);
-        let val = self.expr.eval(&mut resolver);
+        let val = self.expr.eval_value(&mut resolver);
         assert_eq!(val, other)
     }
 
@@ -75,14 +76,14 @@ where
         let mut map = Default::default();
         let context = Context::root(&self.state, Some(&mut map));
         let mut resolver = Immediate::new(context.lookup(), &self.node_id);
-        self.expr.eval(&mut resolver).is_true() == b
+        self.expr.eval_value(&mut resolver).is_true() == b
     }
 
     pub fn expect_owned(&self, expected: impl Into<Owned>) {
         let mut map = Default::default();
         let context = Context::root(&self.state, Some(&mut map));
         let mut resolver = Immediate::new(context.lookup(), &self.node_id);
-        let val = self.expr.eval(&mut resolver);
+        let val = self.expr.eval_value(&mut resolver);
         let ValueRef::Owned(owned) = val else {
             panic!("not an owned value")
         };
@@ -181,15 +182,21 @@ pub fn boolean(b: bool) -> Box<Expression> {
 }
 
 pub fn strlit(lit: &str) -> Box<Expression> {
-    Expression::String(lit.into()).into()
+    Expression::Str(lit.into()).into()
 }
 
 // -----------------------------------------------------------------------------
-//   - List -
+//   - List and map -
 // -----------------------------------------------------------------------------
 pub fn list<E: Into<Expression>>(input: impl IntoIterator<Item = E>) -> Box<Expression> {
     let vec = input.into_iter().map(|val| val.into()).collect::<Vec<_>>();
     Expression::List(vec.into()).into()
+}
+
+pub fn map<E: Into<Expression>>(input: impl IntoIterator<Item = (&'static str, E)>) -> Box<Expression> {
+    let input = input.into_iter().map(|(k, v)| (k.to_string(), v.into()));
+    let hm: HashMap<String, Expression> = HashMap::from_iter(input);
+    Expression::Map(hm.into()).into()
 }
 
 // -----------------------------------------------------------------------------

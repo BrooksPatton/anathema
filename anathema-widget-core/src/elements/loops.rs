@@ -119,7 +119,7 @@ impl<'e> LoopNode<'e> {
             Collection::Static(expressions) => {
                 let expr = expressions.get(self.value_index)?;
                 let mut resolver = Deferred::new(context.lookup());
-                let val = match expr.eval(&mut resolver) {
+                let val = match expr.eval_value(&mut resolver) {
                     ValueRef::Deferred => ScopeValue::Deferred(expr),
                     value => ScopeValue::Value(value),
                 };
@@ -154,7 +154,7 @@ impl<'e> LoopNode<'e> {
                 "loop",
                 ScopeValue::Value(ValueRef::Owned(iter.loop_index.into())),
             );
-            scopes.scope_value(self.binding, iter.loop_value);
+            let scopes = scopes.scope_value(self.binding, iter.loop_value);
             inner_context.assign(&scopes);
             let mut context = inner_context.into();
 

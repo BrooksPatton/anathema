@@ -164,6 +164,7 @@ impl<'frame, 'expr> Context<'frame, 'expr> {
         }
     }
 
+    // TODO: remove this 
     pub fn from_state(&'frame self, state: &'frame dyn State) -> Self {
         let inner = InnerContext {
             state,
@@ -177,6 +178,7 @@ impl<'frame, 'expr> Context<'frame, 'expr> {
         }
     }
 
+    // TODO: remove this
     pub fn inner(&'frame self) -> InnerContext<'frame, 'expr> {
         InnerContext {
             state: self.inner.state,
@@ -237,7 +239,7 @@ mod test {
 
     #[test]
     fn scope_value() {
-        let context = Context::root(&());
+        let context = Context::root(&(), None);
         let mut inner = context.inner();
         let scopes = inner.scope("a", 1);
         let scopes = scopes.scope_value("b", 1);

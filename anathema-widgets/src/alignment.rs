@@ -97,11 +97,11 @@ mod test {
     use crate::testing::test_widget;
 
     fn align_widget(align: Align, expected: FakeTerm) {
-        let text = expression("text", Expression::String("AB".into()), [], []);
+        let text = expression("text", Expression::Str("AB".into()), [], []);
         let alignment = expression(
             "alignment",
             None,
-            [("align".into(), Expression::String(align.to_string().into()))],
+            [("align".into(), Expression::Str(align.to_string().into()))],
             [text],
         );
         test_widget(alignment, expected);

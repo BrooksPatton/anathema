@@ -2,11 +2,14 @@ use std::rc::Rc;
 
 use anathema_compiler::Instruction;
 use anathema_values::hashmap::HashMap;
-use anathema_values::{Attributes, Constants, StringId, Expression, ViewId, Visibility, Variables, Locals};
+use anathema_values::{
+    Attributes, Constants, Expression, Locals, StringId, Variables, ViewId, Visibility,
+};
 use anathema_widget_core::nodes::{
-    ControlFlow, ElseExpr, Node, IfExpr, LoopExpr, SingleNodeExpr, ViewExpr,
+    ControlFlow, ElseExpr, IfExpr, LoopExpr, Node, SingleNodeExpr, ViewExpr,
 };
 
+use crate::const_eval::const_eval;
 use crate::error::Result;
 use crate::ViewTemplates;
 
@@ -27,6 +30,7 @@ impl<'vm> Scope<'vm> {
         &mut self,
         views: &mut ViewTemplates,
         vars: &mut Variables,
+        locals: &mut Locals,
     ) -> Result<Vec<Node>> {
         let mut nodes = vec![];
 
@@ -43,7 +47,7 @@ impl<'vm> Scope<'vm> {
                 Instruction::Node {
                     ident,
                     size: scope_size,
-                } => nodes.push(self.node(ident, scope_size, views, vars)?),
+                } => nodes.push(self.node(ident, scope_size, views, vars, locals)?),
                 Instruction::For {
                     binding,
                     data,
@@ -56,7 +60,7 @@ impl<'vm> Scope<'vm> {
                     let body = self.instructions.drain(..size).collect();
 
                     vars.new_child();
-                    let body = Scope::new(body, self.consts).exec(views, vars)?;
+                    let body = Scope::new(body, self.consts).exec(views, vars, locals)?;
                     vars.pop();
 
                     let template = Node::Loop(LoopExpr {
@@ -72,7 +76,7 @@ impl<'vm> Scope<'vm> {
 
                     let body = self.instructions.drain(..size).collect::<Vec<_>>();
                     vars.new_child();
-                    let body = Scope::new(body, self.consts).exec(views, vars)?;
+                    let body = Scope::new(body, self.consts).exec(views, vars, locals)?;
                     vars.pop();
 
                     let mut control_flow = ControlFlow {
@@ -93,7 +97,7 @@ impl<'vm> Scope<'vm> {
 
                         let body = self.instructions.drain(..size).collect();
                         vars.new_child();
-                        let body = Scope::new(body, self.consts).exec(views, vars)?;
+                        let body = Scope::new(body, self.consts).exec(views, vars, locals)?;
                         vars.pop();
 
                         control_flow.elses.push(ElseExpr {
@@ -123,15 +127,23 @@ impl<'vm> Scope<'vm> {
                     let binding: Rc<str> = self.consts.lookup_string(binding).into();
                     let lhs = Expression::Ident(binding.clone()).into();
                     let rhs = self.consts.lookup_value(value);
-                    let expr = Node::Assignment { lhs, rhs: rhs.clone() };
+                    let rhs = const_eval(rhs, vars);
+                    let rhs_id = vars.declare(binding, rhs);
+                    let rhs = vars.fetch(rhs_id).unwrap();
+                    let expr = Node::Assignment { lhs, rhs };
 
-                    vars.declare(binding, rhs);
+                    // locals.declare(binding, rhs);
 
                     nodes.push(expr);
                 }
                 Instruction::Assignment { lhs, rhs } => {
-                    let lhs = self.consts.lookup_value(lhs).into();
-                    let rhs = self.consts.lookup_value(rhs).into();
+                    // local x = {a: {b: {c: 1 }}}
+                    // x.a.b.c = 2
+
+                    let lhs = self.consts.lookup_value(lhs);
+                    let rhs = self.consts.lookup_value(rhs);
+                    let rhs = const_eval(rhs, vars);
+                    let (lhs, rhs) = vars.assign(lhs, rhs);
                     let expr = Node::Assignment { lhs, rhs };
                     nodes.push(expr);
                 }
@@ -167,6 +179,7 @@ impl<'vm> Scope<'vm> {
         scope_size: usize,
         views: &mut ViewTemplates,
         vars: &mut Variables,
+        locals: &mut Locals,
     ) -> Result<Node> {
         let ident = self.consts.lookup_string(ident);
 
@@ -185,7 +198,7 @@ impl<'vm> Scope<'vm> {
 
         let scope = self.instructions.drain(..scope_size).collect();
         vars.new_child();
-        let children = Scope::new(scope, self.consts).exec(views, vars)?;
+        let children = Scope::new(scope, self.consts).exec(views, vars, locals)?;
         vars.pop();
 
         let node = Node::Single(SingleNodeExpr {
@@ -225,6 +238,10 @@ impl<'vm> Scope<'vm> {
 
 #[cfg(test)]
 mod test {
+    use anathema_values::testing::{
+        add, div, dot, ident, index, list, map, modulo, mul, sub, unum,
+    };
+
     use super::*;
 
     struct TestScope {
@@ -232,6 +249,7 @@ mod test {
         vars: Variables,
         views: ViewTemplates,
         instructions: Vec<Instruction>,
+        locals: Locals,
     }
 
     impl TestScope {
@@ -241,6 +259,7 @@ mod test {
                 views: ViewTemplates::new(),
                 vars: Variables::new(),
                 instructions: vec![],
+                locals: Default::default(),
             }
         }
 
@@ -249,11 +268,17 @@ mod test {
                 consts,
                 mut views,
                 mut vars,
+                mut locals,
                 instructions,
             } = self;
 
             let mut scope = Scope::new(instructions, &consts);
-            scope.exec(&mut views, &mut vars).map(Vec::into_boxed_slice)
+
+            let output = scope
+                .exec(&mut views, &mut vars, &mut locals)
+                .map(Vec::into_boxed_slice);
+
+            output
         }
 
         fn node(&mut self, ident: &str, scope_size: usize) {
@@ -313,6 +338,13 @@ mod test {
         fn global(&mut self, binding: &str, value: impl Into<Expression>) {
             self.decl(Visibility::Global, binding, value)
         }
+
+        fn assign(&mut self, lhs: impl Into<Expression>, rhs: impl Into<Expression>) {
+            let lhs = self.consts.store_value(lhs.into());
+            let rhs = self.consts.store_value(rhs.into());
+            let inst = Instruction::Assignment { lhs, rhs };
+            self.instructions.push(inst);
+        }
     }
 
     #[test]
@@ -321,7 +353,21 @@ mod test {
         // test_scope.node("ident here", 0);
         // test_scope.for_loop("i", [1, 2], 0);
         // test_scope.attrib("i", "y");
-        test_scope.local("aa", "bb");
+        // test_scope.local("a", add(modulo(unum(8), unum(3)), ident("lol")));
+        // test_scope.local("b", add(ident("a"), unum(2)));
+        // test_scope.local("c", list([
+        //         add(ident("a"), unum(2)),
+        //         add(ident("b"), unum(2)),
+        //         add(ident("doesnotexist"), unum(1)),
+        // ]));
+        // test_scope.local("d", map([("key", add(ident("a"), ident("b")))]));
+
+        test_scope.local("c", unum(1));
+        test_scope.assign(ident("c"), unum(0));
+        test_scope.local("a", map([("b", list([unum(1)]))]));
+
+        test_scope.assign(index(dot(ident("a"), ident("b")), ident("c")), unum(999));
+
         let expr = test_scope.exec().unwrap();
         panic!("{expr:#?}");
     }

@@ -106,12 +106,12 @@ impl LoopExpr {
             Expression::List(list) => Collection::Static(list),
             col => {
                 let mut resolver = Deferred::new(context.lookup());
-                let val = col.eval(&mut resolver);
+                let val = col.eval_value(&mut resolver);
                 match val {
                     ValueRef::Expressions(Expressions(list)) => Collection::Static(list),
                     ValueRef::Deferred => {
                         let mut resolver = Immediate::new(context.lookup(), &node_id);
-                        let val = col.eval(&mut resolver);
+                        let val = col.eval_value(&mut resolver);
                         let len = match val {
                             ValueRef::List(list) => {
                                 // TODO: Review if this makes sense in the long run.
@@ -202,7 +202,7 @@ impl ViewExpr {
         let state = match self.state {
             Some(ref expr) => {
                 let mut resolver = Deferred::new(context.lookup());
-                let val = expr.eval(&mut resolver);
+                let val = expr.eval_value(&mut resolver);
                 match val {
                     ValueRef::Map(state) => ViewState::Dynamic(state),
                     ValueRef::Deferred => ViewState::External { expr },
@@ -309,7 +309,7 @@ mod test {
     use crate::testing::expressions::{expression, for_expression, if_expression, view_expression};
     use crate::testing::nodes::*;
 
-    impl Expression {
+    impl Node {
         pub fn test(self) -> TestExpression<TestState> {
             register_test_widget();
 

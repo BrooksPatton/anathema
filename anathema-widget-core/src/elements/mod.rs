@@ -178,7 +178,7 @@ impl<'e> Element<'e> {
                 ViewState::External { expr, .. } => {
                     let mut resolver = Immediate::new(context.lookup(), &self.node_id);
 
-                    match expr.eval(&mut resolver) {
+                    match expr.eval_value(&mut resolver) {
                         ValueRef::Map(state) => {
                             let context = context.from_state(state);
                             let mut context = context.from_state(view.get_any_state());
@@ -231,7 +231,7 @@ impl<'e> Element<'e> {
                 // we need to resub to the state
                 if let Collection::State { expr, len } = &mut loop_node.collection {
                     let mut immediate = Immediate::new(context.lookup(), &self.node_id);
-                    if let ValueRef::List(list) = expr.eval(&mut immediate) {
+                    if let ValueRef::List(list) = expr.eval_value(&mut immediate) {
                         list.subscribe(self.node_id.clone());
                         *len = list.len();
                     }
@@ -350,10 +350,10 @@ impl<'expr> Elements<'expr> {
             Node::Assignment { lhs, rhs } => {
                 if let Some(ref mut locals) = context.locals {
                     let mut resolver = Deferred::new(context.lookup());
-                    let value_ref = lhs.eval(&mut resolver);
+                    let value_ref = lhs.eval_value(&mut resolver);
 
                     let mut resolver = Deferred::new(context.lookup());
-                    let value_ref = rhs.eval(&mut resolver);
+                    let value_ref = rhs.eval_value(&mut resolver);
 
 //                     let mut resolver = ??;
 //                     let value = rhs.eval(&mut resolver);
@@ -544,6 +544,7 @@ fn update(
                 match scope_values.head_tail() {
                     None => return children.update(node_id, change, context),
                     Some((key, val, tail)) => {
+                        panic!("how could this ever work? scope_value returns `Scopes`");
                         // Resolve the value
                         let inner = context.inner();
 
@@ -575,7 +576,7 @@ fn update(
                     ViewState::Dynamic(state) => state,
                     ViewState::External { expr, .. } => {
                         let mut resolver = Immediate::new(context.lookup(), &node.node_id);
-                        match expr.eval(&mut resolver) {
+                        match expr.eval_value(&mut resolver) {
                             ValueRef::Map(state) => state,
                             _ => &(),
                         }

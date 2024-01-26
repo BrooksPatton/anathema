@@ -1,3 +1,4 @@
+mod const_eval;
 mod error;
 mod scope;
 mod vm;

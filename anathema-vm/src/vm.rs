@@ -1,5 +1,5 @@
 use anathema_compiler::Instruction;
-use anathema_values::{Constants, Variables};
+use anathema_values::{Constants, Variables, Locals};
 use anathema_widget_core::nodes::Node;
 
 use crate::error::Result;
@@ -22,7 +22,8 @@ impl VirtualMachine {
     pub(super) fn exec(self, views: &mut ViewTemplates) -> Result<Vec<Node>> {
         let mut root_scope = Scope::new(self.instructions, &self.consts);
         let mut vars = Variables::new();
-        root_scope.exec(views, &mut vars)
+        let mut locals = Locals::default();
+        root_scope.exec(views, &mut vars, &mut locals)
     }
 }
 
