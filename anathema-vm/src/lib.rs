@@ -2,6 +2,7 @@ mod const_eval;
 mod error;
 mod scope;
 mod vm;
+mod testing;
 
 use anathema_values::hashmap::HashMap;
 use anathema_values::{ViewId, ViewIds};

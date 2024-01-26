@@ -54,7 +54,8 @@ impl<T> Slab<T> {
         Some(val)
     }
 
-    pub fn get_mut(&mut self, index: Idx) -> Option<&mut T> {
+    pub fn get_mut(&mut self, index: impl Into<Idx>) -> Option<&mut T> {
+        let index = index.into();
         let Entry::Occupied(val) = self.inner.get_mut(index)? else {
             return None;
         };

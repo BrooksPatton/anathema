@@ -287,29 +287,30 @@ impl Variables {
         }
     }
 
-    fn path_lookup<'s, 'e: 's>(&'s mut self, expr: &'e mut Expression) -> Option<&'s mut Expression> {
-        // local a = "lol"
-        // local m = {a: 1, lol: 2}
-        // m[a] = 3
+    fn path_lookup(&mut self, expr: &Expression) -> Option<&mut Expression> {
         match expr {
-            Expression::Ident(_) => todo!(),
-            Expression::Dot(lhs, rhs) => todo!(),
-            Expression::Index(lhs, index) => {
-                match self.path_lookup(lhs)? {
-                    Expression::Map(map) => match &**index {
-                        // Expression::Ident(key) => lookup_ident(key),
-                        Expression::Str(key) => Rc::get_mut(map)?.get_mut(&**key),
-                        _ => None,
-                    },
-                    Expression::List(list) => match &mut **index {
-                        Expression::Owned(Owned::Num(num)) => Rc::get_mut(list)?.get_mut(num.to_usize()),
-                        _ => None,
-                    },
-                    _ => None,
-                }
+            Expression::Ident(ident) => {
+                let ident: &str = ident;
+                let val = self.fetch_mut(ident)?;
+                Some(val)
             }
-            expr @ (Expression::Map(_) | Expression::List(_)) => Some(expr),
-            _ => None,
+            Expression::Dot(lhs, rhs) => {
+                match self.path_lookup(lhs)? {
+                    Expression::Map(map) => {
+                        match &**rhs {
+                            Expression::Ident(key) => {
+                                let key: &str = key;
+                                let val = map.get_mut(key)?;
+                                return Some(val);
+                            }
+                            _ => panic!()
+                        }
+                    }
+                    _ => panic!()
+                }
+                panic!()
+            }
+            _ => panic!(),
         }
     }
 
@@ -327,25 +328,14 @@ impl Variables {
         self.declare_at(ident, var_id, scope_id)
     }
 
-    pub fn assign(&mut self, lhs: Expression, rhs: Expression) -> VarId {
-        // Find a parent declaration / assignment and push a phi value
+    pub fn assign(&mut self, lhs: Expression, rhs: Expression) { //-> VarId {
+        let value = self.path_lookup(&lhs).unwrap();
+        *value = rhs;
+        // panic!("{value:?}");
 
-        match lhs {
-            Expression::Ident(ident) => {
-                let var_id = self.store.push(rhs).into();
-                let scope = self.root.get_scope_mut(&self.current);
-                scope.insert(ident.clone(), var_id);
-                var_id
-            }
-            Expression::Dot(lhs, rhs) => {
-                panic!("{lhs:?}");
-            }
-            Expression::Index(lhs, index) => {
-                // index = int|str
-                panic!()
-            }
-            e => panic!("{e:?}"),
-        }
+
+
+        // Find a parent declaration / assignment and push a phi value
 
         // let val = const_eval_mut_ref(&lhs, self).unwrap();
         // *val = rhs;
@@ -367,10 +357,17 @@ impl Variables {
     }
 
     /// Fetch a value starting from the current path.
-    pub fn fetch(&self, ident: &str) -> Option<Expression> {
+    pub fn fetch(&self, ident: &str) -> Option<&Expression> {
         self.root
             .get_var_id(&self.current, ident)
-            .and_then(|id| self.store.get(id).cloned())
+            .and_then(|id| self.store.get(id))
+    }
+
+    /// Fetch a value starting from the current path.
+    pub fn fetch_mut(&mut self, ident: &str) -> Option<&mut Expression> {
+        self.root
+            .get_var_id(&self.current, ident)
+            .and_then(|id| self.store.get_mut(id))
     }
 
     pub fn by_value_ref(&self, var: VarId) -> Expression {
@@ -542,25 +539,4 @@ mod test {
         // Declare and assign within the same scope
         assert_eq!(vars.store.count(), 2);
     }
-}
-
-fn const_eval_mut_ref<'a>(
-    expr: &Expression,
-    vars: &'a mut Variables,
-) -> Option<&'a mut Expression> {
-    match expr {
-        // local a = {b: {c: 1}}
-        // a.b.c = 1
-        Expression::Ident(ident) => {
-            let value = vars.fetch(&*ident);
-        }
-        Expression::Dot(lhs, rhs) => {
-            const_eval_mut_ref(lhs, vars);
-        }
-        Expression::Index(lhs, index) => {
-            const_eval_mut_ref(lhs, vars);
-        }
-        _ => {}
-    }
-    None
 }

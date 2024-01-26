@@ -127,9 +127,9 @@ impl<'vm> Scope<'vm> {
                     let binding: Rc<str> = self.consts.lookup_string(binding).into();
                     let lhs = Expression::Ident(binding.clone()).into();
                     let rhs = self.consts.lookup_value(value);
-                    let rhs = const_eval(rhs, vars);
+                    let rhs = const_eval(&rhs, vars);
                     let rhs_id = vars.declare(binding, rhs);
-                    let rhs = vars.fetch(rhs_id).unwrap();
+                    let rhs = vars.by_value_ref(rhs_id);
                     let expr = Node::Assignment { lhs, rhs };
 
                     // locals.declare(binding, rhs);
@@ -142,10 +142,11 @@ impl<'vm> Scope<'vm> {
 
                     let lhs = self.consts.lookup_value(lhs);
                     let rhs = self.consts.lookup_value(rhs);
-                    let rhs = const_eval(rhs, vars);
-                    let (lhs, rhs) = vars.assign(lhs, rhs);
-                    let expr = Node::Assignment { lhs, rhs };
-                    nodes.push(expr);
+                    let rhs = const_eval(&rhs, vars);
+                    vars.assign(lhs, rhs);
+                    // panic!("this panic is fine, don't worry about it");
+                    // let expr = Node::Assignment { lhs, rhs };
+                    // nodes.push(expr);
                 }
             }
 
@@ -238,114 +239,10 @@ impl<'vm> Scope<'vm> {
 
 #[cfg(test)]
 mod test {
-    use anathema_values::testing::{
-        add, div, dot, ident, index, list, map, modulo, mul, sub, unum,
-    };
+    use anathema_values::testing::{add, dot, ident, unum, map};
 
     use super::*;
-
-    struct TestScope {
-        consts: Constants,
-        vars: Variables,
-        views: ViewTemplates,
-        instructions: Vec<Instruction>,
-        locals: Locals,
-    }
-
-    impl TestScope {
-        pub fn new() -> Self {
-            Self {
-                consts: Constants::new(),
-                views: ViewTemplates::new(),
-                vars: Variables::new(),
-                instructions: vec![],
-                locals: Default::default(),
-            }
-        }
-
-        fn exec(mut self) -> Result<Box<[Node]>> {
-            let Self {
-                consts,
-                mut views,
-                mut vars,
-                mut locals,
-                instructions,
-            } = self;
-
-            let mut scope = Scope::new(instructions, &consts);
-
-            let output = scope
-                .exec(&mut views, &mut vars, &mut locals)
-                .map(Vec::into_boxed_slice);
-
-            output
-        }
-
-        fn node(&mut self, ident: &str, scope_size: usize) {
-            let ident = self.consts.store_string(ident);
-            let inst = Instruction::Node {
-                ident,
-                size: scope_size,
-            };
-            self.instructions.push(inst);
-        }
-
-        fn for_loop(&mut self, binding: &str, data: impl Into<Expression>, size: usize) {
-            let binding = self.consts.store_string(binding);
-            let data = self.consts.store_value(data.into());
-            let inst = Instruction::For {
-                binding,
-                data,
-                size,
-            };
-            self.instructions.push(inst);
-        }
-
-        fn if_stmt(&mut self, cond: impl Into<Expression>, size: usize) {
-            let cond = self.consts.store_value(cond.into());
-            let inst = Instruction::If { cond, size };
-            self.instructions.push(inst);
-        }
-
-        fn else_stmt(&mut self, cond: Option<impl Into<Expression>>, size: usize) {
-            let cond = cond.map(|cond| self.consts.store_value(cond.into()));
-            let inst = Instruction::Else { cond, size };
-            self.instructions.push(inst);
-        }
-
-        fn attrib(&mut self, key: &str, value: impl Into<Expression>) {
-            let key = self.consts.store_string(key);
-            let value = self.consts.store_value(value.into());
-            let inst = Instruction::LoadAttribute { key, value };
-            self.instructions.push(inst);
-        }
-
-        fn decl(&mut self, visibility: Visibility, binding: &str, value: impl Into<Expression>) {
-            let binding = self.consts.store_string(binding);
-            let value = self.consts.store_value(value.into());
-            let inst = Instruction::Declaration {
-                visibility,
-                binding,
-                value,
-            };
-            self.instructions.push(inst);
-        }
-
-        fn local(&mut self, binding: &str, value: impl Into<Expression>) {
-            self.decl(Visibility::Local, binding, value)
-        }
-
-        fn global(&mut self, binding: &str, value: impl Into<Expression>) {
-            self.decl(Visibility::Global, binding, value)
-        }
-
-        fn assign(&mut self, lhs: impl Into<Expression>, rhs: impl Into<Expression>) {
-            let lhs = self.consts.store_value(lhs.into());
-            let rhs = self.consts.store_value(rhs.into());
-            let inst = Instruction::Assignment { lhs, rhs };
-            self.instructions.push(inst);
-        }
-    }
+    use crate::testing::TestScope;
 
     #[test]
     fn eval_instruction() {
@@ -362,11 +259,15 @@ mod test {
         // ]));
         // test_scope.local("d", map([("key", add(ident("a"), ident("b")))]));
 
-        test_scope.local("c", unum(1));
-        test_scope.assign(ident("c"), unum(0));
-        test_scope.local("a", map([("b", list([unum(1)]))]));
+        // test_scope.local("c", unum(0));
+        // test_scope.assign(ident("c"), unum(0));
 
-        test_scope.assign(index(dot(ident("a"), ident("b")), ident("c")), unum(999));
+        test_scope.local("a", map([("b", map([("c", unum(1))]))]));
+
+        let assign = dot(dot(ident("a"), ident("b")), ident("c"));
+        test_scope.assign(assign.clone(), unum(999));
+        test_scope.local("xx", add(assign, unum(1)));
+        test_scope.local("y", ident("xx"));
 
         let expr = test_scope.exec().unwrap();
         panic!("{expr:#?}");

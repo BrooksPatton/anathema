@@ -221,7 +221,7 @@ pub enum Expression {
     // List and Map are both Rc'd as expressions are
     // cloned for `Value<T>` and a few other places.
     List(Rc<[Expression]>),
-    Map(Rc<HashMap<String, Expression>>),
+    Map(HashMap<String, Expression>),
 
     Add(Box<Expression>, Box<Expression>),
     Sub(Box<Expression>, Box<Expression>),
@@ -231,7 +231,7 @@ pub enum Expression {
 
     Call {
         fun: Box<Expression>,
-        args: Rc<[Expression]>,
+        args: Box<[Expression]>,
     },
 
     Assignment {
