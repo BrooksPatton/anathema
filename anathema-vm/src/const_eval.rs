@@ -1,6 +1,14 @@
 use anathema_values::hashmap::HashMap;
 use anathema_values::{Expression, Owned as Own, Variables};
 
+// Evaluate the expression using `vars` as a backing store.
+// e.g `a.b.c` would first find `a` in `vars` and resolve the remaining path
+// from within that expression.
+// 
+// ```
+// a.b[c]
+// ```
+// would resolve `a` from vars, `b` from `a`, and `c` from vars.
 fn eval_dot<'a>(expr: &'a Expression, vars: &'a Variables) -> Option<&'a Expression> {
     match expr {
         Expression::Ident(ident) => {
@@ -165,6 +173,8 @@ mod test {
 
     #[test]
     fn test_eval_dot() {
+        // a.b = 1
+        // resolve a.b
         let mut test_scope = TestScope::new();
         test_scope.local("a", map([("b", inum(1))]));
         test_scope.exec();
@@ -176,11 +186,32 @@ mod test {
 
     #[test]
     fn test_eval_index() {
+        // a.b = [1]
+        // c = 0
+        // resolve a.b[c]
         let mut test_scope = TestScope::new();
         test_scope.local("a", map([("b", list([inum(1)]))]));
+        test_scope.local("c", unum(0));
         test_scope.exec();
+
         let vars = test_scope.vars;
-        let expr = index(dot(ident("a"), ident("b")), unum(0));
+        let expr = index(dot(ident("a"), ident("b")), ident("c"));
+        let expr = eval_dot(&expr, &vars).unwrap();
+        assert_eq!(expr, &Expression::Owned(1.into()));
+    }
+
+    #[test]
+    fn assign() {
+        // a.b = [1]
+        // c = 0
+        // resolve a.b[c]
+        let mut test_scope = TestScope::new();
+        test_scope.local("a", map([("b", list([inum(1)]))]));
+        test_scope.local("c", unum(0));
+        test_scope.exec();
+
+        let vars = test_scope.vars;
+        let expr = index(dot(ident("a"), ident("b")), ident("c"));
         let expr = eval_dot(&expr, &vars).unwrap();
         assert_eq!(expr, &Expression::Owned(1.into()));
     }

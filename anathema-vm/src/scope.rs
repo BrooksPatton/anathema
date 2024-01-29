@@ -269,6 +269,6 @@ mod test {
         test_scope.local("y", ident("xx"));
 
         let expr = test_scope.exec().unwrap();
-        panic!("{expr:#?}");
+        panic!("{:#?}", test_scope.vars);
     }
 }
