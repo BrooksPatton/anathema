@@ -1,7 +1,6 @@
 use std::rc::Rc;
 
 use anathema_compiler::Instruction;
-use anathema_values::hashmap::HashMap;
 use anathema_values::{
     Attributes, Constants, Expression, Locals, StringId, Variables, ViewId, Visibility,
 };

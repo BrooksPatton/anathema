@@ -37,6 +37,59 @@ fn eval_dot<'a>(expr: &'a Expression, vars: &'a Variables) -> Option<&'a Express
     }
 }
 
+fn eval_dot_mut<'a>(expr: &Expression, vars: &'a mut Variables) -> Option<&'a mut Expression> {
+    // 1. Get the root mutably,
+    // 2. Proceed from the root
+    //
+    // Ident a -> get(a) 
+    // Index a 1 -> get(a) -> get(1)
+    // Map   a.b -> get(a) -> get(b)
+
+    // TODO
+    // current issue is that we need to be able to resolve values while having mutable
+    // access to the value store (yikes!).
+    //
+    // e.g
+    // assign with a[b]
+    // 
+    // this needs to lookup `b` while having mutable
+    // access to `a`
+
+    match expr {
+        Expression::Ident(ident) => {
+            let ident: &str = &*ident;
+            vars.fetch_mut(ident)
+        }
+    //     Expression::Index(lhs, index) => match eval_dot_mut(lhs, vars)? {
+    //         Expression::List(list) => match &**index {
+    //             Expression::Owned(Own::Num(num)) => list.get_mut(num.to_usize()),
+    //             Expression::Ident(ident) => match vars.fetch_mut(ident)? {
+    //                 Expression::Owned(Own::Num(num)) => list.get_mut(num.to_usize()),
+    //                 _ => None,
+    //             },
+    //             _ => None,
+    //         },
+    //         Expression::Map(map) => match &**index {
+    //             Expression::Str(key) => map.get_mut(&**key),
+    //             Expression::Ident(key) => match vars.fetch_mut(key)? {
+    //                 Expression::Str(key) => map.get_mut(&**key),
+    //                 _ => None,
+    //             },
+    //             _ => None,
+    //         },
+    //         _ => None,
+    //     },
+    //     Expression::Dot(lhs, rhs) => match eval_dot(lhs, vars)? {
+    //         Expression::Map(map) => match &**rhs {
+    //             Expression::Ident(key) => map.get_mut(&**key),
+    //             _ => None,
+    //         },
+    //         _ => None,
+    //     },
+        _ => None,
+    }
+}
+
 pub(crate) fn const_eval(expr: &Expression, vars: &Variables) -> Expression {
     use Expression::*;
 
@@ -118,7 +171,7 @@ mod test {
         let vars = test_scope.vars;
         let expr = dot(ident("a"), ident("b"));
         let expr = eval_dot(&expr, &vars).unwrap();
-        assert_eq!(expr, Expression::Owned(1.into()));
+        assert_eq!(expr, &Expression::Owned(1.into()));
     }
 
     #[test]
@@ -129,6 +182,6 @@ mod test {
         let vars = test_scope.vars;
         let expr = index(dot(ident("a"), ident("b")), unum(0));
         let expr = eval_dot(&expr, &vars).unwrap();
-        assert_eq!(expr, Expression::Owned(1.into()));
+        assert_eq!(expr, &Expression::Owned(1.into()));
     }
 }

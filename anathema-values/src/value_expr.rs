@@ -220,7 +220,7 @@ pub enum Expression {
 
     // List and Map are both Rc'd as expressions are
     // cloned for `Value<T>` and a few other places.
-    List(Rc<[Expression]>),
+    List(Vec<Expression>),
     Map(HashMap<String, Expression>),
 
     Add(Box<Expression>, Box<Expression>),

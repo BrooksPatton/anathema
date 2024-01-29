@@ -1,5 +1,4 @@
 use anathema_compiler::Instruction;
-use anathema_values::testing::{add, div, dot, ident, index, list, map, modulo, mul, sub, unum};
 use anathema_values::{Constants, Expression, Locals, Variables, Visibility};
 use anathema_widget_core::nodes::Node;
 
