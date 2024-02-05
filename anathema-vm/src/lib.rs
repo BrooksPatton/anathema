@@ -12,6 +12,7 @@ pub use vm::VirtualMachine;
 
 use self::error::{Error, Result};
 
+#[derive(Debug)]
 struct ViewTemplates {
     view_ids: ViewIds,
     inner: HashMap<ViewId, Template>,
@@ -114,6 +115,7 @@ impl CompiledTemplates {
     }
 }
 
+#[derive(Debug)]
 enum Template {
     Pending(String),
     Evaluated(Vec<Node>),
@@ -141,3 +143,4 @@ mod test {
         t.compile().unwrap();
     }
 }
+

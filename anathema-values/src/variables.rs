@@ -287,33 +287,6 @@ impl Variables {
         }
     }
 
-    fn path_lookup(&mut self, expr: &Expression) -> Option<&mut Expression> {
-        match expr {
-            Expression::Ident(ident) => {
-                let ident: &str = ident;
-                let val = self.fetch_mut(ident)?;
-                Some(val)
-            }
-            Expression::Dot(lhs, rhs) => {
-                match self.path_lookup(lhs)? {
-                    Expression::Map(map) => {
-                        match &**rhs {
-                            Expression::Ident(key) => {
-                                let key: &str = key;
-                                let val = map.get_mut(key)?;
-                                return Some(val);
-                            }
-                            _ => panic!()
-                        }
-                    }
-                    _ => panic!()
-                }
-                panic!()
-            }
-            _ => panic!(),
-        }
-    }
-
     fn declare_at(&mut self, ident: impl Into<Rc<str>>, var_id: VarId, id: ScopeId) -> VarId {
         let ident = ident.into();
         let scope = self.root.get_scope_mut(id);
@@ -328,39 +301,11 @@ impl Variables {
         self.declare_at(ident, var_id, scope_id)
     }
 
-    pub fn assign(&mut self, lhs: Expression, rhs: Expression) { //-> VarId {
-        let value = self.path_lookup(&lhs).unwrap();
-        *value = rhs;
-        // panic!("{value:?}");
-
-
-
-        // Find a parent declaration / assignment and push a phi value
-
-        // let val = const_eval_mut_ref(&lhs, self).unwrap();
-        // *val = rhs;
-
-        // let var_id = self.store.push(value).into();
-        // let scope = self.root.get_scope_mut(&self.current.0);
-        // scope.insert(ident, var_id);
-
-        // Insert effect
-        // panic!("insert effect");
-        // if decl_scope_id < &self.current {
-        //     // insert dyn value with the new value id and the original value id
-        //     let dyn_value = panic!();//Expression::Dyn(decl_value_id, value_id);
-        //     let dyn_value_id = self.store.push(dyn_value);
-        //     self.declare_at(ident, dyn_value_id, decl_scope_id.clone());
-        // }
-
-        // var_id
-    }
-
     /// Fetch a value starting from the current path.
-    pub fn fetch(&self, ident: &str) -> Option<&Expression> {
+    pub fn fetch(&self, ident: &str) -> Option<Expression> {
         self.root
             .get_var_id(&self.current, ident)
-            .and_then(|id| self.store.get(id))
+            .and_then(|id| self.store.get(id).cloned())
     }
 
     /// Fetch a value starting from the current path.

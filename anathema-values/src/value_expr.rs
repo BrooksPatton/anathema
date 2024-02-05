@@ -106,10 +106,9 @@ impl Immediate<'_> {
 
 impl<'frame> Resolver<'frame> for Immediate<'frame> {
     fn resolve(&mut self, path: Path<'_>) -> ValueRef<'frame> {
-        // 1. locals
-        // 2. state
-        // 3. scope -> state, scope, [parent]---+
-        // 4. parent                            |
+        // 1. state
+        // 2. scope -> state, scope, [parent]---+
+        // 3. parent                            |
         //    |                                 |
         // +--+---------------------------------+
         // |  __________________________________
@@ -125,19 +124,6 @@ impl<'frame> Resolver<'frame> for Immediate<'frame> {
         //     if resolver.is_deferred {
         //         self.is_deferred = true;
         //     }
-
-        // TODO
-        // Dubious looking code.
-        // Needs some debuggery
-        match self.context.local(path, self.node_id) {
-            Some(expr) => {
-                let value = expr.eval_value(self);
-                self.is_deferred = true;
-                return value;
-            }
-            None => {
-            }
-        }
 
         match self.context.state(path, self.node_id) {
             ValueRef::Empty => match self.context.scopes(path) {
@@ -220,8 +206,8 @@ pub enum Expression {
 
     // List and Map are both Rc'd as expressions are
     // cloned for `Value<T>` and a few other places.
-    List(Vec<Expression>),
-    Map(HashMap<String, Expression>),
+    List(Rc<[Expression]>),
+    Map(Rc<HashMap<String, Expression>>),
 
     Add(Box<Expression>, Box<Expression>),
     Sub(Box<Expression>, Box<Expression>),
@@ -232,11 +218,6 @@ pub enum Expression {
     Call {
         fun: Box<Expression>,
         args: Box<[Expression]>,
-    },
-
-    Assignment {
-        lhs: Box<Expression>,
-        rhs: Box<Expression>,
     },
 }
 
@@ -292,12 +273,6 @@ impl Display for Expression {
                         .join(", ")
                 )
             }
-            // Self::Declaration {
-            //     visibility,
-            //     binding: ident,
-            //     value,
-            // } => write!(f, "{visibility} {ident} = {value}"),
-            Self::Assignment { lhs, rhs } => write!(f, "{lhs} = {rhs}"),
         }
     }
 }
@@ -487,22 +462,6 @@ impl Expression {
                 };
                 let _args = args.iter().map(|expr| expr.eval_value(resolver));
 
-                panic!()
-            }
-
-            // -----------------------------------------------------------------------------
-            //   - Declaration and assignment -
-            // -----------------------------------------------------------------------------
-            // Self::Declaration {
-            //     visibility,
-            //     binding: ident,
-            //     value,
-            // } => {
-            //     panic!()
-            // }
-
-            Self::Assignment { .. } => {
-                // NO NO NO: assignment to a non-existent value does NOT cause declaration
                 panic!()
             }
         }

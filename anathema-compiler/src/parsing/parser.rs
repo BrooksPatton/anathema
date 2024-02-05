@@ -22,10 +22,6 @@ pub enum Statement {
         binding: StringId,
         value: ValueId,
     },
-    Assignment {
-        lhs: ValueId,
-        rhs: ValueId,
-    },
     If(ValueId),
     Else(Option<ValueId>),
     ScopeStart,
@@ -39,7 +35,6 @@ enum State {
     ExitScope,
     ParseFor,
     ParseIf,
-    ParseAssignment,
     ParseDeclaration,
     ParseView,
     ParseIdent,
@@ -122,7 +117,6 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
                 State::ParseFor => self.parse_for(),
                 State::ParseIf => self.parse_if(),
                 State::ParseDeclaration => self.parse_declaration(),
-                State::ParseAssignment => self.parse_assignment(),
                 State::ParseView => self.parse_view(),
                 State::ExitScope => self.exit_scope(),
                 State::ParseIdent => self.parse_ident(),
@@ -150,8 +144,7 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
             State::ExitScope => self.state = State::ParseFor,
             State::ParseFor => self.state = State::ParseIf,
             State::ParseIf => self.state = State::ParseDeclaration,
-            State::ParseDeclaration => self.state = State::ParseAssignment,
-            State::ParseAssignment => self.state = State::ParseView,
+            State::ParseDeclaration => self.state = State::ParseView,
             State::ParseView => self.state = State::ParseIdent,
             State::ParseIdent => self.state = State::ParseAttributes,
             State::ParseAttributes => self.state = State::ParseAttribute,
@@ -313,25 +306,6 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
                 self.next_state();
                 Ok(None)
             }
-        }
-    }
-
-    fn parse_assignment(&mut self) -> Result<Option<Statement>> {
-        // If the current line contains Op::Equal then it's an assignment
-        self.next_state();
-        if self.tokens.line_contains(Kind::Equal) {
-            let lhs = eval(expr(&mut self.tokens), self.consts);
-
-            if let Kind::Equal = self.tokens.peek_skip_indent() {
-                self.tokens.consume();
-            }
-
-            let rhs = eval(expr(&mut self.tokens), self.consts);
-            let lhs = self.consts.store_value(lhs);
-            let rhs = self.consts.store_value(rhs);
-            Ok(Some(Statement::Assignment { lhs, rhs }))
-        } else {
-            Ok(None)
         }
     }
 

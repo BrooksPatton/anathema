@@ -1,9 +1,7 @@
 use std::rc::Rc;
 
 use anathema_compiler::Instruction;
-use anathema_values::{
-    Attributes, Constants, Expression, Locals, StringId, Variables, ViewId, Visibility,
-};
+use anathema_values::{Attributes, Constants, Expression, StringId, Variables, ViewId, Visibility};
 use anathema_widget_core::nodes::{
     ControlFlow, ElseExpr, IfExpr, LoopExpr, Node, SingleNodeExpr, ViewExpr,
 };
@@ -25,12 +23,7 @@ impl<'vm> Scope<'vm> {
         }
     }
 
-    pub fn exec(
-        &mut self,
-        views: &mut ViewTemplates,
-        vars: &mut Variables,
-        locals: &mut Locals,
-    ) -> Result<Vec<Node>> {
+    pub fn exec(&mut self, views: &mut ViewTemplates, vars: &mut Variables) -> Result<Vec<Node>> {
         let mut nodes = vec![];
 
         if self.instructions.is_empty() {
@@ -41,12 +34,12 @@ impl<'vm> Scope<'vm> {
             let instruction = self.instructions.remove(0);
             match instruction {
                 Instruction::View(ident) => {
-                    nodes.push(self.view(ident, views)?);
+                    nodes.push(self.view(ident, views, vars)?);
                 }
                 Instruction::Node {
                     ident,
                     size: scope_size,
-                } => nodes.push(self.node(ident, scope_size, views, vars, locals)?),
+                } => nodes.push(self.node(ident, scope_size, views, vars)?),
                 Instruction::For {
                     binding,
                     data,
@@ -59,7 +52,7 @@ impl<'vm> Scope<'vm> {
                     let body = self.instructions.drain(..size).collect();
 
                     vars.new_child();
-                    let body = Scope::new(body, self.consts).exec(views, vars, locals)?;
+                    let body = Scope::new(body, self.consts).exec(views, vars)?;
                     vars.pop();
 
                     let template = Node::Loop(LoopExpr {
@@ -75,7 +68,7 @@ impl<'vm> Scope<'vm> {
 
                     let body = self.instructions.drain(..size).collect::<Vec<_>>();
                     vars.new_child();
-                    let body = Scope::new(body, self.consts).exec(views, vars, locals)?;
+                    let body = Scope::new(body, self.consts).exec(views, vars)?;
                     vars.pop();
 
                     let mut control_flow = ControlFlow {
@@ -96,7 +89,7 @@ impl<'vm> Scope<'vm> {
 
                         let body = self.instructions.drain(..size).collect();
                         vars.new_child();
-                        let body = Scope::new(body, self.consts).exec(views, vars, locals)?;
+                        let body = Scope::new(body, self.consts).exec(views, vars)?;
                         vars.pop();
 
                         control_flow.elses.push(ElseExpr {
@@ -124,28 +117,9 @@ impl<'vm> Scope<'vm> {
                     }
 
                     let binding: Rc<str> = self.consts.lookup_string(binding).into();
-                    let lhs = Expression::Ident(binding.clone()).into();
                     let rhs = self.consts.lookup_value(value);
-                    let rhs = const_eval(&rhs, vars);
+                    let rhs = const_eval(rhs, vars);
                     let rhs_id = vars.declare(binding, rhs);
-                    let rhs = vars.by_value_ref(rhs_id);
-                    let expr = Node::Assignment { lhs, rhs };
-
-                    // locals.declare(binding, rhs);
-
-                    nodes.push(expr);
-                }
-                Instruction::Assignment { lhs, rhs } => {
-                    // local x = {a: {b: {c: 1 }}}
-                    // x.a.b.c = 2
-
-                    let lhs = self.consts.lookup_value(lhs);
-                    let rhs = self.consts.lookup_value(rhs);
-                    let rhs = const_eval(&rhs, vars);
-                    vars.assign(lhs, rhs);
-                    // panic!("this panic is fine, don't worry about it");
-                    // let expr = Node::Assignment { lhs, rhs };
-                    // nodes.push(expr);
                 }
             }
 
@@ -157,13 +131,14 @@ impl<'vm> Scope<'vm> {
         Ok(nodes)
     }
 
-    fn attributes(&mut self) -> Attributes {
+    fn attributes(&mut self, vars: &Variables) -> Attributes {
         let mut attributes = Attributes::new();
         let mut ip = 0;
 
         while let Some(Instruction::LoadAttribute { key, value }) = self.instructions.get(ip) {
             let key = self.consts.lookup_string(*key);
             let value = self.consts.lookup_value(*value);
+            let value = const_eval(value, vars);
             attributes.insert(key.to_string(), value.clone());
             ip += 1;
         }
@@ -179,17 +154,17 @@ impl<'vm> Scope<'vm> {
         scope_size: usize,
         views: &mut ViewTemplates,
         vars: &mut Variables,
-        locals: &mut Locals,
     ) -> Result<Node> {
         let ident = self.consts.lookup_string(ident);
 
         let mut text = None::<Expression>;
-        // let mut attributes = Attributes::new();
-        let attributes = self.attributes();
+        let attributes = self.attributes(vars);
         let mut ip = 0;
 
         while let Some(Instruction::LoadValue(i)) = self.instructions.get(ip) {
-            text = Some(self.consts.lookup_value(*i).clone());
+            let val = self.consts.lookup_value(*i);
+            let val = const_eval(val, vars);
+            text = Some(val);
             ip += 1;
         }
 
@@ -198,7 +173,7 @@ impl<'vm> Scope<'vm> {
 
         let scope = self.instructions.drain(..scope_size).collect();
         vars.new_child();
-        let children = Scope::new(scope, self.consts).exec(views, vars, locals)?;
+        let children = Scope::new(scope, self.consts).exec(views, vars)?;
         vars.pop();
 
         let node = Node::Single(SingleNodeExpr {
@@ -211,12 +186,13 @@ impl<'vm> Scope<'vm> {
         Ok(node)
     }
 
-    fn view(&mut self, view: ViewId, views: &mut ViewTemplates) -> Result<Node> {
-        let attributes = self.attributes();
+    fn view(&mut self, view: ViewId, views: &mut ViewTemplates, vars: &Variables) -> Result<Node> {
+        let attributes = self.attributes(vars);
 
         let state = match self.instructions.first() {
             Some(Instruction::LoadValue(i)) => {
                 let val = self.consts.lookup_value(*i).clone();
+                let val = const_eval(val, vars);
                 let _ = self.instructions.remove(0);
                 Some(val)
             }
@@ -238,37 +214,54 @@ impl<'vm> Scope<'vm> {
 
 #[cfg(test)]
 mod test {
-    use anathema_values::testing::{add, dot, ident, unum, map};
+    use anathema_values::testing::{add, dot, ident, map, unum};
 
     use super::*;
     use crate::testing::TestScope;
 
     #[test]
-    fn eval_instruction() {
+    fn scope_access() {
+        // local a = 1
+        // vstack
+        //    local a = 2
+        //    text a // this should output 2
         let mut test_scope = TestScope::new();
-        // test_scope.node("ident here", 0);
-        // test_scope.for_loop("i", [1, 2], 0);
-        // test_scope.attrib("i", "y");
-        // test_scope.local("a", add(modulo(unum(8), unum(3)), ident("lol")));
-        // test_scope.local("b", add(ident("a"), unum(2)));
-        // test_scope.local("c", list([
-        //         add(ident("a"), unum(2)),
-        //         add(ident("b"), unum(2)),
-        //         add(ident("doesnotexist"), unum(1)),
-        // ]));
-        // test_scope.local("d", map([("key", add(ident("a"), ident("b")))]));
+        test_scope.local("a", unum(1));
+        test_scope.node("vstack", 3);
+        test_scope.local("a", unum(2));
+        test_scope.node("text", 0);
+        test_scope.load_value(ident("a"));
+        let actual = test_scope.exec();
+        panic!("{actual:#?}");
+        // assert_eq!(expected, actual);
+    }
 
-        // test_scope.local("c", unum(0));
-        // test_scope.assign(ident("c"), unum(0));
+    #[test]
+    fn eval_instruction() {
+        // let mut test_scope = TestScope::new();
+        // // test_scope.node("ident here", 0);
+        // // test_scope.for_loop("i", [1, 2], 0);
+        // // test_scope.attrib("i", "y");
+        // // test_scope.local("a", add(modulo(unum(8), unum(3)), ident("lol")));
+        // // test_scope.local("b", add(ident("a"), unum(2)));
+        // // test_scope.local("c", list([
+        // //         add(ident("a"), unum(2)),
+        // //         add(ident("b"), unum(2)),
+        // //         add(ident("doesnotexist"), unum(1)),
+        // // ]));
+        // // test_scope.local("d", map([("key", add(ident("a"), ident("b")))]));
 
-        test_scope.local("a", map([("b", map([("c", unum(1))]))]));
+        // // test_scope.local("c", unum(0));
+        // // test_scope.assign(ident("c"), unum(0));
 
-        let assign = dot(dot(ident("a"), ident("b")), ident("c"));
-        test_scope.assign(assign.clone(), unum(999));
-        test_scope.local("xx", add(assign, unum(1)));
-        test_scope.local("y", ident("xx"));
+        // test_scope.local("a", map([("b", map([("c", unum(1))]))]));
 
-        let expr = test_scope.exec().unwrap();
-        panic!("{:#?}", test_scope.vars);
+        // let assign = dot(dot(ident("a"), ident("b")), ident("c"));
+        // test_scope.assign(assign.clone(), unum(999));
+        // test_scope.local("xx", add(assign, unum(1)));
+        // test_scope.local("y", ident("xx"));
+
+        // let expr = test_scope.exec().unwrap();
+        // panic!("{:#?}", test_scope.vars);
     }
 }

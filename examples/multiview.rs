@@ -72,9 +72,9 @@ fn main() {
     // -----------------------------------------------------------------------------
     //   - Templates -
     // -----------------------------------------------------------------------------
-    let root = read_to_string("examples/templates/multiview/root.tiny").unwrap();
-    let items = read_to_string("examples/templates/multiview/items.tiny").unwrap();
-    let item = read_to_string("examples/templates/multiview/item.tiny").unwrap();
+    let root = read_to_string("examples/templates/multiview/root.aml").unwrap();
+    let items = read_to_string("examples/templates/multiview/items.aml").unwrap();
+    let item = read_to_string("examples/templates/multiview/item.aml").unwrap();
     let mut templates = Templates::new(root, RootView::new());
 
     // Add a single view at setup time for the items.

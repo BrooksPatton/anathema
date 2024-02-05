@@ -99,8 +99,7 @@ impl FakeTerm {
 
 pub fn test_widget(expr: Node, expected: FakeTerm) {
     let state = TestState::new();
-    let mut locals = Default::default();
-    let mut context = Context::root(&state, Some(&mut locals));
+    let mut context = Context::root(&state);
     let mut node = expr.eval(&mut context, 0.into()).unwrap();
     let (widget, nodes) = node.single();
 

@@ -2,14 +2,14 @@ use std::rc::Rc;
 
 use anathema_render::Size;
 use anathema_values::{
-    Attributes, Context, Deferred, DynValue, Expression, ExpressionMap, Expressions,
-    Immediate, NextNodeId, NodeId, OwnedScopeValues, Path, Scope, State, Value, ValueId, ValueRef, Map, Locals,
+    Attributes, Context, Deferred, DynValue, Expression, ExpressionMap, Expressions, Immediate,
+    Map, NextNodeId, NodeId, OwnedScopeValues, Path, Scope, State, Value, ValueId, ValueRef,
 };
 
 pub use self::controlflow::{ElseExpr, IfExpr};
+use crate::elements::{Element, Elements, IfElse, LoopNode, NodeKind, Single, View};
 use crate::error::Result;
 use crate::factory::FactoryContext;
-use crate::elements::{IfElse, LoopNode, Element, NodeKind, Elements, Single, View};
 use crate::views::{RegisteredViews, Views};
 use crate::{Factory, Pos, WidgetContainer};
 
@@ -85,17 +85,14 @@ impl SingleNodeExpr {
 #[derive(Debug)]
 pub(crate) enum Collection<'e> {
     Static(&'e [Expression]),
-    State {
-        len: usize,
-        expr: &'e Expression,
-    },
+    State { len: usize, expr: &'e Expression },
     Empty,
 }
 
 #[derive(Debug, Clone)]
 pub struct LoopExpr {
     pub body: Vec<Node>, // make this Rc<[Expression]>,
-    pub binding: String,             // TODO: make this an Rc<str>
+    pub binding: String, // TODO: make this an Rc<str>
     pub collection: Expression,
 }
 
@@ -219,7 +216,6 @@ impl ViewExpr {
                 nodes: Elements::new(&self.body, node_id.child(0)),
                 state,
                 tabindex,
-                locals: panic!(),
             }),
             node_id,
         };
@@ -236,11 +232,6 @@ pub enum Node {
     View(ViewExpr),
     Loop(LoopExpr),
     ControlFlow(ControlFlow),
-    // Declaration(ValueExpr),
-    Assignment {
-        lhs: Expression,
-        rhs: Expression,
-    },
 }
 
 // let outer_scope = {}

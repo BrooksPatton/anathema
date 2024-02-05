@@ -36,10 +36,6 @@ pub enum Instruction {
         binding: StringId,
         value: ValueId,
     },
-    Assignment {
-        lhs: ValueId,
-        rhs: ValueId,
-    },
 }
 
 enum Branch {
@@ -97,7 +93,6 @@ impl Compiler {
                     binding,
                     value,
                 } => self.compile_declaration(*visibility, *binding, *value),
-                Statement::Assignment { lhs, rhs } => self.compile_assignment(*lhs, *rhs),
             }?;
         }
         Ok(())
@@ -113,18 +108,6 @@ impl Compiler {
             visibility,
             binding,
             value,
-        });
-        Ok(())
-    }
-
-    fn compile_assignment(
-        &mut self,
-        lhs: ValueId,
-        rhs: ValueId,
-    ) -> Result<()> {
-        self.output.push(Instruction::Assignment {
-            lhs,
-            rhs,
         });
         Ok(())
     }

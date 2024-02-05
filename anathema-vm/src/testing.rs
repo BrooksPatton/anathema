@@ -1,17 +1,17 @@
 use anathema_compiler::Instruction;
-use anathema_values::{Constants, Expression, Locals, Variables, Visibility};
+use anathema_values::{Constants, Expression, Variables, Visibility};
 use anathema_widget_core::nodes::Node;
 
 use crate::error::Result;
 use crate::scope::Scope;
 use crate::ViewTemplates;
 
+#[derive(Debug)]
 pub struct TestScope {
     pub consts: Constants,
     pub vars: Variables,
     pub views: ViewTemplates,
     pub instructions: Vec<Instruction>,
-    pub locals: Locals,
 }
 
 impl TestScope {
@@ -21,7 +21,6 @@ impl TestScope {
             views: ViewTemplates::new(),
             vars: Variables::new(),
             instructions: vec![],
-            locals: Default::default(),
         }
     }
 
@@ -29,7 +28,7 @@ impl TestScope {
         let mut scope = Scope::new(self.instructions.drain(..).collect(), &self.consts);
 
         let output = scope
-            .exec(&mut self.views, &mut self.vars, &mut self.locals)
+            .exec(&mut self.views, &mut self.vars)
             .map(Vec::into_boxed_slice);
 
         output
@@ -74,6 +73,12 @@ impl TestScope {
         self.instructions.push(inst);
     }
 
+    pub fn load_value(&mut self, value: impl Into<Expression>) {
+        let value = self.consts.store_value(value.into());
+        let inst = Instruction::LoadValue(value);
+        self.instructions.push(inst);
+    }
+
     pub fn decl(&mut self, visibility: Visibility, binding: &str, value: impl Into<Expression>) {
         let binding = self.consts.store_string(binding);
         let value = self.consts.store_value(value.into());
@@ -91,12 +96,5 @@ impl TestScope {
 
     pub fn global(&mut self, binding: &str, value: impl Into<Expression>) {
         self.decl(Visibility::Global, binding, value)
-    }
-
-    pub fn assign(&mut self, lhs: impl Into<Expression>, rhs: impl Into<Expression>) {
-        let lhs = self.consts.store_value(lhs.into());
-        let rhs = self.consts.store_value(rhs.into());
-        let inst = Instruction::Assignment { lhs, rhs };
-        self.instructions.push(inst);
     }
 }

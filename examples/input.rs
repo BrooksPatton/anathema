@@ -51,7 +51,7 @@ fn main() {
     };
 
     // Step two: load templates
-    let tpl = read_to_string("examples/templates/input.tiny").unwrap();
+    let tpl = read_to_string("examples/templates/input.aml").unwrap();
     let mut templates = Templates::new(tpl, root_view);
     let templates = templates.compile().unwrap();
 

@@ -91,7 +91,7 @@ use std::ops::ControlFlow;
 
 use anathema_values::{
     Change, Context, Deferred, Expression, Immediate, Map, NextNodeId, NodeId, OwnedScopeValues,
-    ScopeValue, Scopes, Value, ValueRef, Locals,
+    ScopeValue, Scopes, Value, ValueRef,
 };
 
 pub(crate) use self::controlflow::IfElse;
@@ -166,13 +166,11 @@ impl<'e> Element<'e> {
                 nodes,
                 state,
                 view,
-                locals,
                 ..
             }) => match state {
                 ViewState::Dynamic(state) => {
                     let context = context.from_state(*state);
                     let mut context = context.from_state(view.get_any_state());
-                    context.locals = Some(locals);
                     c_and_b(nodes, &mut context, f)
                 }
                 ViewState::External { expr, .. } => {
@@ -182,7 +180,6 @@ impl<'e> Element<'e> {
                         ValueRef::Map(state) => {
                             let context = context.from_state(state);
                             let mut context = context.from_state(view.get_any_state());
-                            context.locals = Some(locals);
                             c_and_b(nodes, &mut context, f)
                         }
                         _ => c_and_b(nodes, context, f),
@@ -199,12 +196,10 @@ impl<'e> Element<'e> {
                     // }
 
                     let mut context = context.from_state(view.get_any_state());
-                    context.locals = Some(locals);
                     c_and_b(nodes, &mut context, f)
                 }
                 ViewState::Internal => {
                     let mut context = context.from_state(view.get_any_state());
-                    context.locals = Some(locals);
                     c_and_b(nodes, &mut context, f)
                 }
             },
@@ -270,7 +265,6 @@ pub struct View<'e> {
     pub(crate) view: Box<dyn AnyView>,
     pub(crate) nodes: Elements<'e>,
     pub(crate) state: ViewState<'e>,
-    pub(crate) locals: Locals,
     pub tabindex: Value<u32>,
 }
 
@@ -339,31 +333,6 @@ impl<'expr> Elements<'expr> {
     fn new_node(&mut self, context: &mut Context<'_, 'expr>) -> Option<Result<()>> {
         let node = self.expressions.get(self.node_index)?;
         self.node_index += 1;
-
-        // Check if the expression is a declaration or assignment and evaluate it.
-        // If not do the next step
-
-        // local m = {a: 1, x: {y: {z: ""}}}
-        //
-        // m.x.y.z = 1;
-        match node {
-            Node::Assignment { lhs, rhs } => {
-                if let Some(ref mut locals) = context.locals {
-                    let mut resolver = Deferred::new(context.lookup());
-                    let value_ref = lhs.eval_value(&mut resolver);
-
-                    let mut resolver = Deferred::new(context.lookup());
-                    let value_ref = rhs.eval_value(&mut resolver);
-
-//                     let mut resolver = ??;
-//                     let value = rhs.eval(&mut resolver);
-
-//                     locals.insert("a".into(), Expression::Owned(1usize.into()));
-                }
-                return Some(Ok(()));
-            }
-            _ => {}
-        }
 
         // TODO: this and the update function has the same gross stuff in it.
         // Make it less gross plz
@@ -586,7 +555,6 @@ fn update(
                 };
 
                 let mut context = context.from_state(state);
-                context.locals = Some(&mut view.locals);
                 // TODO: this is silly. see above TODO
                 // let context = context.with_state(view.view.get_any_state());
                 // let scope = context.new_scope(&node.scope);

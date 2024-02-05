@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use crate::hashmap::HashMap;
 use crate::state::State;
-use crate::{Expression, Locals, Map, NodeId, Owned, Path, ValueRef};
+use crate::{Expression, Map, NodeId, Owned, Path, ValueRef};
 
 /// Values owned by the nodes them selves.
 #[derive(Debug)]
@@ -147,20 +147,19 @@ impl Debug for InnerContext<'_, '_> {
 //
 // For a deferred resolver everything has the same lifetime as the expressions,
 // for an immediate resolver the lifetime can only be that of the frame, during the layout step
+#[derive(Debug)]
 pub struct Context<'frame, 'expr> {
     inner: InnerContext<'frame, 'expr>,
-    pub locals: Option<&'frame mut Locals>,
 }
 
 impl<'frame, 'expr> Context<'frame, 'expr> {
-    pub fn root(state: &'frame dyn State, locals: Option<&'frame mut Locals>) -> Self {
+    pub fn root(state: &'frame dyn State) -> Self {
         Self {
             inner: InnerContext {
                 state,
                 scopes: None,
                 parent: None,
             },
-            locals,
         }
     }
 
@@ -174,7 +173,6 @@ impl<'frame, 'expr> Context<'frame, 'expr> {
 
         Self {
             inner,
-            locals: None,
         }
     }
 
@@ -191,26 +189,19 @@ impl<'frame, 'expr> Context<'frame, 'expr> {
     pub fn lookup(&'frame self) -> ContextRef<'frame, 'expr> {
         ContextRef {
             inner: &self.inner,
-            locals: self.locals.as_deref(),
         }
     }
 }
 
 pub struct ContextRef<'frame, 'expr> {
     inner: &'frame InnerContext<'frame, 'expr>,
-    locals: Option<&'frame Locals>,
 }
 
 impl<'frame, 'expr> ContextRef<'frame, 'expr> {
     pub fn pop(&self) -> Option<Self> {
         Some(Self {
             inner: self.inner.pop()?,
-            locals: self.locals,
         })
-    }
-
-    pub fn local(&self, path: Path<'_>, node_id: &NodeId) -> Option<&'frame Expression> {
-        self.locals.and_then(|locals| locals.get(path, node_id))
     }
 
     pub fn state(&self, path: Path<'_>, node_id: &NodeId) -> ValueRef<'frame> {
@@ -228,7 +219,6 @@ impl<'frame, 'expr> From<InnerContext<'frame, 'expr>> for Context<'frame, 'expr>
     fn from(inner: InnerContext<'frame, 'expr>) -> Self {
         Context {
             inner,
-            locals: None,
         }
     }
 }

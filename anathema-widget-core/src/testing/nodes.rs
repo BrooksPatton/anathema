@@ -101,7 +101,7 @@ pub struct TestExpression<S> {
 
 impl<S: State> TestExpression<S> {
     pub fn ctx(&self) -> Context<'_, '_> {
-        Context::root(&self.state, None)
+        Context::root(&self.state)
     }
 
     pub fn eval(&self) -> Result<Element<'_>> {
@@ -122,7 +122,7 @@ pub struct TestRuntime<'e> {
 impl TestRuntime<'_> {
     pub fn layout(&mut self) -> Result<Size> {
         self.nodes.reset_cache();
-        let mut context = Context::root(&self.state, None);
+        let mut context = Context::root(&self.state);
         let mut nodes = LayoutNodes::new(&mut self.nodes, self.constraints, &mut context);
 
         let mut size = Size::ZERO;

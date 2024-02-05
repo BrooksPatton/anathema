@@ -7,6 +7,7 @@ use super::Constraints;
 use crate::error::Result;
 use crate::{Elements, WidgetContainer};
 
+#[derive(Debug)]
 pub struct LayoutNodes<'nodes, 'state, 'expr> {
     pub nodes: &'nodes mut Elements<'expr>,
     pub constraints: Constraints,
