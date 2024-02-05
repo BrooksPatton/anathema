@@ -37,10 +37,7 @@ impl<'nodes, 'state, 'expr> LayoutNodes<'nodes, 'state, 'expr> {
     {
         self.nodes
             .next(self.context, &mut |widget, children, context| {
-                let node = LayoutNode {
-                    widget,
-                    children,
-                };
+                let node = LayoutNode { widget, children };
                 f(node, context)
             })?;
 
@@ -55,10 +52,7 @@ impl<'nodes, 'state, 'expr> LayoutNodes<'nodes, 'state, 'expr> {
             let res = self
                 .nodes
                 .next(self.context, &mut |widget, children, context| {
-                    let node = LayoutNode {
-                        widget,
-                        children,
-                    };
+                    let node = LayoutNode { widget, children };
                     f(node, context)
                 })?;
 
@@ -76,10 +70,7 @@ impl<'nodes, 'state, 'expr> LayoutNodes<'nodes, 'state, 'expr> {
         self.nodes
             .iter_mut()
             .filter(move |(widget, _)| f(widget))
-            .map(|(widget, children)| LayoutNode {
-                widget,
-                children,
-            })
+            .map(|(widget, children)| LayoutNode { widget, children })
     }
 }
 
@@ -98,12 +89,19 @@ impl<'widget, 'expr> LayoutNode<'widget, 'expr> {
     }
 }
 
-impl<'widget, 'expr> From<(&'widget mut WidgetContainer<'expr>, &'widget mut Elements<'expr>)> for LayoutNode<'widget, 'expr> {
-    fn from((widget, children): (&'widget mut WidgetContainer<'expr>, &'widget mut Elements<'expr>)) -> Self {
-        Self {
-            widget,
-            children,
-        }
+impl<'widget, 'expr>
+    From<(
+        &'widget mut WidgetContainer<'expr>,
+        &'widget mut Elements<'expr>,
+    )> for LayoutNode<'widget, 'expr>
+{
+    fn from(
+        (widget, children): (
+            &'widget mut WidgetContainer<'expr>,
+            &'widget mut Elements<'expr>,
+        ),
+    ) -> Self {
+        Self { widget, children }
     }
 }
 

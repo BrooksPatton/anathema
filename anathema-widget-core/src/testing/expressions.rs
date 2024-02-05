@@ -1,8 +1,6 @@
-use anathema_values::{Attributes, Path, Expression};
+use anathema_values::{Attributes, Expression, Path};
 
-use crate::nodes::{
-    ControlFlow, ElseExpr, Node, IfExpr, LoopExpr, SingleNodeExpr, ViewExpr,
-};
+use crate::nodes::{ControlFlow, ElseExpr, IfExpr, LoopExpr, Node, SingleNodeExpr, ViewExpr};
 
 pub fn expression(
     ident: impl Into<String>,

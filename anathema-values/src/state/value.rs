@@ -73,7 +73,10 @@ where
     }
 }
 
-impl<T> Clone for StateValue<T> where T: Clone {
+impl<T> Clone for StateValue<T>
+where
+    T: Clone,
+{
     fn clone(&self) -> Self {
         todo!()
     }

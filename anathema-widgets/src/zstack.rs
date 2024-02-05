@@ -3,7 +3,9 @@ use anathema_values::{Context, NodeId, Value};
 use anathema_widget_core::contexts::PositionCtx;
 use anathema_widget_core::error::Result;
 use anathema_widget_core::layout::Layout;
-use anathema_widget_core::{AnyWidget, FactoryContext, LayoutNodes, Elements, Widget, WidgetFactory};
+use anathema_widget_core::{
+    AnyWidget, Elements, FactoryContext, LayoutNodes, Widget, WidgetFactory,
+};
 
 use crate::layout::stacked::Stacked;
 

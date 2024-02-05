@@ -6,10 +6,10 @@ use anathema_values::{Attributes, Context, NodeId, Value};
 
 use super::{AnyWidget, Widget};
 use crate::contexts::{PaintCtx, PositionCtx, Unsized, WithSize};
-use crate::error::Result;
-use crate::nodes::Node;
-use crate::layout::Constraints;
 use crate::elements::Elements;
+use crate::error::Result;
+use crate::layout::Constraints;
+use crate::nodes::Node;
 use crate::{Display, LayoutNodes, LocalPos, Pos, Region};
 
 /// The `WidgetContainer` has to go through three steps before it can be displayed:

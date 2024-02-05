@@ -269,7 +269,7 @@ impl Tokens {
 
             match token.0 {
                 Kind::Newline | Kind::Eof => break,
-                _ => continue
+                _ => continue,
             }
         }
         false

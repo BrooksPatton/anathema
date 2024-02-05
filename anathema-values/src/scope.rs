@@ -163,7 +163,7 @@ impl<'frame, 'expr> Context<'frame, 'expr> {
         }
     }
 
-    // TODO: remove this 
+    // TODO: remove this
     pub fn from_state(&'frame self, state: &'frame dyn State) -> Self {
         let inner = InnerContext {
             state,
@@ -171,9 +171,7 @@ impl<'frame, 'expr> Context<'frame, 'expr> {
             parent: Some(&self.inner),
         };
 
-        Self {
-            inner,
-        }
+        Self { inner }
     }
 
     // TODO: remove this
@@ -187,9 +185,7 @@ impl<'frame, 'expr> Context<'frame, 'expr> {
 
     // TODO: rename this
     pub fn lookup(&'frame self) -> ContextRef<'frame, 'expr> {
-        ContextRef {
-            inner: &self.inner,
-        }
+        ContextRef { inner: &self.inner }
     }
 }
 
@@ -217,9 +213,7 @@ impl<'frame, 'expr> ContextRef<'frame, 'expr> {
 
 impl<'frame, 'expr> From<InnerContext<'frame, 'expr>> for Context<'frame, 'expr> {
     fn from(inner: InnerContext<'frame, 'expr>) -> Self {
-        Context {
-            inner,
-        }
+        Context { inner }
     }
 }
 

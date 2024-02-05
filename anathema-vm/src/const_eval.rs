@@ -165,7 +165,7 @@ mod test {
         assert_eq!(expected, actual);
     }
 
-  #[test]
+    #[test]
     fn list_dyn_eval() {
         let mut test_scope = TestScope::new();
         test_scope.local("a", list([strlit("red"), strlit("blue")]));
@@ -174,7 +174,10 @@ mod test {
 
         let expr = index(ident("a"), add(ident("some_state"), ident("b")));
         let actual = eval_dot(&expr, &test_scope.vars).unwrap();
-        let expected = *index(list([strlit("red"), strlit("blue")]), add(ident("some_state"), unum(1)));
+        let expected = *index(
+            list([strlit("red"), strlit("blue")]),
+            add(ident("some_state"), unum(1)),
+        );
         assert_eq!(expected, actual);
     }
 }

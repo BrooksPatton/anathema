@@ -1,6 +1,6 @@
 use crate::hashmap::HashMap;
 use crate::map::Map;
-use crate::{Context, Immediate, List, NodeId, Owned, StateValue, Expression, ValueRef};
+use crate::{Context, Expression, Immediate, List, NodeId, Owned, StateValue, ValueRef};
 
 #[derive(Debug, crate::State)]
 pub struct Inner {
@@ -189,7 +189,9 @@ pub fn list<E: Into<Expression>>(input: impl IntoIterator<Item = E>) -> Box<Expr
     Expression::List(vec.into()).into()
 }
 
-pub fn map<E: Into<Expression>>(input: impl IntoIterator<Item = (&'static str, E)>) -> Box<Expression> {
+pub fn map<E: Into<Expression>>(
+    input: impl IntoIterator<Item = (&'static str, E)>,
+) -> Box<Expression> {
     let input = input.into_iter().map(|(k, v)| (k.to_string(), v.into()));
     let hm: HashMap<String, Expression> = HashMap::from_iter(input);
     Expression::Map(hm.into()).into()

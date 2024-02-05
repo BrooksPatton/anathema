@@ -844,5 +844,4 @@ mod test {
             Statement::Assignment { .. }
         ));
     }
-
 }

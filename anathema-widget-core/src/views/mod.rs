@@ -7,7 +7,7 @@ use kempt::Map;
 use parking_lot::Mutex;
 
 use crate::error::{Error, Result};
-use crate::{Event, Elements};
+use crate::{Elements, Event};
 
 pub type ViewFn = dyn Fn() -> Box<dyn AnyView> + Send;
 

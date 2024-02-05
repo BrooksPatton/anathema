@@ -3,11 +3,11 @@ use anathema_values::testing::TestState;
 use anathema_values::{Context, State, Value};
 
 use crate::contexts::{LayoutCtx, PositionCtx};
-use crate::error::Result;
-use crate::nodes::Node;
-use crate::layout::{Constraints, Layout};
 use crate::elements::{make_it_so, Element};
-use crate::{AnyWidget, Factory, FactoryContext, LayoutNodes, Elements, Widget, WidgetFactory};
+use crate::error::Result;
+use crate::layout::{Constraints, Layout};
+use crate::nodes::Node;
+use crate::{AnyWidget, Elements, Factory, FactoryContext, LayoutNodes, Widget, WidgetFactory};
 
 // -----------------------------------------------------------------------------
 //   - Layouts -

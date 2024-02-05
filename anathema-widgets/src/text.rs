@@ -3,7 +3,7 @@ use anathema_values::{Context, NodeId, Value};
 use anathema_widget_core::contexts::{PaintCtx, PositionCtx, WithSize};
 use anathema_widget_core::error::{Error, Result};
 use anathema_widget_core::{
-    AnyWidget, FactoryContext, LayoutNodes, LocalPos, Elements, Widget, WidgetFactory, WidgetStyle,
+    AnyWidget, Elements, FactoryContext, LayoutNodes, LocalPos, Widget, WidgetFactory, WidgetStyle,
 };
 
 use crate::layout::text::{Line, ProcessOutput, TextAlignment, TextLayout, Wrap};

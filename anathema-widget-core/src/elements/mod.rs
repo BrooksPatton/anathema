@@ -163,10 +163,7 @@ impl<'e> Element<'e> {
                 c_and_b(body, context, f)
             }
             NodeKind::View(View {
-                nodes,
-                state,
-                view,
-                ..
+                nodes, state, view, ..
             }) => match state {
                 ViewState::Dynamic(state) => {
                     let context = context.from_state(*state);

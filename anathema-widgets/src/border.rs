@@ -2,13 +2,13 @@ use std::fmt::Display;
 
 use anathema_render::Size;
 use anathema_values::{
-    impl_dyn_value, Context, DynValue, Expressions, Immediate, NodeId, Value, Expression, ValueRef,
+    impl_dyn_value, Context, DynValue, Expression, Expressions, Immediate, NodeId, Value, ValueRef,
 };
 use anathema_widget_core::contexts::{PaintCtx, PositionCtx, WithSize};
 use anathema_widget_core::error::Result;
 use anathema_widget_core::layout::Layout;
 use anathema_widget_core::{
-    AnyWidget, FactoryContext, LayoutNodes, LocalPos, Elements, Widget, WidgetFactory, WidgetStyle,
+    AnyWidget, Elements, FactoryContext, LayoutNodes, LocalPos, Widget, WidgetFactory, WidgetStyle,
 };
 use unicode_width::UnicodeWidthChar;
 

@@ -3,7 +3,7 @@ use anathema_values::{Context, NodeId, Value};
 use anathema_widget_core::contexts::PositionCtx;
 use anathema_widget_core::error::Result;
 use anathema_widget_core::{
-    AnyWidget, Axis, FactoryContext, LayoutNodes, Elements, Widget, WidgetFactory,
+    AnyWidget, Axis, Elements, FactoryContext, LayoutNodes, Widget, WidgetFactory,
 };
 
 use crate::stack::Stack;

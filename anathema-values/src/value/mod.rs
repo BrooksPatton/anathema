@@ -8,7 +8,7 @@ pub use self::num::Num;
 pub use self::owned::Owned;
 use crate::hashmap::HashMap;
 use crate::map::Map;
-use crate::{Collection, List, State, Expression};
+use crate::{Collection, Expression, List, State};
 
 mod num;
 mod owned;

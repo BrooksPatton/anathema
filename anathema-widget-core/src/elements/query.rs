@@ -39,8 +39,6 @@ use crate::{Elements, WidgetContainer};
 //     }
 // }
 
-
-
 pub struct Query<'nodes, 'expr, F> {
     pub(super) nodes: &'nodes mut Elements<'expr>,
     pub(super) filter: F,

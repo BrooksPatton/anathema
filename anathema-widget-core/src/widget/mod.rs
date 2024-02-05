@@ -7,8 +7,8 @@ use anathema_values::{Context, NodeId};
 
 pub use self::container::WidgetContainer;
 use super::contexts::{PaintCtx, PositionCtx, WithSize};
-use crate::error::Result;
 use crate::elements::Elements;
+use crate::error::Result;
 use crate::LayoutNodes;
 
 mod container;

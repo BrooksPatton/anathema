@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use anathema_values::hashmap::HashMap;
-use anathema_values::{Constants, Num, Owned, Expression};
+use anathema_values::{Constants, Expression, Num, Owned};
 
 use super::Expr;
 use crate::token::Operator;

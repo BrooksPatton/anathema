@@ -213,7 +213,9 @@ impl Optimizer {
     fn remove_empty_if_else_for(&mut self) {
         let mut p = 0;
         while let Some(expr) = self.input.get(p) {
-            if let ParseStatement::If(_) | ParseStatement::Else(_) | ParseStatement::For { .. } = expr {
+            if let ParseStatement::If(_) | ParseStatement::Else(_) | ParseStatement::For { .. } =
+                expr
+            {
                 match self.input.get(p + 1) {
                     Some(ParseStatement::ScopeStart) => p += 1,
                     _ => drop(self.input.remove(p)),

@@ -4,7 +4,7 @@
 // -----------------------------------------------------------------------------
 use std::fs::read_to_string;
 
-use anathema::core::{Event, KeyCode, Elements, View};
+use anathema::core::{Elements, Event, KeyCode, View};
 use anathema::runtime::Runtime;
 use anathema::values::{List, State, StateValue};
 use anathema::vm::Templates;

@@ -43,7 +43,7 @@ pub struct Deferred<'a, 'expr> {
 
 impl<'a, 'expr> Deferred<'a, 'expr> {
     pub fn new(context: ContextRef<'a, 'expr>) -> Self {
-        Self { context,  }
+        Self { context }
     }
 }
 
@@ -183,7 +183,7 @@ impl<'frame> Resolver<'frame> for Immediate<'frame> {
 //   - Value expressoin -
 // -----------------------------------------------------------------------------
 // TODO
-// Change Box<T> to Rc<T> once there are some 
+// Change Box<T> to Rc<T> once there are some
 // benchmarks in place to justify this change
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {

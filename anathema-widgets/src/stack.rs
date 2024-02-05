@@ -3,7 +3,7 @@ use anathema_values::{Context, NodeId, Value};
 use anathema_widget_core::contexts::PositionCtx;
 use anathema_widget_core::error::Result;
 use anathema_widget_core::layout::{Direction, Layout};
-use anathema_widget_core::{Axis, LayoutNodes, Elements};
+use anathema_widget_core::{Axis, Elements, LayoutNodes};
 
 use crate::layout::horizontal::Horizontal;
 use crate::layout::vertical::Vertical;

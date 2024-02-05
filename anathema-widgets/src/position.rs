@@ -4,7 +4,7 @@ use anathema_widget_core::contexts::PositionCtx;
 use anathema_widget_core::error::Result;
 use anathema_widget_core::layout::{HorzEdge, Layout, VertEdge};
 use anathema_widget_core::{
-    AnyWidget, FactoryContext, LayoutNodes, Elements, Pos, Widget, WidgetFactory,
+    AnyWidget, Elements, FactoryContext, LayoutNodes, Pos, Widget, WidgetFactory,
 };
 
 use crate::layout::single::Single;
