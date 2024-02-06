@@ -23,7 +23,12 @@ impl<'vm> Scope<'vm> {
         }
     }
 
-    pub fn exec(&mut self, views: &mut ViewTemplates, vars: &mut Variables) -> Result<Vec<Node>> {
+    pub fn exec(
+        &mut self,
+        views: &mut ViewTemplates,
+        vars: &mut Variables,
+        globals: &mut Variables,
+    ) -> Result<Vec<Node>> {
         let mut nodes = vec![];
 
         if self.instructions.is_empty() {
@@ -34,12 +39,12 @@ impl<'vm> Scope<'vm> {
             let instruction = self.instructions.remove(0);
             match instruction {
                 Instruction::View(ident) => {
-                    nodes.push(self.view(ident, views, vars)?);
+                    nodes.push(self.view(ident, views, vars, globals)?);
                 }
                 Instruction::Node {
                     ident,
                     size: scope_size,
-                } => nodes.push(self.node(ident, scope_size, views, vars)?),
+                } => nodes.push(self.node(ident, scope_size, views, vars, globals)?),
                 Instruction::For {
                     binding,
                     data,
@@ -52,7 +57,7 @@ impl<'vm> Scope<'vm> {
                     let body = self.instructions.drain(..size).collect();
 
                     vars.new_child();
-                    let body = Scope::new(body, self.consts).exec(views, vars)?;
+                    let body = Scope::new(body, self.consts).exec(views, vars, globals)?;
                     vars.pop();
 
                     let template = Node::Loop(LoopExpr {
@@ -68,7 +73,7 @@ impl<'vm> Scope<'vm> {
 
                     let body = self.instructions.drain(..size).collect::<Vec<_>>();
                     vars.new_child();
-                    let body = Scope::new(body, self.consts).exec(views, vars)?;
+                    let body = Scope::new(body, self.consts).exec(views, vars, globals)?;
                     vars.pop();
 
                     let mut control_flow = ControlFlow {
@@ -89,7 +94,7 @@ impl<'vm> Scope<'vm> {
 
                         let body = self.instructions.drain(..size).collect();
                         vars.new_child();
-                        let body = Scope::new(body, self.consts).exec(views, vars)?;
+                        let body = Scope::new(body, self.consts).exec(views, vars, globals)?;
                         vars.pop();
 
                         control_flow.elses.push(ElseExpr {
@@ -112,14 +117,14 @@ impl<'vm> Scope<'vm> {
                     binding,
                     value,
                 } => {
-                    if let Visibility::Global = visibility {
-                        panic!("store globals in the vars, not done yet");
-                    }
-
                     let binding: Rc<str> = self.consts.lookup_string(binding).into();
                     let rhs = self.consts.lookup_value(value);
-                    let rhs = const_eval(rhs, vars);
-                    let rhs_id = vars.declare(binding, rhs);
+                    let rhs = const_eval(rhs, vars, globals);
+
+                    match visibility {
+                        Visibility::Local => vars.declare(binding, rhs),
+                        Visibility::Global => globals.declare(binding, rhs),
+                    };
                 }
             }
 
@@ -131,14 +136,14 @@ impl<'vm> Scope<'vm> {
         Ok(nodes)
     }
 
-    fn attributes(&mut self, vars: &Variables) -> Attributes {
+    fn attributes(&mut self, vars: &Variables, globals: &Variables) -> Attributes {
         let mut attributes = Attributes::new();
         let mut ip = 0;
 
         while let Some(Instruction::LoadAttribute { key, value }) = self.instructions.get(ip) {
             let key = self.consts.lookup_string(*key);
             let value = self.consts.lookup_value(*value);
-            let value = const_eval(value, vars);
+            let value = const_eval(value, vars, globals);
             attributes.insert(key.to_string(), value.clone());
             ip += 1;
         }
@@ -154,16 +159,17 @@ impl<'vm> Scope<'vm> {
         scope_size: usize,
         views: &mut ViewTemplates,
         vars: &mut Variables,
+        globals: &mut Variables,
     ) -> Result<Node> {
         let ident = self.consts.lookup_string(ident);
 
         let mut text = None::<Expression>;
-        let attributes = self.attributes(vars);
+        let attributes = self.attributes(vars, globals);
         let mut ip = 0;
 
         while let Some(Instruction::LoadValue(i)) = self.instructions.get(ip) {
             let val = self.consts.lookup_value(*i);
-            let val = const_eval(val, vars);
+            let val = const_eval(val, vars, globals);
             text = Some(val);
             ip += 1;
         }
@@ -173,7 +179,7 @@ impl<'vm> Scope<'vm> {
 
         let scope = self.instructions.drain(..scope_size).collect();
         vars.new_child();
-        let children = Scope::new(scope, self.consts).exec(views, vars)?;
+        let children = Scope::new(scope, self.consts).exec(views, vars, globals)?;
         vars.pop();
 
         let node = Node::Single(SingleNodeExpr {
@@ -186,20 +192,26 @@ impl<'vm> Scope<'vm> {
         Ok(node)
     }
 
-    fn view(&mut self, view: ViewId, views: &mut ViewTemplates, vars: &Variables) -> Result<Node> {
-        let attributes = self.attributes(vars);
+    fn view(
+        &mut self,
+        view: ViewId,
+        views: &mut ViewTemplates,
+        vars: &Variables,
+        globals: &mut Variables,
+    ) -> Result<Node> {
+        let attributes = self.attributes(vars, globals);
 
         let state = match self.instructions.first() {
             Some(Instruction::LoadValue(i)) => {
                 let val = self.consts.lookup_value(*i).clone();
-                let val = const_eval(val, vars);
+                let val = const_eval(val, vars, globals);
                 let _ = self.instructions.remove(0);
                 Some(val)
             }
             _ => None,
         };
 
-        let body = views.get(view)?;
+        let body = views.get(view, globals)?;
 
         let node = Node::View(ViewExpr {
             id: view.0,

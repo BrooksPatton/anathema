@@ -10,6 +10,7 @@ use crate::ViewTemplates;
 pub struct TestScope {
     pub consts: Constants,
     pub vars: Variables,
+    pub globals: Variables,
     pub views: ViewTemplates,
     pub instructions: Vec<Instruction>,
 }
@@ -20,6 +21,7 @@ impl TestScope {
             consts: Constants::new(),
             views: ViewTemplates::new(),
             vars: Variables::new(),
+            globals: Variables::new(),
             instructions: vec![],
         }
     }
@@ -28,7 +30,7 @@ impl TestScope {
         let mut scope = Scope::new(self.instructions.drain(..).collect(), &self.consts);
 
         let output = scope
-            .exec(&mut self.views, &mut self.vars)
+            .exec(&mut self.views, &mut self.vars, &mut self.globals)
             .map(Vec::into_boxed_slice);
 
         output

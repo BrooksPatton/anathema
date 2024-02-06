@@ -5,7 +5,7 @@ mod testing;
 mod vm;
 
 use anathema_values::hashmap::HashMap;
-use anathema_values::{ViewId, ViewIds};
+use anathema_values::{ViewId, ViewIds, Variables};
 use anathema_widget_core::nodes::{root_view, Node};
 use anathema_widget_core::views::{AnyView, RegisteredViews, View};
 pub use vm::VirtualMachine;
@@ -28,7 +28,7 @@ impl ViewTemplates {
         }
     }
 
-    fn get(&mut self, view: ViewId) -> Result<Vec<Node>> {
+    fn get(&mut self, view: ViewId, globals: &mut Variables) -> Result<Vec<Node>> {
         if self.dep_list.iter().any(|v| view.eq(v)) {
             panic!("circular dependencies");
         }
@@ -38,7 +38,7 @@ impl ViewTemplates {
         let ret = match self.inner.remove(&view) {
             None => return Err(Error::TemplateMissing),
             Some(Template::Pending(src)) => {
-                let expressions = templates(&src, self)?;
+                let expressions = templates(&src, self, globals)?;
                 self.inner
                     .insert(view, Template::Evaluated(expressions.clone()));
                 Ok(expressions)
@@ -78,7 +78,8 @@ impl Templates {
     }
 
     pub fn compile(&mut self) -> Result<CompiledTemplates> {
-        let expressions = templates(&self.root, &mut self.view_templates)?;
+        let mut globals = Variables::new();
+        let expressions = templates(&self.root, &mut self.view_templates, &mut globals)?;
         let root = root_view(expressions, self.view_templates.view_ids.root_id());
         Ok(CompiledTemplates { root: vec![root] })
     }
@@ -121,10 +122,10 @@ enum Template {
     Evaluated(Vec<Node>),
 }
 
-fn templates(root: &str, views: &mut ViewTemplates) -> Result<Vec<Node>> {
+fn templates(root: &str, views: &mut ViewTemplates, globals: &mut Variables) -> Result<Vec<Node>> {
     let (instructions, constants) = anathema_compiler::compile(root, &mut views.view_ids)?;
     let vm = VirtualMachine::new(instructions, constants);
-    vm.exec(views)
+    vm.exec(views, globals)
 }
 
 #[cfg(test)]

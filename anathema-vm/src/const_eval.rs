@@ -9,23 +9,23 @@ use anathema_values::{Expression, Owned as Own, Variables};
 // a.b[c]
 // ```
 // would resolve `a` from vars, `b` from `a`, and `c` from vars.
-fn eval_dot(expr: &Expression, vars: &Variables) -> Option<Expression> {
+fn eval_dot(expr: &Expression, vars: &Variables, globals: &Variables) -> Option<Expression> {
     match expr {
         Expression::Ident(ident) => {
             let ident: &str = &*ident;
-            vars.fetch(ident)
+            vars.fetch(ident).or_else(|| globals.fetch(ident))
         }
-        Expression::Index(lhs, index) => match eval_dot(lhs, vars)? {
+        Expression::Index(lhs, index) => match eval_dot(lhs, vars, globals)? {
             Expression::List(list) => match &**index {
                 Expression::Owned(Own::Num(num)) => list.get(num.to_usize()).cloned(),
                 _ => Some(Expression::Index(
                     Expression::List(list.clone()).into(),
-                    const_eval(*index.clone(), vars).into(),
+                    const_eval(*index.clone(), vars, globals).into(),
                 )),
             },
             Expression::Map(map) => match &**index {
                 Expression::Str(key) => map.get(&**key).cloned(),
-                Expression::Ident(key) => match vars.fetch(key)? {
+                Expression::Ident(key) => match vars.fetch(key).or_else(|| globals.fetch(key))? {
                     Expression::Str(key) => map.get(&*key).cloned(),
                     _ => None,
                 },
@@ -33,7 +33,7 @@ fn eval_dot(expr: &Expression, vars: &Variables) -> Option<Expression> {
             },
             _ => None,
         },
-        Expression::Dot(lhs, rhs) => match eval_dot(&**lhs, vars)? {
+        Expression::Dot(lhs, rhs) => match eval_dot(&**lhs, vars, globals)? {
             Expression::Map(map) => match &**rhs {
                 Expression::Ident(key) => map.get(&**key).cloned(),
                 _ => None,
@@ -44,12 +44,12 @@ fn eval_dot(expr: &Expression, vars: &Variables) -> Option<Expression> {
     }
 }
 
-pub(crate) fn const_eval(expr: Expression, vars: &Variables) -> Expression {
+pub(crate) fn const_eval(expr: Expression, vars: &Variables, globals: &Variables) -> Expression {
     use Expression::*;
 
     macro_rules! ce {
         ($e:expr) => {
-            const_eval($e, vars).into()
+            const_eval($e, vars, globals).into()
         };
     }
 
@@ -65,9 +65,9 @@ pub(crate) fn const_eval(expr: Expression, vars: &Variables) -> Expression {
         Less(lhs, rhs) => Less(ce!(*lhs), ce!(*rhs)),
         LessEqual(lhs, rhs) => LessEqual(ce!(*lhs), ce!(*rhs)),
 
-        Ident(ref ident) => vars.fetch(&*ident).unwrap_or(expr),
-        Dot(..) => eval_dot(&expr, vars).unwrap_or(expr),
-        Index(..) => eval_dot(&expr, vars).unwrap_or(expr),
+        Ident(ref ident) => vars.fetch(&*ident).or_else(|| globals.fetch(&*ident)).unwrap_or(expr),
+        Dot(..) => eval_dot(&expr, vars, globals).unwrap_or(expr),
+        Index(..) => eval_dot(&expr, vars, globals).unwrap_or(expr),
 
         List(list) => {
             let list = list.into_iter().cloned().map(|expr| ce!(expr)).collect();
@@ -132,9 +132,9 @@ mod test {
         let mut test_scope = TestScope::new();
         test_scope.local("a", map([("b", inum(1))]));
         test_scope.exec();
-        let vars = test_scope.vars;
+        let (vars, globals) = (test_scope.vars, test_scope.globals);
         let expr = dot(ident("a"), ident("b"));
-        let expr = eval_dot(&expr, &vars).unwrap();
+        let expr = eval_dot(&expr, &vars, &globals).unwrap();
         assert_eq!(expr, Expression::Owned(1.into()));
     }
 
@@ -148,9 +148,9 @@ mod test {
         test_scope.local("c", unum(0));
         test_scope.exec();
 
-        let vars = test_scope.vars;
+        let (vars, globals) = (test_scope.vars, test_scope.globals);
         let expr = index(dot(ident("a"), ident("b")), ident("c"));
-        let expr = eval_dot(&expr, &vars).unwrap();
+        let expr = eval_dot(&expr, &vars, &globals).unwrap();
         assert_eq!(expr, Expression::Owned(1.into()));
     }
 
@@ -173,11 +173,29 @@ mod test {
         test_scope.exec();
 
         let expr = index(ident("a"), add(ident("some_state"), ident("b")));
-        let actual = eval_dot(&expr, &test_scope.vars).unwrap();
+        let actual = eval_dot(&expr, &test_scope.vars, &test_scope.globals).unwrap();
         let expected = *index(
             list([strlit("red"), strlit("blue")]),
             add(ident("some_state"), unum(1)),
         );
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn global_dec() {
+        let mut test_scope = TestScope::new();
+        test_scope.global("a", list([strlit("red"), strlit("blue")]));
+        let actual = test_scope.vars.fetch("b").unwrap();
+        let expected = *strlit("blue");
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn cross_lookup_local_to_global() {
+        let mut test_scope = TestScope::new();
+        test_scope.global("a", strlit("global"));
+        test_scope.local("b", list([ident("a")]));
+        let _ = test_scope.exec();
+        let actual = test_scope.vars.fetch("b").unwrap();
     }
 }

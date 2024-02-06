@@ -19,10 +19,10 @@ impl VirtualMachine {
         }
     }
 
-    pub(super) fn exec(self, views: &mut ViewTemplates) -> Result<Vec<Node>> {
+    pub(super) fn exec(self, views: &mut ViewTemplates, globals: &mut Variables) -> Result<Vec<Node>> {
         let mut root_scope = Scope::new(self.instructions, &self.consts);
         let mut vars = Variables::new();
-        root_scope.exec(views, &mut vars)
+        root_scope.exec(views, &mut vars, globals)
     }
 }
 
@@ -36,8 +36,9 @@ mod test {
     #[test]
     fn nodes() {
         let (instructions, consts) = compile("vstack", &mut ViewIds::new()).unwrap();
+        let mut globals = Variables::new();
         let vm = VirtualMachine::new(instructions, consts);
-        let vstack = vm.exec(&mut ViewTemplates::new()).unwrap().remove(0);
+        let vstack = vm.exec(&mut ViewTemplates::new(), &mut globals).unwrap().remove(0);
 
         assert!(matches!(vstack, Node::Single(..)));
     }
@@ -49,8 +50,9 @@ mod test {
             border
         ";
         let (instructions, consts) = compile(src, &mut ViewIds::new()).unwrap();
+        let mut globals = Variables::new();
         let vm = VirtualMachine::new(instructions, consts);
-        let for_loop = vm.exec(&mut ViewTemplates::new()).unwrap().remove(0);
+        let for_loop = vm.exec(&mut ViewTemplates::new(), &mut globals).unwrap().remove(0);
 
         assert!(matches!(for_loop, Node::Loop { .. }));
     }

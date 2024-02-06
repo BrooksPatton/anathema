@@ -220,6 +220,11 @@ fn parse_collection(tokens: &mut Tokens) -> Expr {
 
     loop {
         match tokens.peek_skip_indent() {
+            Kind::Newline => {
+                tokens.consume();
+                continue;
+            }
+
             Kind::Op(Operator::Comma) => {
                 tokens.consume();
                 continue;
@@ -241,6 +246,11 @@ fn parse_map(tokens: &mut Tokens) -> Expr {
 
     loop {
         match tokens.peek_skip_indent() {
+            Kind::Newline => {
+                tokens.consume();
+                continue;
+            }
+
             Kind::Op(Operator::Comma) => {
                 tokens.consume();
                 continue;

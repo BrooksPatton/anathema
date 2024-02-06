@@ -383,14 +383,15 @@ impl<'src, 'consts, 'view> Parser<'src, 'consts, 'view> {
             return Ok(None);
         }
 
+        self.tokens.consume_all_whitespace();
         let key = self.read_ident()?;
-
         self.tokens.consume_all_whitespace();
 
         if Kind::Op(Operator::Colon) != self.tokens.peek_skip_indent() {
             return Err(self.error(ErrorKind::InvalidToken { expected: ":" }));
         }
 
+        // Consume `:`
         self.tokens.consume();
         self.tokens.consume_all_whitespace();
 
@@ -804,35 +805,15 @@ mod test {
     }
 
     #[test]
-    fn parse_ident_assignment() {
-        let src = "x = 1";
-        let mut expressions = parse_ok(src);
-        assert!(matches!(
-            expressions.remove(0),
-            Statement::Assignment { .. }
-        ));
-    }
-
-    #[test]
-    fn parse_complex_assignment() {
-        let src = "x[1]['omg'] = x[2]";
-        let mut expressions = parse_ok(src);
-        assert!(matches!(
-            expressions.remove(0),
-            Statement::Assignment { .. }
-        ));
-    }
-
-    #[test]
     fn parse_invalid_declaration() {
         let src = "local x = global y = 1";
         let err = parse_err(src);
     }
 
     #[test]
-    fn multi_line_assignment() {
+    fn multi_line_declaration() {
         let src = "
-        x[1]['omg'] = {
+        local x = {
             'a': 1,
             'b': {
                 'a': 2,
@@ -841,7 +822,7 @@ mod test {
         let mut expressions = parse_ok(src);
         assert!(matches!(
             expressions.remove(0),
-            Statement::Assignment { .. }
+            Statement::Declaration { .. }
         ));
     }
 }
