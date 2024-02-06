@@ -13,7 +13,7 @@ macro_rules! to_num {
     };
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 pub enum Num {
     Signed(i64),
     Unsigned(u64),
@@ -58,6 +58,15 @@ impl Num {
             Self::Signed(0) | Self::Unsigned(0) => true,
             Self::Float(f) => *f == 0.0,
             _ => false,
+        }
+    }
+}
+
+impl PartialEq for Num {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Float(lhs), Self::Float(rhs)) => lhs == rhs,
+            (lhs, rhs) => lhs.to_i128() == rhs.to_i128(),
         }
     }
 }

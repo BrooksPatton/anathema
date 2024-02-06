@@ -38,9 +38,7 @@ impl<'vm> Scope<'vm> {
         loop {
             let instruction = self.instructions.remove(0);
             match instruction {
-                Instruction::View(ident) => {
-                    nodes.push(self.view(ident, views, vars, globals)?);
-                }
+                Instruction::View(ident) => nodes.push(self.view(ident, views, vars, globals)?),
                 Instruction::Node {
                     ident,
                     size: scope_size,
@@ -70,6 +68,7 @@ impl<'vm> Scope<'vm> {
                 }
                 Instruction::If { cond, size } => {
                     let cond = self.consts.lookup_value(cond);
+                    let cond = const_eval(cond, vars, globals);
 
                     let body = self.instructions.drain(..size).collect::<Vec<_>>();
                     vars.new_child();
@@ -90,7 +89,10 @@ impl<'vm> Scope<'vm> {
                             break;
                         };
                         self.instructions.remove(0);
-                        let cond = cond.map(|cond| self.consts.lookup_value(cond));
+                        let cond = cond.map(|cond| {
+                            let cond = self.consts.lookup_value(cond);
+                            const_eval(cond, vars, globals)
+                        });
 
                         let body = self.instructions.drain(..size).collect();
                         vars.new_child();
@@ -106,12 +108,6 @@ impl<'vm> Scope<'vm> {
                     let template = Node::ControlFlow(control_flow);
                     nodes.push(template);
                 }
-                Instruction::Else { .. } => {
-                    unreachable!("the `Else` instructions are consumed inside the `If` instruction")
-                }
-                Instruction::LoadAttribute { .. } | Instruction::LoadValue(_) => {
-                    unreachable!("these instructions are only executed in the `node` function")
-                }
                 Instruction::Declaration {
                     visibility,
                     binding,
@@ -125,6 +121,12 @@ impl<'vm> Scope<'vm> {
                         Visibility::Local => vars.declare(binding, rhs),
                         Visibility::Global => globals.declare(binding, rhs),
                     };
+                }
+                Instruction::Else { .. } => {
+                    unreachable!("the `Else` instructions are consumed inside the `If` instruction")
+                }
+                Instruction::LoadAttribute { .. } | Instruction::LoadValue(_) => {
+                    unreachable!("these instructions are only executed in the `node` function")
                 }
             }
 

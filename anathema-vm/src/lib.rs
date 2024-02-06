@@ -62,6 +62,7 @@ impl ViewTemplates {
     }
 }
 
+#[derive(Debug)]
 pub struct Templates {
     root: String,
     view_templates: ViewTemplates,
@@ -106,6 +107,7 @@ impl Templates {
     }
 }
 
+#[derive(Debug)]
 pub struct CompiledTemplates {
     root: Vec<Node>,
 }
