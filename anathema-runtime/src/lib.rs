@@ -22,6 +22,8 @@ extern crate anathema_values as anathema;
 mod meta;
 mod tabindex;
 
+pub struct Emitter<T>(flume::Sender<T>);
+
 /// The runtime handles events, tab indices and configuration of the display
 ///
 /// ```

@@ -18,9 +18,10 @@ pub enum Change {
     Update,
     Push,
     InsertIndex(usize),
-    // TODO: is this needed?
+    // TODO: is this variant needed?
     InsertKey(String),
     RemoveIndex(usize),
+    // TODO: is this variant needed?
     RemoveKey(String),
 }
 
