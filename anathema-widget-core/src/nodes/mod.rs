@@ -3,7 +3,7 @@ use std::rc::Rc;
 use anathema_render::Size;
 use anathema_values::{
     Attributes, Context, Deferred, DynValue, Expression, ExpressionMap, Expressions, Immediate,
-    Map, NextNodeId, NodeId, OwnedScopeValues, Path, Scope, State, Value, ValueId, ValueRef,
+    Map, NextNodeId, NodeId, OwnedScopeValues, Path, Scope, State, Value, ValueId, ValueRef, ViewId,
 };
 
 pub use self::controlflow::{ElseExpr, IfExpr};
@@ -18,7 +18,7 @@ mod controlflow;
 // Create the root view, this is so events can be handled and state can
 // be associated with the root view, without having to register additional
 // views.
-pub fn root_view(body: Vec<Node>, id: usize) -> Node {
+pub fn root_view(body: Vec<Node>, id: ViewId) -> Node {
     Node::View(ViewExpr {
         id,
         state: None,
@@ -180,7 +180,7 @@ pub(crate) enum ViewState<'e> {
 
 #[derive(Debug, Clone)]
 pub struct ViewExpr {
-    pub id: usize,
+    pub id: ViewId,
     pub state: Option<Expression>,
     pub body: Vec<Node>,
     pub attributes: Attributes,
@@ -210,12 +210,18 @@ impl ViewExpr {
             None => ViewState::Internal,
         };
 
+        // Only associate view instances and not prototype instances
+        Views::associate(self.id, node_id.clone());
+
+        let (view, kind) = RegisteredViews::get(self.id)?;
+
         let node = Element {
             kind: NodeKind::View(View {
-                view: RegisteredViews::get(self.id)?,
+                view,
                 nodes: Elements::new(&self.body, node_id.child(0)),
                 state,
                 tabindex,
+                kind,
             }),
             node_id,
         };
@@ -316,7 +322,9 @@ mod test {
 
     #[derive(Debug)]
     struct AView;
-    impl crate::views::View for AView {}
+    impl crate::views::View for AView {
+        type Message = ();
+    }
 
     #[test]
     fn eval_node() {
@@ -363,15 +371,15 @@ mod test {
     #[test]
     #[should_panic(expected = "ViewNotFound")]
     fn eval_missing_view() {
-        let expr = view_expression(12345, None, vec![]).test();
+        let expr = view_expression(12345.into(), None, vec![]).test();
         let _ = expr.eval().unwrap();
     }
 
     #[test]
     fn eval_prototype_view() {
-        RegisteredViews::add_prototype(0, || AView);
+        RegisteredViews::add_prototype(0.into(), || AView);
 
-        let expr = view_expression(0, None, vec![]).test();
+        let expr = view_expression(0.into(), None, vec![]).test();
         let node = expr.eval().unwrap();
 
         assert!(matches!(
@@ -386,8 +394,8 @@ mod test {
     #[test]
     #[should_panic(expected = "ViewConsumed")]
     fn consume_view_twice() {
-        RegisteredViews::add_view(0, AView);
-        let expr = view_expression(0, None, vec![]).test();
+        RegisteredViews::add_view(0.into(), AView);
+        let expr = view_expression(0.into(), None, vec![]).test();
         let _ = expr.eval().unwrap();
         let _ = expr.eval().unwrap();
     }

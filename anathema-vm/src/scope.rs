@@ -51,6 +51,7 @@ impl<'vm> Scope<'vm> {
                     let binding = self.consts.lookup_string(binding);
 
                     let collection = self.consts.lookup_value(data).clone();
+                    let collection = const_eval(collection, vars, globals);
 
                     let body = self.instructions.drain(..size).collect();
 
@@ -196,7 +197,7 @@ impl<'vm> Scope<'vm> {
 
     fn view(
         &mut self,
-        view: ViewId,
+        id: ViewId,
         views: &mut ViewTemplates,
         vars: &Variables,
         globals: &mut Variables,
@@ -213,10 +214,10 @@ impl<'vm> Scope<'vm> {
             _ => None,
         };
 
-        let body = views.get(view, globals)?;
+        let body = views.get(id, globals)?;
 
         let node = Node::View(ViewExpr {
-            id: view.0,
+            id,
             body,
             attributes,
             state,

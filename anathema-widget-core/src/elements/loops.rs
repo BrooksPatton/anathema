@@ -1,13 +1,18 @@
 use std::ops::ControlFlow;
 
 use anathema_values::{
-    Change, Context, Deferred, NextNodeId, NodeId, Path, Scope, ScopeValue, ValueRef,
+    Change, Context, Deferred, NextNodeId, NodeId, Path, Scope, ScopeValue, ValueRef, StateValue, State,
 };
 
 use super::Elements;
 use crate::error::Result;
 use crate::nodes::{Collection, Node};
 use crate::WidgetContainer;
+
+
+#[derive(Debug, State)]
+struct LoopIndex {
+}
 
 /// An iteration inside a loop node.
 #[derive(Debug)]

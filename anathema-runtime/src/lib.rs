@@ -1,6 +1,8 @@
+use std::any::Any;
 use std::io::{stdout, Stdout};
 use std::time::{Duration, Instant};
 
+use anathema::ViewId;
 use anathema_render::{size, Screen, Size};
 use anathema_values::{drain_dirty_nodes, Context};
 use anathema_vm::CompiledTemplates;
@@ -22,7 +24,16 @@ extern crate anathema_values as anathema;
 mod meta;
 mod tabindex;
 
-pub struct Emitter<T>(flume::Sender<T>);
+pub struct ViewMessage(Box<dyn Any + Send + Sync>);
+
+pub struct Emitter(flume::Sender<ViewMessage>);
+
+impl Emitter {
+    pub fn emit<T: 'static + Send + Sync>(&self, value: T, view_id: ViewId) {
+        let msg = ViewMessage(Box::new(value));
+        self.0.send(msg);
+    }
+}
 
 /// The runtime handles events, tab indices and configuration of the display
 ///
@@ -78,6 +89,8 @@ pub struct Runtime<'e> {
     needs_layout: bool,
     meta: meta::Meta,
     tabindex: TabIndexing,
+    message_receiver: flume::Receiver<ViewMessage>,
+    message_sender: flume::Sender<ViewMessage>,
 }
 
 impl<'e> Drop for Runtime<'e> {
@@ -97,6 +110,8 @@ impl<'e> Runtime<'e> {
         let constraints = Constraints::new(Some(size.width), Some(size.height));
         let screen = Screen::new(size);
 
+        let (tx, rx) = flume::unbounded();
+
         let inst = Self {
             output: stdout(),
             screen,
@@ -112,9 +127,15 @@ impl<'e> Runtime<'e> {
             tabindex: TabIndexing::new(),
             enable_ctrlc: true,
             enable_tabindex: false,
+            message_sender: tx,
+            message_receiver: rx,
         };
 
         Ok(inst)
+    }
+
+    pub fn emitter(&self) -> Emitter {
+        Emitter(self.message_sender.clone())
     }
 
     fn layout(&mut self) -> Result<()> {
@@ -230,8 +251,20 @@ impl<'e> Runtime<'e> {
         let sleep_micros = ((1.0 / self.fps as f64) * 1000.0 * 1000.0) as u128;
 
         'run: loop {
-            while let Some(event) = self.events.poll(Duration::from_millis(1)) {
+            // Pull events and keep taking events while there are events.
+            // The time used to pull events should be subtracted from the
+            // poll duration of self.events.poll
+            let poll_duration = Duration::from_millis(1);
+            // let poll_duration = self.handle_messages(fps_now, sleep_micros);
+
+            while let Some(event) = self.events.poll(poll_duration) {
+                // while let Some(event) = self.events.poll(Duration::from_millis(1)) {
                 let event = self.global_event(event);
+
+                // // Route messages to views
+                // if let Message { recipient, msg } = self.poll_view_messages() {
+                //     self.nodes.with_view(&recipient, |view| view.on_any_msg(msg)());
+                // }
 
                 // Make sure event handling isn't holding up the rest of the event loop.
                 if fps_now.elapsed().as_micros() > sleep_micros {
@@ -313,5 +346,16 @@ impl<'e> Runtime<'e> {
 
             fps_now = Instant::now();
         }
+    }
+
+    fn handle_messages(&self, fps_now: Instant, sleep_micros: u128) -> Duration {
+        panic!("subtract the amount of time this takes. Might need to give it less time than 1ms like events get");
+        // subtract amount of time spent
+        loop {
+            if fps_now.elapsed().as_micros() > sleep_micros {
+                break;
+            }
+        }
+        todo!()
     }
 }

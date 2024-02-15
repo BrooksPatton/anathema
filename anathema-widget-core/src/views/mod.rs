@@ -2,58 +2,60 @@ use std::cell::RefCell;
 use std::sync::OnceLock;
 
 use anathema_values::hashmap::HashMap;
-use anathema_values::{NodeId, State};
+use anathema_values::{NodeId, State, ViewId};
 use kempt::Map;
 use parking_lot::Mutex;
 
+use crate::elements::ViewKind;
 use crate::error::{Error, Result};
 use crate::{Elements, Event};
 
-pub type ViewFn = dyn Fn() -> Box<dyn AnyView> + Send;
+pub type ViewFn = dyn FnMut() -> Box<dyn AnyView> + Send;
 
 enum ViewFactory {
     View(Option<Box<dyn AnyView>>),
     Prototype(Box<ViewFn>),
 }
 
-static REGISTERED_VIEWS: OnceLock<Mutex<HashMap<usize, ViewFactory>>> = OnceLock::new();
+static REGISTERED_VIEWS: OnceLock<Mutex<HashMap<ViewId, ViewFactory>>> = OnceLock::new();
 
+type TabIndex = Option<u32>;
 thread_local! {
-    static VIEWS: RefCell<Map<NodeId, Option<u32>>> = RefCell::new(Map::new());
+    static TAB_INDICES: RefCell<Map<NodeId, TabIndex>> = RefCell::new(Map::new());
+    static VIEWS: RefCell<Map<ViewId, NodeId>> = RefCell::new(Map::new());
 }
 
 pub struct RegisteredViews;
 
 impl RegisteredViews {
-    pub fn add_view(key: usize, view: impl AnyView + 'static) {
+    pub fn add_view(key: ViewId, view: impl AnyView + 'static) {
         Self::add(key, ViewFactory::View(Some(Box::new(view))));
     }
 
-    pub fn add_prototype<T, F>(key: usize, f: F)
+    pub fn add_prototype<T, F>(key: ViewId, mut f: F)
     where
-        F: Send + 'static + Fn() -> T,
+        F: Send + 'static + FnMut() -> T,
         T: 'static + View + Send,
     {
         Self::add(key, ViewFactory::Prototype(Box::new(move || Box::new(f()))));
     }
 
-    fn add(key: usize, view: ViewFactory) {
+    fn add(key: ViewId, view: ViewFactory) {
         REGISTERED_VIEWS
             .get_or_init(Default::default)
             .lock()
             .insert(key, view);
     }
 
-    pub fn get(id: usize) -> Result<Box<dyn AnyView>> {
+    pub(crate) fn get(id: ViewId) -> Result<(Box<dyn AnyView>, ViewKind)> {
         let mut views = REGISTERED_VIEWS.get_or_init(Default::default).lock();
         let view = views.get_mut(&id);
 
         match view {
             None => Err(Error::ViewNotFound),
-            // Some(f) => Ok(f()),
-            Some(ViewFactory::Prototype(prototype)) => Ok(prototype()),
+            Some(ViewFactory::Prototype(prototype)) => Ok((prototype(), ViewKind::Prototype)),
             Some(ViewFactory::View(view)) => match view.take() {
-                Some(view) => Ok(view),
+                Some(view) => Ok((view, ViewKind::Single(id))),
                 None => Err(Error::ViewConsumed),
             },
         }
@@ -70,7 +72,7 @@ impl Views {
     where
         F: FnMut(&mut Map<NodeId, Option<u32>>) -> Option<NodeId>,
     {
-        VIEWS.with_borrow_mut(|views| f(views))
+        TAB_INDICES.with_borrow_mut(|views| f(views))
     }
 
     #[doc(hidden)]
@@ -78,7 +80,7 @@ impl Views {
     where
         F: FnMut(&NodeId, Option<u32>),
     {
-        VIEWS.with_borrow(|views| {
+        TAB_INDICES.with_borrow(|views| {
             views
                 .iter()
                 .map(|field| (field.key(), field.value))
@@ -87,15 +89,23 @@ impl Views {
     }
 
     pub(crate) fn insert(node_id: NodeId, tabindex: Option<u32>) {
-        VIEWS.with_borrow_mut(|views| views.insert(node_id, tabindex));
+        TAB_INDICES.with_borrow_mut(|views| views.insert(node_id, tabindex));
     }
 
     pub(crate) fn update(node_id: &NodeId, tabindex: Option<u32>) {
-        VIEWS.with_borrow_mut(|views| {
+        TAB_INDICES.with_borrow_mut(|views| {
             if let Some(old_index) = views.get_mut(node_id) {
                 *old_index = tabindex;
             }
         });
+    }
+
+    pub(crate) fn associate(view_id: ViewId, node_id: NodeId) {
+        VIEWS.with_borrow_mut(|views| views.insert(view_id, node_id));
+    }
+
+    pub(crate) fn fetch(view_id: ViewId) -> Option<NodeId> {
+        VIEWS.with_borrow(|views| views.get(&view_id).cloned())
     }
 
     #[cfg(feature = "testing")]
@@ -107,11 +117,13 @@ impl Views {
     #[cfg(feature = "testing")]
     #[doc(hidden)]
     pub fn test_clear() {
-        VIEWS.with_borrow_mut(|views| views.clear());
+        TAB_INDICES.with_borrow_mut(|views| views.clear());
     }
 }
 
 pub trait View {
+    type Message;
+
     /// Called once a view receives an event.
     /// `nodes` represents all the nodes inside the view.
     fn on_event(&mut self, event: Event, _nodes: &mut Elements<'_>) -> Event {
@@ -139,7 +151,9 @@ pub trait View {
     fn blur(&mut self) {}
 }
 
-impl View for () {}
+impl View for () {
+    type Message = ();
+}
 
 pub trait AnyView: Send {
     fn on_any_event(&mut self, ev: Event, nodes: &mut Elements<'_>) -> Event;

@@ -3,8 +3,14 @@ use std::fmt::Display;
 use super::Storage;
 
 // TODO: maybe not make this public?
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ViewId(pub usize);
+
+impl ViewId {
+    pub fn root() -> Self {
+        Self(usize::MAX)
+    }
+}
 
 impl From<usize> for ViewId {
     fn from(n: usize) -> Self {
@@ -27,7 +33,7 @@ pub struct ViewIds {
 impl ViewIds {
     pub fn new() -> Self {
         let storage = Storage::empty();
-        let root = ViewId(usize::MAX);
+        let root = ViewId::root();
         Self { storage, root }
     }
 
@@ -35,7 +41,7 @@ impl ViewIds {
         ViewId(self.storage.push(string))
     }
 
-    pub fn root_id(&self) -> usize {
-        self.root.0
+    pub fn root_id(&self) -> ViewId {
+        self.root
     }
 }

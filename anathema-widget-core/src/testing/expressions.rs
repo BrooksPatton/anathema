@@ -1,4 +1,4 @@
-use anathema_values::{Attributes, Expression, Path};
+use anathema_values::{Attributes, Expression, Path, ViewId};
 
 use crate::nodes::{ControlFlow, ElseExpr, IfExpr, LoopExpr, Node, SingleNodeExpr, ViewExpr};
 
@@ -49,7 +49,7 @@ pub fn if_expression(
     })
 }
 
-pub fn view_expression(id: usize, state: Option<Expression>, body: Vec<Node>) -> Node {
+pub fn view_expression(id: ViewId, state: Option<Expression>, body: Vec<Node>) -> Node {
     Node::View(ViewExpr {
         id,
         state,

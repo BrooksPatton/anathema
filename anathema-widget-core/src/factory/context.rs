@@ -63,7 +63,7 @@ mod test {
     #[test]
     fn get_attribute() {
         let state = TestState::new();
-        let ctx = Context::root(&state, None);
+        let ctx = Context::root(&state);
         let mut attributes = Attributes::new();
         attributes.insert("name".to_string(), Expression::Ident("name".into()));
 

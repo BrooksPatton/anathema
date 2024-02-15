@@ -1,97 +1,10 @@
-// -----------------------------------------------------------------------------
-//   - Overview -
-//
-//   -- Requirements --
-//
-//   --- Value resolution needs to copy the value into the node ---
-//   ```
-//       local x = state_value
-//       local y = x
-//       text y
-//   ```
-//   Needs to resolve the value all the way to the state value:
-//   `y` -> `x` -> `state_value`, replacing `y` in the text widget with
-//   `state_value`.
-//
-//   TODO: currently this will resolve `y` to `x` producing an incorrect
-//         value.
-//   TODO: write a test confirming this behaviour.
-//
-//   --- Update call needs to build up the scopes ---
-//   ```
-//       for val in values
-//          text val
-//   ```
-//   Needs to build up the scope based on the `Iteration` wrapping the text:
-//   ```
-//       For
-//          Iteration (val -> values[N])
-//              text val
-//   ```
-//
-//   TODO: write a test confirming this
-//
-//   -- Step: Node creation --
-//
-//   This is probably the most complex part of this library as there is a lot
-//   going on here.
-//
-//   The biggest complexity comes from evaluating values and building
-//   up the scopes.
-//
-//   When creating new nodes, the nodes need access to the values in use.
-//   E.g
-//
-//   ```
-//       local x = 1
-//       text x
-//   ```
-//
-//   Here a local variable `x` needs to be accessible to the text widget.
-//   This is done by copying the value of `x` into the text widget.
-//
-//   In fact, the local variable doesn't need to exist after the creation
-//   of the node.
-//
-//   NOTE: might be an idea to simply generate the values into temporary
-//   storage during node generation and then simply drop the storage.
-//
-//   -- Step: Node update --
-//
-//   Assuming a state value named `values`:
-//
-//   ```
-//       for outer in values
-//          for inner in outer
-//              text inner
-//   ```
-//
-//   In the above example the `text` widget need access to `inner`.
-//
-//   This means when generating the `Context` to include `inner` each
-//   `Iteration` has to include its `loop_value`.
-//
-//   The above template would generate a node tree as follow:
-//
-//   ```
-//       Loop (values -> outer[N])
-//          Iteration (outer[N])
-//              Loop (outer[N] -> inner)
-//                  Iteration (inner[N])
-//                      Text (inner[N])
-//   ```
-//
-//   For the `Text` widget to be able to read `inner[N]` the `Context`
-//   has to include the scoping of values from the parents.
-// -----------------------------------------------------------------------------
-
 use std::fmt;
 use std::iter::once;
 use std::ops::ControlFlow;
 
 use anathema_values::{
     Change, Context, Deferred, Expression, Immediate, Map, NextNodeId, NodeId, OwnedScopeValues,
-    ScopeValue, Scopes, Value, ValueRef,
+    ScopeValue, Scopes, Value, ValueRef, ViewId,
 };
 
 pub(crate) use self::controlflow::IfElse;
@@ -258,11 +171,17 @@ pub struct Single<'e> {
     pub(crate) scope_values: OwnedScopeValues<'e>,
 }
 
+pub enum ViewKind {
+    Single(ViewId),
+    Prototype,
+}
+
 pub struct View<'e> {
     pub(crate) view: Box<dyn AnyView>,
     pub(crate) nodes: Elements<'e>,
     pub(crate) state: ViewState<'e>,
     pub tabindex: Value<u32>,
+    pub kind: ViewKind,
 }
 
 impl fmt::Debug for View<'_> {

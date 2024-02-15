@@ -9,6 +9,10 @@ mod style;
 pub mod views;
 mod widget;
 
+// Need this for the `State` macro
+#[allow(unused_extern_crates)]
+extern crate anathema_values as anathema;
+
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 

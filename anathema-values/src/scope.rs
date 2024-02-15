@@ -223,7 +223,7 @@ mod test {
 
     #[test]
     fn scope_value() {
-        let context = Context::root(&(), None);
+        let context = Context::root(&());
         let mut inner = context.inner();
         let scopes = inner.scope("a", 1);
         let scopes = scopes.scope_value("b", 1);

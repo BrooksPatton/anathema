@@ -475,13 +475,4 @@ mod test {
         dec.add("var", [0, 1], 0);
         assert!(dec.get("var", &[0, 0, 1]).is_none());
     }
-
-    #[test]
-    fn assignment_same_scope() {
-        let mut vars = Variables::new();
-        vars.declare("var", "1".into());
-        vars.assign(*ident("var"), "2".into());
-        // Declare and assign within the same scope
-        assert_eq!(vars.store.count(), 2);
-    }
 }

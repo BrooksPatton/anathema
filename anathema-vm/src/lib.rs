@@ -90,20 +90,21 @@ impl Templates {
         ident: impl Into<String>,
         template: String,
         view: impl AnyView + 'static,
-    ) {
+    ) -> ViewId {
         let ident = ident.into();
         let view_id = self.view_templates.insert(ident.clone(), template);
-        RegisteredViews::add_view(view_id.0, view)
+        RegisteredViews::add_view(view_id, view);
+        view_id
     }
 
     pub fn add_prototype<F, T>(&mut self, ident: impl Into<String>, template: String, f: F)
     where
-        F: Send + 'static + Fn() -> T,
+        F: Send + 'static + FnMut() -> T,
         T: 'static + View + Send,
     {
         let ident = ident.into();
         let view_id = self.view_templates.insert(ident.clone(), template);
-        RegisteredViews::add_prototype(view_id.0, f)
+        RegisteredViews::add_prototype(view_id, f)
     }
 }
 
