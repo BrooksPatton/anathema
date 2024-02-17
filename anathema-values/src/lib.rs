@@ -17,6 +17,7 @@ pub use self::variables::{Variable, Variables};
 
 pub mod hashmap;
 mod path;
+pub mod signals;
 
 mod collection;
 mod constants;
