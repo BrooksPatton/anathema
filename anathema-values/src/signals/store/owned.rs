@@ -7,7 +7,7 @@ use super::Slab;
 // -----------------------------------------------------------------------------
 //   - Key -
 // -----------------------------------------------------------------------------
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub(crate) struct OwnedKey(usize);
 
 impl From<usize> for OwnedKey {

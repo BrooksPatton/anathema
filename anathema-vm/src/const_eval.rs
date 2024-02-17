@@ -17,7 +17,7 @@ fn eval_dot(expr: &Expression, vars: &Variables, globals: &Variables) -> Option<
         }
         Expression::Index(lhs, index) => match eval_dot(lhs, vars, globals)? {
             Expression::List(list) => match &**index {
-                Expression::Owned(Own::Num(num)) => list.get(num.to_usize()).cloned(),
+                Expression::Static(Own::Num(num)) => list.get(num.to_usize()).cloned(),
                 _ => Some(Expression::Index(
                     Expression::List(list.clone()).into(),
                     const_eval(*index.clone(), vars, globals).into(),
@@ -54,7 +54,8 @@ pub(crate) fn const_eval(expr: Expression, vars: &Variables, globals: &Variables
     }
 
     match expr {
-        expr @ (Owned(_) | Str(_)) => expr,
+        Dyn(_) => unreachable!("this expression requires a state to evaluate"),
+        expr @ (Static(_) | Str(_)) => expr,
         Not(expr) => Not(ce!(*expr)),
         Negative(expr) => Negative(ce!(*expr)),
         And(lhs, rhs) => And(ce!(*lhs), ce!(*rhs)),
@@ -78,23 +79,23 @@ pub(crate) fn const_eval(expr: Expression, vars: &Variables, globals: &Variables
             Map(hm.into())
         }
         Add(lhs, rhs) => match (ce!(*lhs), ce!(*rhs)) {
-            (Owned(Own::Num(lhs)), Owned(Own::Num(rhs))) => Owned(Own::Num((lhs + rhs).into())),
+            (Static(Own::Num(lhs)), Static(Own::Num(rhs))) => Static(Own::Num((lhs + rhs).into())),
             (lhs, rhs) => Add(lhs.into(), rhs.into()),
         },
         Sub(lhs, rhs) => match (ce!(*lhs), ce!(*rhs)) {
-            (Owned(Own::Num(lhs)), Owned(Own::Num(rhs))) => Owned(Own::Num((lhs - rhs).into())),
+            (Static(Own::Num(lhs)), Static(Own::Num(rhs))) => Static(Own::Num((lhs - rhs).into())),
             (lhs, rhs) => Sub(lhs.into(), rhs.into()),
         },
         Div(lhs, rhs) => match (ce!(*lhs), ce!(*rhs)) {
-            (Owned(Own::Num(lhs)), Owned(Own::Num(rhs))) => Owned(Own::Num((lhs / rhs).into())),
+            (Static(Own::Num(lhs)), Static(Own::Num(rhs))) => Static(Own::Num((lhs / rhs).into())),
             (lhs, rhs) => Div(lhs.into(), rhs.into()),
         },
         Mul(lhs, rhs) => match (ce!(*lhs), ce!(*rhs)) {
-            (Owned(Own::Num(lhs)), Owned(Own::Num(rhs))) => Owned(Own::Num((lhs * rhs).into())),
+            (Static(Own::Num(lhs)), Static(Own::Num(rhs))) => Static(Own::Num((lhs * rhs).into())),
             (lhs, rhs) => Mul(lhs.into(), rhs.into()),
         },
         Mod(lhs, rhs) => match (ce!(*lhs), ce!(*rhs)) {
-            (Owned(Own::Num(lhs)), Owned(Own::Num(rhs))) => Owned(Own::Num((lhs % rhs).into())),
+            (Static(Own::Num(lhs)), Static(Own::Num(rhs))) => Static(Own::Num((lhs % rhs).into())),
             (lhs, rhs) => Mod(lhs.into(), rhs.into()),
         },
         Call { fun, args } => Call {
@@ -135,7 +136,7 @@ mod test {
         let (vars, globals) = (test_scope.vars, test_scope.globals);
         let expr = dot(ident("a"), ident("b"));
         let expr = eval_dot(&expr, &vars, &globals).unwrap();
-        assert_eq!(expr, Expression::Owned(1.into()));
+        assert_eq!(expr, Expression::Static(1.into()));
     }
 
     #[test]
@@ -151,7 +152,7 @@ mod test {
         let (vars, globals) = (test_scope.vars, test_scope.globals);
         let expr = index(dot(ident("a"), ident("b")), ident("c"));
         let expr = eval_dot(&expr, &vars, &globals).unwrap();
-        assert_eq!(expr, Expression::Owned(1.into()));
+        assert_eq!(expr, Expression::Static(1.into()));
     }
 
     #[test]

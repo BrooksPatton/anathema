@@ -59,7 +59,7 @@ where
     pub fn cmp(&self, other: ValueRef<'_>) {
         let context = Context::root(&self.state);
         let mut resolver = Immediate::new(context.lookup(), &self.node_id);
-        let val = self.expr.eval_value(&mut resolver);
+        let val = self.expr.resolve_value(&mut resolver);
         assert_eq!(val, other)
     }
 
@@ -73,13 +73,13 @@ where
     pub fn eval_bool(&self, b: bool) -> bool {
         let context = Context::root(&self.state);
         let mut resolver = Immediate::new(context.lookup(), &self.node_id);
-        self.expr.eval_value(&mut resolver).is_true() == b
+        self.expr.resolve_value(&mut resolver).is_true() == b
     }
 
     pub fn expect_owned(&self, expected: impl Into<Owned>) {
         let context = Context::root(&self.state);
         let mut resolver = Immediate::new(context.lookup(), &self.node_id);
-        let val = self.expr.eval_value(&mut resolver);
+        let val = self.expr.resolve_value(&mut resolver);
         let ValueRef::Owned(owned) = val else {
             panic!("not an owned value")
         };
@@ -166,15 +166,15 @@ pub fn less_than_equal(lhs: Box<Expression>, rhs: Box<Expression>) -> Box<Expres
 //   - Values -
 // -----------------------------------------------------------------------------
 pub fn unum(int: u64) -> Box<Expression> {
-    Expression::Owned(Owned::from(int)).into()
+    Expression::Static(Owned::from(int)).into()
 }
 
 pub fn inum(int: i64) -> Box<Expression> {
-    Expression::Owned(Owned::from(int)).into()
+    Expression::Static(Owned::from(int)).into()
 }
 
 pub fn boolean(b: bool) -> Box<Expression> {
-    Expression::Owned(Owned::from(b)).into()
+    Expression::Static(Owned::from(b)).into()
 }
 
 pub fn strlit(lit: &str) -> Box<Expression> {

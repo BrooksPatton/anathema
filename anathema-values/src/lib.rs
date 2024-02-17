@@ -196,7 +196,7 @@ macro_rules! impl_dyn_value {
                 expr: &Expression,
             ) -> Value<Self> {
                 let mut resolver = Immediate::new(context.lookup(), node_id);
-                let inner = expr.eval_value(&mut resolver).try_into().ok();
+                let inner = expr.resolve_value(&mut resolver).try_into().ok();
 
                 match resolver.is_deferred() {
                     true => Value::Dyn {
@@ -214,7 +214,7 @@ macro_rules! impl_dyn_value {
                 match value {
                     Value::Dyn { inner, expr } => {
                         let mut resolver = Immediate::new(context.lookup(), node_id);
-                        *inner = expr.eval_value(&mut resolver).try_into().ok()
+                        *inner = expr.resolve_value(&mut resolver).try_into().ok()
                     }
                     _ => {}
                 }
@@ -226,7 +226,7 @@ macro_rules! impl_dyn_value {
 impl DynValue for bool {
     fn init_value(context: &Context<'_, '_>, node_id: &NodeId, expr: &Expression) -> Value<Self> {
         let mut resolver = Immediate::new(context.lookup(), node_id);
-        let val = expr.eval_value(&mut resolver);
+        let val = expr.resolve_value(&mut resolver);
         match resolver.is_deferred() {
             true => Value::Dyn {
                 inner: Some(val.is_true()),
@@ -242,7 +242,7 @@ impl DynValue for bool {
     fn resolve(value: &mut Value<Self>, context: &Context<'_, '_>, node_id: &NodeId) {
         if let Value::Dyn { inner, expr } = value {
             let mut resolver = Immediate::new(context.lookup(), node_id);
-            *inner = Some(expr.eval_value(&mut resolver).is_true());
+            *inner = Some(expr.resolve_value(&mut resolver).is_true());
         }
     }
 }
@@ -250,7 +250,7 @@ impl DynValue for bool {
 impl DynValue for anathema_render::Color {
     fn init_value(context: &Context<'_, '_>, node_id: &NodeId, expr: &Expression) -> Value<Self> {
         let mut resolver = Immediate::new(context.lookup(), node_id);
-        let inner = match expr.eval_value(&mut resolver) {
+        let inner = match expr.resolve_value(&mut resolver) {
             ValueRef::Str(col) => anathema_render::Color::try_from(col).ok(),
             val => val.try_into().ok(),
         };
@@ -270,7 +270,7 @@ impl DynValue for anathema_render::Color {
     fn resolve(value: &mut Value<Self>, context: &Context<'_, '_>, node_id: &NodeId) {
         if let Value::Dyn { inner, expr } = value {
             let mut resolver = Immediate::new(context.lookup(), node_id);
-            *inner = expr.eval_value(&mut resolver).try_into().ok()
+            *inner = expr.resolve_value(&mut resolver).try_into().ok()
         }
     }
 }

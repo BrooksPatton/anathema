@@ -10,6 +10,7 @@ use crate::signals::store::{
     drop_value, get_unique, make_shared, new_value, return_owned, return_shared, OwnedKey,
     SharedKey,
 };
+use crate::{NodeId, DIRTY_NODES, Change};
 
 mod list;
 mod map;
@@ -20,8 +21,14 @@ mod map;
 #[derive(Debug)]
 pub struct Value<T> {
     key: OwnedKey,
-    subscribers: Vec<()>,
+    subscribers: Vec<NodeId>,
     _p: PhantomData<T>,
+}
+
+impl<T: 'static> From<T> for Value<T> {
+    fn from(value: T) -> Self {
+        Value::new(value)
+    }
 }
 
 impl<T: 'static> Value<T> {
@@ -40,6 +47,7 @@ impl<T: 'static> Value<T> {
         Unique {
             value: Some(value),
             key: self.key,
+            subscribers: &mut self.subscribers,
             _p: PhantomData,
         }
     }
@@ -53,11 +61,10 @@ impl<T: 'static> Value<T> {
         }
     }
 
-    pub fn value_ref(&self) -> ValueRef<T> {
-        ValueRef {
-            key: self.key,
-            _p: PhantomData,
-        }
+    pub fn value_ref(&mut self, node_id: NodeId) -> ValueRef {
+        self.subscribers.push(node_id);
+
+        ValueRef { key: self.key }
     }
 }
 
@@ -73,7 +80,16 @@ impl<T> Drop for Value<T> {
 pub struct Unique<'a, T: 'static> {
     value: Option<Box<dyn Any>>,
     key: OwnedKey,
+    subscribers: &'a mut Vec<NodeId>,
     _p: PhantomData<&'a mut T>,
+}
+
+impl<'a, T> Unique<'a, T> {
+    fn notify(&mut self) {
+        for s in self.subscribers.drain(..) {
+            DIRTY_NODES.with(|nodes| nodes.borrow_mut().push((s.clone(), Change::Update)));
+        }
+    }
 }
 
 impl<'a, T> Deref for Unique<'a, T> {
@@ -90,6 +106,8 @@ impl<'a, T> Deref for Unique<'a, T> {
 
 impl<'a, T> DerefMut for Unique<'a, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
+        self.notify();
+
         self.value
             .as_mut()
             .expect("value is only ever set to None on drop")
@@ -149,13 +167,13 @@ impl<T> Drop for Shared<'_, T> {
 // -----------------------------------------------------------------------------
 //   - Value ref -
 // -----------------------------------------------------------------------------
-pub struct ValueRef<T> {
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct ValueRef {
     key: OwnedKey,
-    _p: PhantomData<T>,
 }
 
-impl<T: 'static> ValueRef<T> {
-    pub fn val(&self) -> Shared<'_, T> {
+impl ValueRef {
+    pub fn val<T: 'static>(&self) -> Shared<'_, T> {
         let (key, value) = make_shared(self.key);
         Shared {
             value: Some(value),

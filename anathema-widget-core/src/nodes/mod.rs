@@ -103,12 +103,12 @@ impl LoopExpr {
             Expression::List(list) => Collection::Static(list),
             col => {
                 let mut resolver = Deferred::new(context.lookup());
-                let val = col.eval_value(&mut resolver);
+                let val = col.resolve_value(&mut resolver);
                 match val {
                     ValueRef::Expressions(Expressions(list)) => Collection::Static(list),
                     ValueRef::Deferred => {
                         let mut resolver = Immediate::new(context.lookup(), &node_id);
-                        let val = col.eval_value(&mut resolver);
+                        let val = col.resolve_value(&mut resolver);
                         let len = match val {
                             ValueRef::List(list) => {
                                 // TODO: Review if this makes sense in the long run.
@@ -199,7 +199,7 @@ impl ViewExpr {
         let state = match self.state {
             Some(ref expr) => {
                 let mut resolver = Deferred::new(context.lookup());
-                let val = expr.eval_value(&mut resolver);
+                let val = expr.resolve_value(&mut resolver);
                 match val {
                     ValueRef::Map(state) => ViewState::Dynamic(state),
                     ValueRef::Deferred => ViewState::External { expr },

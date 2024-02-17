@@ -18,8 +18,8 @@ pub fn eval(expr: Expr, consts: &Constants) -> Expression {
             let string = consts.lookup_string(string_id);
             Expression::Str(Rc::from(string))
         }
-        Expr::Num(num) => Expression::Owned(Owned::Num(num.into())),
-        Expr::Float(num) => Expression::Owned(Owned::Num(Num::Float(num))),
+        Expr::Num(num) => Expression::Static(Owned::Num(num.into())),
+        Expr::Float(num) => Expression::Static(Owned::Num(Num::Float(num))),
         Expr::Array { lhs, index } => {
             let lhs = eval(*lhs, consts);
             let index = eval(*index, consts);
@@ -29,13 +29,13 @@ pub fn eval(expr: Expr, consts: &Constants) -> Expression {
             Operator::Dot => Expression::Dot(eval(*lhs, consts).into(), eval(*rhs, consts).into()),
             Operator::Mul | Operator::Plus | Operator::Minus | Operator::Div | Operator::Mod => {
                 let (lhs, rhs) = match (eval(*lhs, consts), eval(*rhs, consts)) {
-                    (Expression::Owned(Owned::Num(lhs)), Expression::Owned(Owned::Num(rhs))) => {
+                    (Expression::Static(Owned::Num(lhs)), Expression::Static(Owned::Num(rhs))) => {
                         match op {
-                            Operator::Mul => return Expression::Owned(Owned::Num(lhs * rhs)),
-                            Operator::Plus => return Expression::Owned(Owned::Num(lhs + rhs)),
-                            Operator::Minus => return Expression::Owned(Owned::Num(lhs - rhs)),
-                            Operator::Div => return Expression::Owned(Owned::Num(lhs / rhs)),
-                            Operator::Mod => return Expression::Owned(Owned::Num(lhs % rhs)),
+                            Operator::Mul => return Expression::Static(Owned::Num(lhs * rhs)),
+                            Operator::Plus => return Expression::Static(Owned::Num(lhs + rhs)),
+                            Operator::Minus => return Expression::Static(Owned::Num(lhs - rhs)),
+                            Operator::Div => return Expression::Static(Owned::Num(lhs / rhs)),
+                            Operator::Mod => return Expression::Static(Owned::Num(lhs % rhs)),
                             _ => unreachable!(),
                         }
                     }
@@ -82,12 +82,12 @@ pub fn eval(expr: Expr, consts: &Constants) -> Expression {
 
             match op {
                 Operator::Not => match expr {
-                    Expression::Owned(Owned::Bool(b)) => Expression::Owned((!b).into()),
+                    Expression::Static(Owned::Bool(b)) => Expression::Static((!b).into()),
                     _ => Expression::Not(expr.into()),
                 },
                 Operator::Minus => match expr {
-                    Expression::Owned(Owned::Num(Num::Unsigned(n))) => {
-                        Expression::Owned(Owned::Num(Num::Signed(-(n as i64))))
+                    Expression::Static(Owned::Num(Num::Unsigned(n))) => {
+                        Expression::Static(Owned::Num(Num::Signed(-(n as i64))))
                     }
                     _ => Expression::Negative(expr.into()),
                 },

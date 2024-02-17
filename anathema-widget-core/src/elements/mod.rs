@@ -86,7 +86,7 @@ impl<'e> Element<'e> {
                 ViewState::External { expr, .. } => {
                     let mut resolver = Immediate::new(context.lookup(), &self.node_id);
 
-                    match expr.eval_value(&mut resolver) {
+                    match expr.resolve_value(&mut resolver) {
                         ValueRef::Map(state) => {
                             let context = context.from_state(state);
                             let mut context = context.from_state(view.get_any_state());
@@ -136,7 +136,7 @@ impl<'e> Element<'e> {
                 // we need to resub to the state
                 if let Collection::State { expr, len } = &mut loop_node.collection {
                     let mut immediate = Immediate::new(context.lookup(), &self.node_id);
-                    if let ValueRef::List(list) = expr.eval_value(&mut immediate) {
+                    if let ValueRef::List(list) = expr.resolve_value(&mut immediate) {
                         list.subscribe(self.node_id.clone());
                         *len = list.len();
                     }
@@ -461,7 +461,7 @@ fn update(
                     ViewState::Dynamic(state) => state,
                     ViewState::External { expr, .. } => {
                         let mut resolver = Immediate::new(context.lookup(), &node.node_id);
-                        match expr.eval_value(&mut resolver) {
+                        match expr.resolve_value(&mut resolver) {
                             ValueRef::Map(state) => state,
                             _ => &(),
                         }

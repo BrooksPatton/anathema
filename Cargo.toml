@@ -15,7 +15,6 @@ repository = "https://github.com/togglebyte/anathema"
 anathema-compiler = { path = "./anathema-compiler" }
 anathema-render = { path = "./anathema-render" }
 anathema-runtime = { path = "./anathema-runtime" }
-anathema-signals = { path = "./anathema-signals" }
 anathema-value-derive = { path = "./anathema-value-derive" }
 anathema-values = { path = "./anathema-values" }
 anathema-vm = { path = "./anathema-vm" }
@@ -39,7 +38,6 @@ members = [
     "anathema-compiler",
     "anathema-render",
     "anathema-runtime",
-    "anathema-signals",
     "anathema-value-derive",
     "anathema-values",
     "anathema-vm",
