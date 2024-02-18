@@ -1,16 +1,19 @@
 use std::any::Any;
+use std::cell::{RefCell, RefMut};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
 pub use list::List;
+pub use map::Map;
 
 use crate::signals::store::{
     drop_value, get_unique, make_shared, new_value, return_owned, return_shared, OwnedKey,
     SharedKey,
 };
-use crate::{NodeId, DIRTY_NODES, Change};
+use crate::state::Change;
+use crate::{NodeId, DIRTY_NODES};
 
 mod list;
 mod map;
@@ -21,7 +24,7 @@ mod map;
 #[derive(Debug)]
 pub struct Value<T> {
     key: OwnedKey,
-    subscribers: Vec<NodeId>,
+    subscribers: RefCell<Vec<NodeId>>,
     _p: PhantomData<T>,
 }
 
@@ -37,7 +40,7 @@ impl<T: 'static> Value<T> {
 
         Self {
             key,
-            subscribers: vec![],
+            subscribers: RefCell::new(vec![]),
             _p: PhantomData,
         }
     }
@@ -47,13 +50,14 @@ impl<T: 'static> Value<T> {
         Unique {
             value: Some(value),
             key: self.key,
-            subscribers: &mut self.subscribers,
+            subscribers: self.subscribers.borrow_mut(),
             _p: PhantomData,
         }
     }
 
     pub fn to_ref(&self) -> Shared<'_, T> {
-        let (key, value) = make_shared(self.key);
+        let (key, value) =
+            make_shared(self.key).expect("the value exists as it's coming directly from `Self`");
         Shared {
             value: Some(value),
             key,
@@ -61,8 +65,8 @@ impl<T: 'static> Value<T> {
         }
     }
 
-    pub fn value_ref(&mut self, node_id: NodeId) -> ValueRef {
-        self.subscribers.push(node_id);
+    pub fn value_ref(&self, node_id: NodeId) -> ValueRef {
+        self.subscribers.borrow_mut().push(node_id);
 
         ValueRef { key: self.key }
     }
@@ -80,7 +84,7 @@ impl<T> Drop for Value<T> {
 pub struct Unique<'a, T: 'static> {
     value: Option<Box<dyn Any>>,
     key: OwnedKey,
-    subscribers: &'a mut Vec<NodeId>,
+    subscribers: RefMut<'a, Vec<NodeId>>,
     _p: PhantomData<&'a mut T>,
 }
 
@@ -132,6 +136,7 @@ impl<'a, T: 'static> Drop for Unique<'a, T> {
 // -----------------------------------------------------------------------------
 #[derive(Clone)]
 pub struct Shared<'a, T: 'static> {
+    // TODO: don't use an option here. This should be represented as either Present | Dropped
     value: Option<Rc<Option<Box<dyn Any>>>>,
     key: SharedKey,
     _p: PhantomData<&'a T>,
@@ -173,13 +178,14 @@ pub struct ValueRef {
 }
 
 impl ValueRef {
-    pub fn val<T: 'static>(&self) -> Shared<'_, T> {
-        let (key, value) = make_shared(self.key);
-        Shared {
+    pub fn val<T: 'static>(&self) -> Option<Shared<'_, T>> {
+        let (key, value) = make_shared(self.key)?;
+        let shared = Shared {
             value: Some(value),
             key,
             _p: PhantomData,
-        }
+        };
+        Some(shared)
     }
 }
 

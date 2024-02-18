@@ -21,27 +21,27 @@ pub fn state_derive(strct: syn::ItemStruct) -> Result {
         .unzip();
 
     Ok(quote! {
-        # use ::anathema::values::{self, ValueRef, Path, state};
+        # use ::anathema::values::{self, Value, ValueRef, Path, state};
         impl state::State for #name {
-            fn state_get(&self, key: values::Path<'_>, node_id: &values::NodeId) -> values::ValueRef<'_> {
+            fn state_get(&self, key: values::Path<'_>, node_id: &values::NodeId) -> Option<ValueRef> {
                 match key {
                     Path::Key(s) => match s {
                         #(
                             #field_names => {
-                                self.#field_idents.get_value(node_id)
+                                Some(self.#field_idents.value_ref(node_id.clone()))
                             }
                         )*
-                        _ => ValueRef::Empty,
+                        _ => None,
                     }
-                    _ => ValueRef::Empty,
+                    _ => None,
                 }
             }
         }
 
-        impl<'a> Into<ValueRef<'a>> for &'a #name {
-            fn into(self) -> ::anathema::values::ValueRef<'a> {
-                ::anathema::values::ValueRef::Map(self)
-            }
-        }
+        // impl<'a> Into<ValueRef> for &#name {
+        //     fn into(self) -> ::anathema::values::ValueRef {
+        //         ::anathema::values::ValueRef::Map(self)
+        //     }
+        // }
     })
 }

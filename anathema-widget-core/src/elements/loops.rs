@@ -12,6 +12,7 @@ use crate::WidgetContainer;
 
 #[derive(Debug, State)]
 struct LoopIndex {
+    loopcounter: Value<usize>
 }
 
 /// An iteration inside a loop node.

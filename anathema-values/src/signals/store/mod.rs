@@ -29,11 +29,11 @@ pub(crate) fn get_unique(key: OwnedKey) -> Box<dyn Any> {
     OWNED.with(|owned| owned.unique(key))
 }
 
-pub(crate) fn make_shared(owned_key: OwnedKey) -> (SharedKey, Rc<Option<Box<dyn Any>>>) {
+pub(crate) fn make_shared(owned_key: OwnedKey) -> Option<(SharedKey, Rc<Option<Box<dyn Any>>>)> {
     OWNED.with(|owned| {
         match owned.get_shared_key(owned_key) {
             Some(key) => {
-                (key, lookup_shared(key))
+                Some((key, lookup_shared(key)))
             }
             None => {
                 // Transfer value from OWNED to SHARED
@@ -41,8 +41,11 @@ pub(crate) fn make_shared(owned_key: OwnedKey) -> (SharedKey, Rc<Option<Box<dyn 
                 SHARED.with(|shared| {
                     let key = shared.insert(owned_key, value);
                     owned.set_as_shared(owned_key, key);
-                    let ret = (key, lookup_shared(key));
-                    ret
+                    let value = lookup_shared(key);
+                    match value.is_some() {
+                        true => Some((key, value)),
+                        false => None,
+                    }
                 })
             }
         }

@@ -5,95 +5,94 @@ use anathema_render::Color;
 use crate::Num;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-// TODO: rename to Primitive
-pub enum Owned {
+pub enum Static {
     Num(Num),
     Bool(bool),
     Char(char),
     Color(Color),
 }
 
-impl<T: Into<Num>> From<T> for Owned {
+impl<T: Into<Num>> From<T> for Static {
     fn from(val: T) -> Self {
         Self::Num(val.into())
     }
 }
 
-impl From<bool> for Owned {
+impl From<bool> for Static {
     fn from(val: bool) -> Self {
         Self::Bool(val)
     }
 }
 
-impl From<&bool> for Owned {
+impl From<&bool> for Static {
     fn from(val: &bool) -> Self {
         Self::Bool(*val)
     }
 }
 
-impl From<Color> for Owned {
+impl From<Color> for Static {
     fn from(val: Color) -> Self {
         Self::Color(val)
     }
 }
 
-impl From<&Color> for Owned {
+impl From<&Color> for Static {
     fn from(val: &Color) -> Self {
         Self::Color(*val)
     }
 }
 
-impl From<char> for Owned {
+impl From<char> for Static {
     fn from(val: char) -> Self {
         Self::Char(val)
     }
 }
 
-impl From<&char> for Owned {
+impl From<&char> for Static {
     fn from(val: &char) -> Self {
         Self::Char(*val)
     }
 }
 
-impl TryFrom<Owned> for Color {
+impl TryFrom<Static> for Color {
     type Error = ();
 
-    fn try_from(value: Owned) -> Result<Self, Self::Error> {
+    fn try_from(value: Static) -> Result<Self, Self::Error> {
         match value {
-            Owned::Color(color) => Ok(color),
+            Static::Color(color) => Ok(color),
             _ => Err(()),
         }
     }
 }
 
-impl TryFrom<Owned> for usize {
+impl TryFrom<Static> for usize {
     type Error = ();
 
-    fn try_from(value: Owned) -> Result<Self, Self::Error> {
+    fn try_from(value: Static) -> Result<Self, Self::Error> {
         match value {
-            Owned::Num(Num::Unsigned(num)) => Ok(num as usize),
+            Static::Num(Num::Unsigned(num)) => Ok(num as usize),
             _ => Err(()),
         }
     }
 }
 
-impl<'a> TryFrom<&'a Owned> for &'a u64 {
+impl<'a> TryFrom<&'a Static> for &'a u64 {
     type Error = ();
 
-    fn try_from(value: &'a Owned) -> Result<Self, Self::Error> {
+    fn try_from(value: &'a Static) -> Result<Self, Self::Error> {
         match value {
-            Owned::Num(Num::Unsigned(num)) => Ok(num),
+            Static::Num(Num::Unsigned(num)) => Ok(num),
             _ => Err(()),
         }
     }
 }
 
-impl<'a> TryFrom<&'a Owned> for &'a f64 {
+impl<'a> TryFrom<&'a Static> for &'a f64 {
     type Error = ();
 
-    fn try_from(value: &'a Owned) -> Result<Self, Self::Error> {
+    fn try_from(value: &'a Static) -> Result<Self, Self::Error> {
         match value {
-            Owned::Num(Num::Float(num)) => Ok(num),
+            Static::Num(Num::Float(num)) => Ok(num),
             _ => Err(()),
         }
     }
@@ -101,7 +100,7 @@ impl<'a> TryFrom<&'a Owned> for &'a f64 {
 
 // TODO: add the rest of the types to TryFrom
 
-impl Display for Owned {
+impl Display for Static {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Num(num) => write!(f, "{num}"),

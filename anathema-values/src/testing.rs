@@ -1,44 +1,44 @@
 use crate::hashmap::HashMap;
-use crate::map::Map;
-use crate::{Context, Expression, Immediate, List, NodeId, Owned, StateValue, ValueRef};
+use crate::{Context, Expression, Immediate, List, Map, NodeId, Static, Value, ValueRef};
 
 #[derive(Debug, crate::State)]
 pub struct Inner {
-    pub name: StateValue<String>,
-    pub names: List<String>,
+    pub name: Value<String>,
+    pub names: Value<List<String>>,
 }
 
 impl Inner {
     pub fn new() -> Self {
         Self {
-            name: StateValue::new("Fiddle McStick".into()),
-            names: List::new(vec!["arthur".to_string(), "bobby".into()]),
+            name: Value::new("Fiddle McStick".into()),
+            names: Value::new(List::new(vec!["arthur".to_string(), "bobby".into()])),
         }
     }
 }
 
 #[derive(Debug, crate::State)]
 pub struct TestState {
-    pub name: StateValue<String>,
-    pub counter: StateValue<usize>,
-    pub inner: Inner,
-    pub generic_map: Map<Map<usize>>,
-    pub generic_list: List<usize>,
-    pub nested_list: List<List<usize>>,
-    pub debug: StateValue<bool>,
+    // pub name: Value<String>,
+    // pub counter: Value<usize>,
+    // pub inner: Inner,
+    // pub generic_map: Map<Map<usize>>,
+    // pub generic_list: List<usize>,
+    // pub nested_list: List<List<usize>>,
+    // pub debug: Value<bool>,
 }
 
 impl TestState {
     pub fn new() -> Self {
-        Self {
-            name: StateValue::new("Dirk Gently".to_string()),
-            counter: StateValue::new(3),
-            inner: Inner::new(),
-            generic_map: Map::new([("inner", Map::new([("first", 1), ("second", 2)]))]),
-            generic_list: List::new(vec![1, 2, 3]),
-            nested_list: List::new(vec![List::new(vec![1, 2, 3])]),
-            debug: StateValue::new(false),
-        }
+        panic!()
+        // Self {
+        //     name: Value::new("Dirk Gently".to_string()),
+        //     counter: Value::new(3),
+        //     inner: Inner::new(),
+        //     generic_map: Map::new([("inner", Map::new([("first", 1), ("second", 2)]))]),
+        //     generic_list: List::new(vec![1, 2, 3]),
+        //     nested_list: List::new(vec![List::new(vec![1, 2, 3])]),
+        //     debug: Value::new(false),
+        // }
     }
 }
 
@@ -54,13 +54,14 @@ pub struct TestExpression<'expr, T> {
 
 impl<'expr, T: std::fmt::Debug> TestExpression<'expr, T>
 where
-    for<'a> &'a T: Into<ValueRef<'a>>,
+    for<'a> &'a T: Into<ValueRef>,
 {
-    pub fn cmp(&self, other: ValueRef<'_>) {
-        let context = Context::root(&self.state);
-        let mut resolver = Immediate::new(context.lookup(), &self.node_id);
-        let val = self.expr.resolve_value(&mut resolver);
-        assert_eq!(val, other)
+    pub fn cmp(&self, other: ValueRef) {
+        panic!()
+        // let context = Context::root(&self.state);
+        // let mut resolver = Immediate::new(context.lookup(), &self.node_id);
+        // let val = self.expr.resolve_value(&mut resolver);
+        // assert_eq!(val, other)
     }
 
     pub fn expect_string(&self, cmp: &str) {
@@ -71,24 +72,26 @@ where
     }
 
     pub fn eval_bool(&self, b: bool) -> bool {
-        let context = Context::root(&self.state);
-        let mut resolver = Immediate::new(context.lookup(), &self.node_id);
-        self.expr.resolve_value(&mut resolver).is_true() == b
+        panic!()
+        // let context = Context::root(&self.state);
+        // let mut resolver = Immediate::new(context.lookup(), &self.node_id);
+        // self.expr.resolve_value(&mut resolver).is_true() == b
     }
 
-    pub fn expect_owned(&self, expected: impl Into<Owned>) {
-        let context = Context::root(&self.state);
-        let mut resolver = Immediate::new(context.lookup(), &self.node_id);
-        let val = self.expr.resolve_value(&mut resolver);
-        let ValueRef::Owned(owned) = val else {
-            panic!("not an owned value")
-        };
-        assert_eq!(owned, expected.into())
+    pub fn expect_owned(&self, expected: impl Into<Static>) {
+        panic!()
+        // let context = Context::root(&self.state);
+        // let mut resolver = Immediate::new(context.lookup(), &self.node_id);
+        // let val = self.expr.resolve_value(&mut resolver);
+        // let ValueRef::Owned(owned) = val else {
+        //     panic!("not an owned value")
+        // };
+        // assert_eq!(owned, expected.into())
     }
 }
 
 impl Expression {
-    pub fn with_data<T, K: Into<String>>(
+    pub fn with_data<T: 'static, K: Into<String>>(
         &self,
         inner: impl IntoIterator<Item = (K, T)>,
     ) -> TestExpression<'_, T> {
@@ -166,15 +169,15 @@ pub fn less_than_equal(lhs: Box<Expression>, rhs: Box<Expression>) -> Box<Expres
 //   - Values -
 // -----------------------------------------------------------------------------
 pub fn unum(int: u64) -> Box<Expression> {
-    Expression::Static(Owned::from(int)).into()
+    Expression::Static(Static::from(int)).into()
 }
 
 pub fn inum(int: i64) -> Box<Expression> {
-    Expression::Static(Owned::from(int)).into()
+    Expression::Static(Static::from(int)).into()
 }
 
 pub fn boolean(b: bool) -> Box<Expression> {
-    Expression::Static(Owned::from(b)).into()
+    Expression::Static(Static::from(b)).into()
 }
 
 pub fn strlit(lit: &str) -> Box<Expression> {

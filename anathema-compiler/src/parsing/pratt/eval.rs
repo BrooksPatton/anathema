@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use anathema_values::hashmap::HashMap;
-use anathema_values::{Constants, Expression, Num, Owned};
+use anathema_values::{Constants, Expression, Num, Static};
 
 use super::Expr;
 use crate::token::Operator;
@@ -18,8 +18,8 @@ pub fn eval(expr: Expr, consts: &Constants) -> Expression {
             let string = consts.lookup_string(string_id);
             Expression::Str(Rc::from(string))
         }
-        Expr::Num(num) => Expression::Static(Owned::Num(num.into())),
-        Expr::Float(num) => Expression::Static(Owned::Num(Num::Float(num))),
+        Expr::Num(num) => Expression::Static(Static::Num(num.into())),
+        Expr::Float(num) => Expression::Static(Static::Num(Num::Float(num))),
         Expr::Array { lhs, index } => {
             let lhs = eval(*lhs, consts);
             let index = eval(*index, consts);
@@ -29,13 +29,13 @@ pub fn eval(expr: Expr, consts: &Constants) -> Expression {
             Operator::Dot => Expression::Dot(eval(*lhs, consts).into(), eval(*rhs, consts).into()),
             Operator::Mul | Operator::Plus | Operator::Minus | Operator::Div | Operator::Mod => {
                 let (lhs, rhs) = match (eval(*lhs, consts), eval(*rhs, consts)) {
-                    (Expression::Static(Owned::Num(lhs)), Expression::Static(Owned::Num(rhs))) => {
+                    (Expression::Static(Static::Num(lhs)), Expression::Static(Static::Num(rhs))) => {
                         match op {
-                            Operator::Mul => return Expression::Static(Owned::Num(lhs * rhs)),
-                            Operator::Plus => return Expression::Static(Owned::Num(lhs + rhs)),
-                            Operator::Minus => return Expression::Static(Owned::Num(lhs - rhs)),
-                            Operator::Div => return Expression::Static(Owned::Num(lhs / rhs)),
-                            Operator::Mod => return Expression::Static(Owned::Num(lhs % rhs)),
+                            Operator::Mul => return Expression::Static(Static::Num(lhs * rhs)),
+                            Operator::Plus => return Expression::Static(Static::Num(lhs + rhs)),
+                            Operator::Minus => return Expression::Static(Static::Num(lhs - rhs)),
+                            Operator::Div => return Expression::Static(Static::Num(lhs / rhs)),
+                            Operator::Mod => return Expression::Static(Static::Num(lhs % rhs)),
                             _ => unreachable!(),
                         }
                     }
@@ -82,12 +82,12 @@ pub fn eval(expr: Expr, consts: &Constants) -> Expression {
 
             match op {
                 Operator::Not => match expr {
-                    Expression::Static(Owned::Bool(b)) => Expression::Static((!b).into()),
+                    Expression::Static(Static::Bool(b)) => Expression::Static((!b).into()),
                     _ => Expression::Not(expr.into()),
                 },
                 Operator::Minus => match expr {
-                    Expression::Static(Owned::Num(Num::Unsigned(n))) => {
-                        Expression::Static(Owned::Num(Num::Signed(-(n as i64))))
+                    Expression::Static(Static::Num(Num::Unsigned(n))) => {
+                        Expression::Static(Static::Num(Num::Signed(-(n as i64))))
                     }
                     _ => Expression::Negative(expr.into()),
                 },

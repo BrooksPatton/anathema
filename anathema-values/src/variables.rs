@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::hashmap::HashMap;
-use crate::{Expression, Owned, Slab};
+use crate::{Expression, Static, Slab};
 
 const INDENT: usize = 4;
 
@@ -22,7 +22,7 @@ impl From<VarId> for usize {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Variable {
-    Owned(Owned),
+    Owned(Static),
     Str(Rc<str>),
     Deferred(Rc<str>),
 }
@@ -33,8 +33,8 @@ impl From<&str> for Variable {
     }
 }
 
-impl From<Owned> for Variable {
-    fn from(value: Owned) -> Self {
+impl From<Static> for Variable {
+    fn from(value: Static) -> Self {
         Self::Owned(value)
     }
 }

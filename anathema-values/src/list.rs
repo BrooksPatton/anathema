@@ -168,7 +168,7 @@ impl<T> IndexMut<usize> for List<T> {
 mod test {
     use super::*;
     use crate::testing::TestState;
-    use crate::{drain_dirty_nodes, Owned};
+    use crate::{drain_dirty_nodes, Static};
 
     #[test]
     fn access_list() {
@@ -178,7 +178,7 @@ mod test {
             panic!()
         };
 
-        let ValueRef::Owned(Owned::Num(x)) = list.state_get(1.into(), &0.into()) else {
+        let ValueRef::Owned(Static::Num(x)) = list.state_get(1.into(), &0.into()) else {
             panic!()
         };
 

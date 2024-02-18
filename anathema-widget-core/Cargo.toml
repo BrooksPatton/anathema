@@ -9,7 +9,7 @@ repository = "https://github.com/togglebyte/anathema"
 documentation = "https://docs.rs/anathema-widget-core"
 
 [features]
-default = ["testing"]
+default = []
 testing = ["anathema-values/testing"]
 
 [dependencies]

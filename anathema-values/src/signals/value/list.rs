@@ -1,9 +1,11 @@
 use std::collections::VecDeque;
 use std::ops::{Index, IndexMut};
 
-use crate::{NodeId, Path, State, ValueRef};
+use super::ValueRef;
 use crate::signals::Value;
+use crate::{NodeId, Path, State};
 
+#[derive(Debug)]
 pub struct List<T> {
     inner: VecDeque<Value<T>>,
 }
@@ -58,7 +60,7 @@ impl<T> IndexMut<usize> for List<T> {
 }
 
 impl<T> State for List<T> {
-    fn state_get(&self, path: Path<'_>, node_id: &NodeId) -> ValueRef<'_> {
+    fn state_get(&self, path: Path<'_>, node_id: &NodeId) -> Option<ValueRef> {
         todo!()
     }
 }

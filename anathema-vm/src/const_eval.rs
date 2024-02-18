@@ -1,5 +1,5 @@
 use anathema_values::hashmap::HashMap;
-use anathema_values::{Expression, Owned as Own, Variables};
+use anathema_values::{Expression, Static as Own, Variables};
 
 // Evaluate the expression using `vars` as a backing store.
 // e.g `a.b.c` would first find `a` in `vars` and resolve the remaining path

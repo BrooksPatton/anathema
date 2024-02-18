@@ -1,29 +1,7 @@
 use std::cell::RefCell;
 use std::ops::{Deref, DerefMut};
 
-use crate::{NodeId, Owned, Path, State, ValueRef, DIRTY_NODES};
-
-// TODO: Can we make this `Copy` as well?
-//       This depends if `RemoveKey` is required here or not.
-//       TB 2023-11-11
-//
-//       If all keys can be changed to use the constants created
-//       during template parsing this could become `Copy`.
-//       However then we need a solution for the `get` function on maps
-//       as they still take string for lookups (this is used
-//       when getting a value from a state inside a view, where
-//       the state contains a map)
-#[derive(Debug, Clone, PartialEq)]
-pub enum Change {
-    Update,
-    Push,
-    InsertIndex(usize),
-    // TODO: is this variant needed?
-    InsertKey(String),
-    RemoveIndex(usize),
-    // TODO: is this variant needed?
-    RemoveKey(String),
-}
+use crate::{NodeId, Static, Path, State, DIRTY_NODES};
 
 #[derive(Debug)]
 pub struct StateValue<T> {
@@ -46,7 +24,7 @@ impl<T> StateValue<T> {
     }
 
     #[doc(hidden)]
-    pub fn state_get(&self, _: Path<'_>, _: &NodeId) -> ValueRef<'_> {
+    pub fn state_get(&self, _: Path<'_>, _: &NodeId) -> NameThisType {
         ValueRef::Empty
     }
 
@@ -122,7 +100,7 @@ impl<'a> From<&'a StateValue<String>> for ValueRef<'a> {
 
 impl<'a, T> From<&'a StateValue<T>> for ValueRef<'a>
 where
-    Owned: From<&'a T>,
+    Static: From<&'a T>,
 {
     fn from(value: &'a StateValue<T>) -> Self {
         ValueRef::Owned((&value.inner).into())
