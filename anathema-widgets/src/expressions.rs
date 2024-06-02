@@ -527,9 +527,13 @@ impl<'bp> ValueResolver<'bp> {
                 }
 
                 let lhs = self.resolve(lhs, scope, states);
-                match lhs.get(path, self.value_id) {
-                    Some(val) => val,
-                    None => future_value(self.value_id),
+
+                match &lhs {
+                    EvalValue::Index(ref val, _) => match val.get(path, self.value_id) {
+                        Some(val) => EvalValue::Index(val.into(), lhs.into()),
+                        None => future_value(self.value_id),
+                    },
+                    _ => future_value(self.value_id),
                 }
             }
             _ => EvalValue::Empty,
