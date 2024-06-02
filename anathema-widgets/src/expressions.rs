@@ -350,7 +350,7 @@ impl<'bp> EvalValue<'bp> {
         }
     }
 
-    pub fn load_bool(&self) -> bool {
+    pub(crate) fn load_bool(&self) -> bool {
         let Some(value) = self.load_common_val() else { return false };
         match value {
             Either::Static(val) => val.to_bool(),
@@ -366,13 +366,13 @@ impl<'bp> EvalValue<'bp> {
         }
     }
 
-    /// Load a value from an expression.
-    /// If the value is `EvalValue::Dyn` it can possible circumvent the need
-    /// for `CommonVal`. However if the value originates from a template rather than
-    /// state, then it has to go through `CommonVal`.
-    ///
-    /// For this reason the `CommonVal: From<T>` bound is required.
-    pub fn load<T>(&self) -> Option<T>
+    // Load a value from an expression.
+    // If the value is `EvalValue::Dyn` it can possible circumvent the need
+    // for `CommonVal`. However if the value originates from a template rather than
+    // state, then it has to go through `CommonVal`.
+    //
+    // For this reason the `CommonVal: From<T>` bound is required.
+    pub(crate) fn load<T>(&self) -> Option<T>
     where
         T: 'static,
         T: for<'a> TryFrom<CommonVal<'a>>,
@@ -414,8 +414,8 @@ impl<'bp> EvalValue<'bp> {
         }
     }
 
-    /// If the eval value contains an index this value would
-    /// be subject to change if the index it self was updated
+    // If the eval value contains an index this value would
+    // be subject to change if the index it self was updated
     pub(crate) fn contains_index(&self) -> bool {
         match self {
             Self::Index(..) => true,
