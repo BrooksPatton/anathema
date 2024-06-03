@@ -530,9 +530,21 @@ impl<'bp> ValueResolver<'bp> {
 
                 match &lhs {
                     EvalValue::Index(ref val, _) => match val.get(path, self.value_id) {
-                        Some(val) => EvalValue::Index(val.into(), lhs.into()),
+                        Some(val) => {
+                            drop(common_val);
+                            EvalValue::Index(val.into(), rhs.into())
+                        }
                         None => future_value(self.value_id),
                     },
+                    EvalValue::Dyn(value_ref) => {
+                        match value_ref.as_state().and_then(|state| state.state_get(path, self.value_id)) {
+                            Some(value) => {
+                                drop(common_val);
+                                EvalValue::Index(EvalValue::Dyn(value).into(), rhs.into())
+                            }
+                            None => future_value(self.value_id),
+                        }
+                    }
                     _ => future_value(self.value_id),
                 }
             }
