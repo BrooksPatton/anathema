@@ -1,0 +1,9 @@
+border
+	vstack
+		position [top: -1, placement: "relative"]
+			padding [left: 1, right: 1]
+				text "Fieldset"
+		padding [padding: 1]
+			vstack
+				text "Inside Fieldset"
+				text "and more"
