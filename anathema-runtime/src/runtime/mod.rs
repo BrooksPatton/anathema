@@ -389,6 +389,7 @@ impl<'rt, 'bp, G: GlobalEventHandler> Frame<'rt, 'bp, G> {
         self.poll_events(elapsed, now, backend);
         self.drain_deferred_commands();
         self.drain_assoc_events();
+        self.tick_components(self.dt.elapsed());
 
         // TODO:
         // this secondary call is here to deal with changes causing changes
@@ -396,10 +397,9 @@ impl<'rt, 'bp, G: GlobalEventHandler> Frame<'rt, 'bp, G> {
         self.apply_changes()?;
         self.apply_changes()?;
 
-        self.tick_components(self.dt.elapsed());
         self.cycle(backend)?;
-        self.init_new_components();
 
+        self.init_new_components();
         self.post_cycle_events();
 
         *self.dt = Instant::now();
