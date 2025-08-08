@@ -1,5 +1,4 @@
 use std::any::Any;
-use std::cmp::Ordering;
 use std::fmt::{self, Debug};
 use std::ops::ControlFlow;
 
@@ -39,27 +38,6 @@ pub struct CompEntry {
     pub accept_ticks: bool,
 
     component_id: ComponentBlueprintId,
-    path: Box<[u16]>,
-}
-
-impl PartialOrd for CompEntry {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.path.cmp(&other.path))
-    }
-}
-
-impl Ord for CompEntry {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.path.cmp(&other.path)
-    }
-}
-
-impl Eq for CompEntry {}
-
-impl PartialEq for CompEntry {
-    fn eq(&self, other: &Self) -> bool {
-        self.path.eq(&other.path)
-    }
 }
 
 /// Store a list of components currently in the tree
@@ -74,14 +52,12 @@ impl Components {
 
     pub fn push(
         &mut self,
-        path: Box<[u16]>,
         component_id: ComponentBlueprintId,
         widget_id: WidgetId,
         state_id: StateId,
         accept_ticks: bool,
     ) {
         let entry = CompEntry {
-            path,
             component_id,
             widget_id,
             state_id,

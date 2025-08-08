@@ -303,9 +303,7 @@ impl Evaluator for ComponentEval {
             .ok_or_else(|| ctx.error(ErrorKind::TreeTransactionFailed))?;
         ctx.new_components.push((widget_id, state_id));
 
-        let path = tree.path(widget_id);
-        ctx.components
-            .push(path, component_id, widget_id, state_id, accept_ticks);
+        ctx.components.push(component_id, widget_id, state_id, accept_ticks);
 
         Ok(())
     }

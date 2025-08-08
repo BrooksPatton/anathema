@@ -11,6 +11,7 @@ documentation = "https://togglebyte.github.io/anathema-guide/"
 homepage = "https://github.com/togglebyte/anathema"
 repository = "https://github.com/togglebyte/anathema"
 publish = true
+rust-version = "1.88"
 
 [dependencies]
 anathema-backend = { workspace = true }
@@ -83,6 +84,7 @@ should_implement_trait = "allow"
 type_complexity = "allow"
 too_many_arguments = "allow"
 wrong_self_convention = "allow"
+collapsible_if = "allow"
 
 [package.metadata.release]
 shared-version = true
