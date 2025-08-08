@@ -58,6 +58,10 @@ impl<'src, 'strings> Lexer<'src, 'strings> {
                 let _ = self.chars.next();
                 Ok(Kind::Op(Operator::And).to_token(index))
             }
+            ('.', Some('.')) => {
+                let _ = self.chars.next();
+                Ok(Kind::Op(Operator::DotDot).to_token(index))
+            }
             ('|', Some('|')) => {
                 let _ = self.chars.next();
                 Ok(Kind::Op(Operator::Or).to_token(index))
@@ -178,8 +182,6 @@ impl<'src, 'strings> Lexer<'src, 'strings> {
     fn take_number(&mut self, index: usize) -> Result<Token> {
         let mut end = index;
         let mut parse_float = &self.src[index..=index] == ".";
-
-        let _signed = &self.src[index..=index] == "-" || self.chars.peek().map(|(_, c)| *c == '-').unwrap_or(false);
 
         while let Some((e, c @ ('0'..='9' | '.'))) = self.chars.peek() {
             if *c == '.' {
@@ -526,5 +528,11 @@ mod test {
     fn either() {
         let decl = token_kind("?");
         assert_eq!(decl, Kind::Op(Operator::Either));
+    }
+
+    #[test]
+    fn double_dot() {
+        let decl = token_kind("..");
+        assert_eq!(decl, Kind::Op(Operator::DotDot));
     }
 }

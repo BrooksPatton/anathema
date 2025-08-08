@@ -21,7 +21,7 @@ pub(crate) mod prec {
 
 fn get_precedence(op: Operator) -> u8 {
     match op {
-        Operator::Dot | Operator::LBracket => prec::SUBCRIPT,
+        Operator::Dot | Operator::DotDot | Operator::LBracket => prec::SUBCRIPT,
         Operator::LParen => prec::CALL,
         Operator::Mul | Operator::Div | Operator::Mod => prec::PRODUCT,
         Operator::Plus | Operator::Minus => prec::SUM,
@@ -383,5 +383,12 @@ mod test {
         let input = "a ? b ? c";
         let actual = parse(input);
         assert_eq!(actual, "(? (? <sid 1> <sid 2>) <sid 3>)");
+    }
+
+    #[test]
+    fn range() {
+        let input = "a..b";
+        let actual = parse(input);
+        assert_eq!(actual, "(.. <sid 1> <sid 2>)");
     }
 }

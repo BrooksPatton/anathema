@@ -73,6 +73,30 @@ pub(super) fn truncate<'bp>(args: &[ValueKind<'bp>]) -> ValueKind<'bp> {
     ValueKind::Str(buffer.into())
 }
 
+pub(super) fn padd<'bp>(args: &[ValueKind<'bp>]) -> ValueKind<'bp> {
+    if args.len() != 2 {
+        return ValueKind::Null;
+    }
+
+    let Some(width) = args[1].as_int() else { return ValueKind::Null };
+    if width < 0 {
+        return ValueKind::Null;
+    }
+    let width = width as usize;
+
+    let mut buffer = String::new();
+    args[0].strings(|s| {
+        buffer.push_str(s);
+        true
+    });
+
+    while width > buffer.width() {
+        buffer.push(' ');
+    }
+
+    ValueKind::Str(buffer.into())
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -139,5 +163,20 @@ mod test {
         let val = value("🐇🐇");
         let val = truncate(&[val, value(3)]);
         assert_eq!(val, value("🐇"));
+    }
+
+    #[test]
+    fn padd_string() {
+        let val = value("hi");
+        let val = padd(&[val, value(3)]);
+        assert_eq!(val, value("hi "));
+
+        let val = value("bye");
+        let val = padd(&[val, value(3)]);
+        assert_eq!(val, value("bye"));
+
+        let val = value("hello");
+        let val = padd(&[val, value(3)]);
+        assert_eq!(val, value("hello"));
     }
 }

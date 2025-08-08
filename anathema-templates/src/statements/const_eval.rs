@@ -58,6 +58,7 @@ pub(crate) fn const_eval(expr: impl Into<Expression>, ctx: &Context<'_>) -> Opti
         E::Negative(expr) => E::Negative(ce!(*expr)),
         E::Equality(lhs, rhs, eq) => E::Equality(ce!(*lhs), ce!(*rhs), eq),
         E::LogicalOp(lhs, rhs, op) => E::LogicalOp(ce!(*lhs), ce!(*rhs), op),
+        E::Range(from, to) => E::Range(ce!(*from), ce!(*to)),
 
         E::Ident(_) | E::Index(..) => eval_path(expr, ctx)?,
         E::Variable(_) => unreachable!("const eval is not recursive so this can never happen"),
@@ -100,7 +101,7 @@ pub(crate) fn const_eval(expr: impl Into<Expression>, ctx: &Context<'_>) -> Opti
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::expressions::{add, div, either, ident, index, list, mul, num, strlit, sub};
+    use crate::expressions::{add, div, either, ident, index, list, mul, num, range, strlit, sub};
     use crate::statements::with_context;
 
     #[test]
@@ -175,6 +176,16 @@ mod test {
             let expr = either(ident("teatime"), ident("thing"));
             let output = const_eval(expr.clone(), &ctx).unwrap();
             assert_eq!(output, *expr);
+        });
+    }
+
+    #[test]
+    fn const_range() {
+        with_context(|ctx| {
+            let expr = range(num(1), num(2));
+
+            let output = const_eval(expr, &ctx).unwrap();
+            assert_eq!(output, *range(num(1), num(2)));
         });
     }
 }

@@ -56,6 +56,7 @@ pub enum ValueExpr<'bp> {
     List(Box<[Self]>),
     Map(HashMap<&'bp str, Self>),
     Index(Box<Self>, Box<Self>),
+    Range(Box<Self>, Box<Self>),
     Attributes(Key),
 
     Not(Box<Self>),
@@ -235,6 +236,18 @@ pub(crate) fn resolve_value<'a, 'bp>(
                 return value;
             }
             resolve_value(second, ctx)
+        }
+        ValueExpr::Range(from, to) => {
+            let from = match resolve_int(from, ctx) {
+                Some(i) => i,
+                None => return ValueKind::Null,
+            };
+
+            let to = match resolve_int(to, ctx) {
+                Some(i) => i,
+                None => return ValueKind::Null,
+            };
+            ValueKind::Range(from, to)
         }
 
         // -----------------------------------------------------------------------------
@@ -437,6 +450,7 @@ fn resolve_int<'bp>(index: &ValueExpr<'bp>, ctx: &mut ValueResolutionContext<'_,
         | ValueKind::DynMap(_)
         | ValueKind::Attributes
         | ValueKind::List(_)
+        | ValueKind::Range(..)
         | ValueKind::DynList(_) => None,
     }
 }
