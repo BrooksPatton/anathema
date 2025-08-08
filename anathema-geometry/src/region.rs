@@ -49,8 +49,8 @@ impl Region {
     }
 
     /// Check if a region contains a position.
-    /// Regions are inclusive, so a region from 0,0 to 10, 10 contains both Pos::ZERO and
-    /// Pos::New(10, 10)
+    /// Regions are exclusive, so a region from 0,0 to 10, 10 contains `Pos::ZERO`
+    /// but not `Pos::New(10, 10)`
     pub const fn contains(&self, pos: Pos) -> bool {
         pos.x >= self.from.x && pos.x < self.to.x && pos.y >= self.from.y && pos.y < self.to.y
     }

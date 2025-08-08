@@ -85,14 +85,14 @@ pub fn layout_all_expansions<'bp>(
                 let mut constraints = Constraints::new(sub_size, constraints.max_height());
 
                 // Ensure that the rounding doesn't push the constraint outside of the max width
-                constraints.min_width = constraints.max_width();
+                constraints.min_width = constraints.min_width.min(constraints.max_width());
                 constraints
             }
             Axis::Vertical => {
                 let mut constraints = Constraints::new(constraints.max_width(), sub_size);
 
                 // Ensure that the rounding doesn't push the constraint outside of the max height
-                constraints.min_height = constraints.max_height();
+                constraints.min_height = constraints.min_height.min(constraints.max_height());
                 constraints
             }
         };
