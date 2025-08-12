@@ -214,18 +214,21 @@ impl Subscribers {
     fn insert(&mut self, sub: Subscriber) {
         match self {
             Self::Empty => *self = Self::One(sub),
-            Self::One(key) => *self = Self::Arr([*key, sub, Subscriber::MAX], KeyIndex::TWO),
+            Self::One(key) if *key != sub => *self = Self::Arr([*key, sub, Subscriber::MAX], KeyIndex::TWO),
             Self::Arr(arr_keys, index) if *index == KeyIndex::MAX => {
                 let mut keys = Vec::with_capacity(KeyIndex::max() + 1);
                 keys.extend_from_slice(arr_keys);
                 keys.push(sub);
                 *self = Self::Heap(keys);
             }
-            Self::Arr(keys, index) => {
+            Self::Arr(keys, index) if !keys.contains(&sub) => {
                 keys[index.0 as usize] = sub;
                 index.add();
             }
-            Self::Heap(keys) => keys.push(sub),
+            Self::Heap(keys) if !keys.contains(&sub) => keys.push(sub),
+
+            // The sub is already registered
+            Self::Arr(..) | Self::One(_) | Self::Heap(_) => (),
         }
     }
 
