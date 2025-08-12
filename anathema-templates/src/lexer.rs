@@ -6,6 +6,36 @@ use crate::error::{ParseError, ParseErrorKind, Result};
 use crate::strings::Strings;
 use crate::token::{Kind, Operator, Token, Value};
 
+// TODO:
+// const EOF: char = '\0';
+// * change the lexer to use this one instead.
+// * split the spans and tokens
+// * spans can point to tokens, know their lines and cols
+// struct Cursor<'src> {
+//     chars: Peekable<Chars<'src>>,
+// }
+
+// impl<'src> Cursor<'src> {
+//     fn new(chars: Peekable<Chars<'src>>) -> Self {
+//         Self { chars }
+//     }
+
+//     fn next(&mut self) -> char {
+//         self.chars.next().unwrap_or(EOF)
+//     }
+
+//     fn first(&self) -> char {
+//         let mut iter = self.chars.clone();
+//         iter.next().unwrap_or(EOF)
+//     }
+
+//     fn second(&self) -> char {
+//         let mut iter = self.chars.clone();
+//         iter.next();
+//         iter.next().unwrap_or(EOF)
+//     }
+// }
+
 impl<'src, 'consts> Iterator for Lexer<'src, 'consts> {
     type Item = Result<Token>;
 
@@ -183,12 +213,27 @@ impl<'src, 'strings> Lexer<'src, 'strings> {
         let mut end = index;
         let mut parse_float = &self.src[index..=index] == ".";
 
-        while let Some((e, c @ ('0'..='9' | '.'))) = self.chars.peek() {
-            if *c == '.' {
-                parse_float = true;
+        loop {
+            if let Some((e, '0'..='9')) = self.chars.peek() {
+                end = *e;
+                self.chars.next();
+                continue;
             }
-            end = *e;
-            self.chars.next();
+
+            if let Some((_, '.')) = self.chars.peek() {
+                let mut chars = self.chars.clone();
+                _ = chars.next();
+                // If the next character is a dot, then the following character has to be a number
+                // or this is not a valid float.
+                if let Some((e, '0'..='9')) = chars.peek() {
+                    parse_float = true;
+                    end = *e;
+                    self.chars.next();
+                    continue;
+                }
+            }
+
+            break;
         }
 
         let input = &self.src[index..=end];

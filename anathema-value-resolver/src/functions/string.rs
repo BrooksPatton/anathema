@@ -97,6 +97,21 @@ pub(super) fn padd<'bp>(args: &[ValueKind<'bp>]) -> ValueKind<'bp> {
     ValueKind::Str(buffer.into())
 }
 
+pub(super) fn width<'bp>(args: &[ValueKind<'bp>]) -> ValueKind<'bp> {
+    if args.len() != 1 {
+        return ValueKind::Null;
+    }
+
+    let mut width = 0;
+
+    args[0].strings(|s| {
+        width += s.width();
+        true
+    });
+
+    ValueKind::Int(width as i64)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -178,5 +193,26 @@ mod test {
         let val = value("hello");
         let val = padd(&[val, value(3)]);
         assert_eq!(val, value("hello"));
+    }
+
+    #[test]
+    fn padd_non_string() {
+        let val = value(1);
+        let val = padd(&[val, value(3)]);
+        assert_eq!(val, value("1  "));
+    }
+
+    #[test]
+    fn width_of_string() {
+        let val = value("one");
+        let val = width(&[val]);
+        assert_eq!(val, value(3));
+    }
+
+    #[test]
+    fn width_of_int() {
+        let val = value(1);
+        let val = width(&[val]);
+        assert_eq!(val, value(1));
     }
 }

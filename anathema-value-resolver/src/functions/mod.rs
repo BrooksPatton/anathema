@@ -60,6 +60,7 @@ impl FunctionTable {
         inner.insert("truncate".into(), Function::from(string::truncate));
         inner.insert("to_str".into(), Function::from(string::to_str));
         inner.insert("padd".into(), Function::from(string::padd));
+        inner.insert("width".into(), Function::from(string::width));
         inner.insert("to_int".into(), Function::from(number::to_int));
         inner.insert("to_float".into(), Function::from(number::to_float));
         inner.insert("round".into(), Function::from(number::round));

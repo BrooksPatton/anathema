@@ -1,6 +1,7 @@
 * 0.2.11
     * FEATURE: ranges 
     * `padding` function
+    * `width` function
 * 0.2.10
     * BUGFIX: `on_mount` is now called after the children are generated
     * BUGFIX: `on_tick` is now run before the cycle call 

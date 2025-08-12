@@ -10,18 +10,19 @@ use crate::token::{Kind, Operator, Tokens, Value};
 pub(crate) mod prec {
     pub const INITIAL: u8 = 0;
     pub const CONDITIONAL: u8 = 2;
-    pub const EQUALITY: u8 = 3;
-    pub const LOGICAL: u8 = 4;
-    pub const SUM: u8 = 5;
-    pub const PRODUCT: u8 = 6;
-    pub const PREFIX: u8 = 8;
-    pub const CALL: u8 = 10;
-    pub const SUBCRIPT: u8 = 11;
+    pub const RANGE: u8 = 3;
+    pub const EQUALITY: u8 = 4;
+    pub const LOGICAL: u8 = 5;
+    pub const SUM: u8 = 6;
+    pub const PRODUCT: u8 = 7;
+    pub const PREFIX: u8 = 9;
+    pub const CALL: u8 = 11;
+    pub const SUBCRIPT: u8 = 12;
 }
 
 fn get_precedence(op: Operator) -> u8 {
     match op {
-        Operator::Dot | Operator::DotDot | Operator::LBracket => prec::SUBCRIPT,
+        Operator::Dot | Operator::LBracket => prec::SUBCRIPT,
         Operator::LParen => prec::CALL,
         Operator::Mul | Operator::Div | Operator::Mod => prec::PRODUCT,
         Operator::Plus | Operator::Minus => prec::SUM,
@@ -30,6 +31,7 @@ fn get_precedence(op: Operator) -> u8 {
         }
         Operator::EqualEqual | Operator::NotEqual => prec::EQUALITY,
         Operator::Or | Operator::And | Operator::Either => prec::CONDITIONAL,
+        Operator::DotDot => prec::RANGE,
 
         _ => prec::INITIAL,
     }
@@ -390,5 +392,12 @@ mod test {
         let input = "a..b";
         let actual = parse(input);
         assert_eq!(actual, "(.. <sid 1> <sid 2>)");
+    }
+
+    #[test]
+    fn range_2() {
+        let input = "1 + 0..1 + 5";
+        let actual = parse(input);
+        assert_eq!(actual, "(.. (+ 1 0) (+ 1 5))");
     }
 }
