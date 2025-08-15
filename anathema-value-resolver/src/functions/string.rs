@@ -73,7 +73,7 @@ pub(super) fn truncate<'bp>(args: &[ValueKind<'bp>]) -> ValueKind<'bp> {
     ValueKind::Str(buffer.into())
 }
 
-pub(super) fn padd<'bp>(args: &[ValueKind<'bp>]) -> ValueKind<'bp> {
+pub(super) fn pad<'bp>(args: &[ValueKind<'bp>]) -> ValueKind<'bp> {
     if args.len() != 2 {
         return ValueKind::Null;
     }
@@ -181,24 +181,24 @@ mod test {
     }
 
     #[test]
-    fn padd_string() {
+    fn pad_string() {
         let val = value("hi");
-        let val = padd(&[val, value(3)]);
+        let val = pad(&[val, value(3)]);
         assert_eq!(val, value("hi "));
 
         let val = value("bye");
-        let val = padd(&[val, value(3)]);
+        let val = pad(&[val, value(3)]);
         assert_eq!(val, value("bye"));
 
         let val = value("hello");
-        let val = padd(&[val, value(3)]);
+        let val = pad(&[val, value(3)]);
         assert_eq!(val, value("hello"));
     }
 
     #[test]
-    fn padd_non_string() {
+    fn pad_non_string() {
         let val = value(1);
-        let val = padd(&[val, value(3)]);
+        let val = pad(&[val, value(3)]);
         assert_eq!(val, value("1  "));
     }
 
