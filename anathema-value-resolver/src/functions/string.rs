@@ -73,6 +73,45 @@ pub(super) fn truncate<'bp>(args: &[ValueKind<'bp>]) -> ValueKind<'bp> {
     ValueKind::Str(buffer.into())
 }
 
+pub(super) fn pad<'bp>(args: &[ValueKind<'bp>]) -> ValueKind<'bp> {
+    if args.len() != 2 {
+        return ValueKind::Null;
+    }
+
+    let Some(width) = args[1].as_int() else { return ValueKind::Null };
+    if width < 0 {
+        return ValueKind::Null;
+    }
+    let width = width as usize;
+
+    let mut buffer = String::new();
+    args[0].strings(|s| {
+        buffer.push_str(s);
+        true
+    });
+
+    while width > buffer.width() {
+        buffer.push(' ');
+    }
+
+    ValueKind::Str(buffer.into())
+}
+
+pub(super) fn width<'bp>(args: &[ValueKind<'bp>]) -> ValueKind<'bp> {
+    if args.len() != 1 {
+        return ValueKind::Null;
+    }
+
+    let mut width = 0;
+
+    args[0].strings(|s| {
+        width += s.width();
+        true
+    });
+
+    ValueKind::Int(width as i64)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -139,5 +178,41 @@ mod test {
         let val = value("🐇🐇");
         let val = truncate(&[val, value(3)]);
         assert_eq!(val, value("🐇"));
+    }
+
+    #[test]
+    fn pad_string() {
+        let val = value("hi");
+        let val = pad(&[val, value(3)]);
+        assert_eq!(val, value("hi "));
+
+        let val = value("bye");
+        let val = pad(&[val, value(3)]);
+        assert_eq!(val, value("bye"));
+
+        let val = value("hello");
+        let val = pad(&[val, value(3)]);
+        assert_eq!(val, value("hello"));
+    }
+
+    #[test]
+    fn pad_non_string() {
+        let val = value(1);
+        let val = pad(&[val, value(3)]);
+        assert_eq!(val, value("1  "));
+    }
+
+    #[test]
+    fn width_of_string() {
+        let val = value("one");
+        let val = width(&[val]);
+        assert_eq!(val, value(3));
+    }
+
+    #[test]
+    fn width_of_int() {
+        let val = value(1);
+        let val = width(&[val]);
+        assert_eq!(val, value(1));
     }
 }

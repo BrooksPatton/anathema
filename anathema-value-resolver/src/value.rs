@@ -43,6 +43,7 @@ impl<'bp> Collection<'bp> {
                 let Some(list) = state.as_any_list() else { return 0 };
                 list.len()
             }
+            ValueKind::Range(from, to) => *to - *from,
             ValueKind::Int(_)
             | ValueKind::Float(_)
             | ValueKind::Bool(_)
@@ -183,6 +184,7 @@ pub enum ValueKind<'bp> {
     DynList(PendingValue),
     DynMap(PendingValue),
     Composite(PendingValue),
+    Range(usize, usize),
 }
 
 impl ValueKind<'_> {
@@ -258,6 +260,7 @@ impl ValueKind<'_> {
             ValueKind::Str(cow) => f(cow.as_ref()),
             ValueKind::List(vec) => vec.iter().take_while(|val| val.internal_strings(f)).count() == vec.len(),
             ValueKind::DynList(value) => dyn_string(*value, f),
+            ValueKind::Range(from, to) => f(&format!("{from}..{to}")),
             ValueKind::DynMap(_) => f("<dyn map>"),
             ValueKind::Map => f("<map>"),
             ValueKind::Composite(_) => f("<composite>"),
