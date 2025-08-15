@@ -71,6 +71,11 @@ impl<'a, 'frame, 'bp> Resolver<'a, 'frame, 'bp> {
                 let index = self.resolve(index);
                 ValueExpr::Index(source.into(), index.into())
             }
+            Expression::Range(from, to) => {
+                let from = self.resolve(from);
+                let to = self.resolve(to);
+                ValueExpr::Range(from.into(), to.into())
+            }
             Expression::Call { fun, args } => {
                 match &**fun {
                     // function(args)

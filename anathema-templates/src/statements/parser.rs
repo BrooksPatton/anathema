@@ -640,7 +640,7 @@ impl Iterator for Parser<'_, '_, '_> {
 mod test {
     use super::*;
     use crate::error::ErrorKind;
-    use crate::expressions::{boolean, ident, map, num, strlit, text_segments};
+    use crate::expressions::{boolean, ident, map, num, range, strlit, text_segments};
     use crate::lexer::Lexer;
     use crate::statements::test::{
         associated_fun, case, component, else_stmt, eof, for_loop, global, if_else, if_stmt, load_attrib, load_value,
@@ -975,6 +975,13 @@ mod test {
             statements.remove(0),
             load_value(text_segments([strlit("a"), strlit("b")]))
         );
+    }
+
+    #[test]
+    fn parse_range() {
+        let src = "for i in x..y";
+        let mut statements = parse_ok(src);
+        assert_eq!(statements.remove(0), for_loop(2, range(ident("x"), ident("y"))));
     }
 
     #[test]

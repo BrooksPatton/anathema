@@ -78,6 +78,9 @@ pub enum Expression {
     // Either
     Either(Box<Self>, Box<Self>),
 
+    // Range
+    Range(Box<Self>, Box<Self>),
+
     // Function call
     Call { fun: Box<Self>, args: Vec<Self> },
 }
@@ -121,6 +124,7 @@ impl Display for Expression {
                 write!(f, "{lhs} {op} {rhs}")
             }
             Self::Either(lhs, rhs) => write!(f, "{lhs} ? {rhs}"),
+            Self::Range(lhs, rhs) => write!(f, "{lhs} .. {rhs}"),
             Self::List(list) => {
                 write!(
                     f,
@@ -190,6 +194,10 @@ pub fn index(lhs: Box<Expression>, rhs: Box<Expression>) -> Box<Expression> {
 // -----------------------------------------------------------------------------
 pub fn either(lhs: Box<Expression>, rhs: Box<Expression>) -> Box<Expression> {
     Expression::Either(lhs, rhs).into()
+}
+
+pub fn range(lhs: Box<Expression>, rhs: Box<Expression>) -> Box<Expression> {
+    Expression::Range(lhs, rhs).into()
 }
 
 // -----------------------------------------------------------------------------

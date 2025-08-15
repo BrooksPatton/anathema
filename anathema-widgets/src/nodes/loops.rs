@@ -82,7 +82,6 @@ impl<'bp> For<'bp> {
                 // then truncate the tree
                 self.collection.reload(ctx.attribute_storage);
                 ctx.truncate_children(&mut tree);
-                // tree.truncate_children();
             }
         }
 

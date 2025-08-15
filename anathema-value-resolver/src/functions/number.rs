@@ -26,6 +26,7 @@ pub(super) fn to_int<'bp>(args: &[ValueKind<'bp>]) -> ValueKind<'bp> {
         | ValueKind::List(_)
         | ValueKind::DynList(_)
         | ValueKind::DynMap(_)
+        | ValueKind::Range(..)
         | ValueKind::Composite(_) => ValueKind::Null,
     }
 }
