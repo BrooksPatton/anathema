@@ -3,7 +3,7 @@ use std::sync::atomic::Ordering;
 use anathema_backend::Backend;
 use anathema_default_widgets::register_default_widgets;
 use anathema_geometry::Size;
-use anathema_templates::{Document, ToSourceKind};
+use anathema_templates::{Document, Expression, ToSourceKind, Variables};
 use anathema_value_resolver::{Function, FunctionTable};
 use anathema_widgets::components::deferred::DeferredComponents;
 use anathema_widgets::components::events::Event;
@@ -28,6 +28,7 @@ pub struct Builder<G> {
     global_event_handler: G,
     hot_reload: bool,
     function_table: FunctionTable,
+    variables: Variables,
 }
 
 impl<G: GlobalEventHandler> Builder<G> {
@@ -54,6 +55,7 @@ impl<G: GlobalEventHandler> Builder<G> {
             global_event_handler,
             hot_reload: true,
             function_table: FunctionTable::new(),
+            variables: Variables::new(),
         }
     }
 
@@ -164,7 +166,13 @@ impl<G: GlobalEventHandler> Builder<G> {
             global_event_handler,
             hot_reload: self.hot_reload,
             function_table: self.function_table,
+            variables: Variables::new(),
         }
+    }
+
+    pub fn register_global(&mut self, key: impl Into<String>, value: impl Into<Expression>) -> Result<()> {
+        self.variables.define_global(key, value).map_err(|e| e.to_error(None))?;
+        Ok(())
     }
 
     pub fn finish<F, B>(mut self, backend: &mut B, mut f: F) -> Result<()>
@@ -180,8 +188,8 @@ impl<G: GlobalEventHandler> Builder<G> {
             server
         };
 
-        let (blueprint, globals) = loop {
-            match self.document.compile() {
+        let blueprint = loop {
+            match self.document.compile(&mut self.variables) {
                 Ok(val) => break val,
                 // This can only show template errors.
                 // Widget errors doesn't become available until after the first tick.
@@ -199,7 +207,7 @@ impl<G: GlobalEventHandler> Builder<G> {
 
         let mut inst = Runtime::new(
             blueprint,
-            globals,
+            self.variables,
             self.component_registry,
             self.document,
             self.factory,

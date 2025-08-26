@@ -7,7 +7,7 @@ use anathema_geometry::Size;
 use anathema_state::{Changes, StateId, States, clear_all_changes, clear_all_subs, drain_changes};
 use anathema_store::tree::root_node;
 use anathema_templates::blueprints::Blueprint;
-use anathema_templates::{Document, Variables};
+use anathema_templates::{Document, Expression, Variables};
 use anathema_value_resolver::{AttributeStorage, FunctionTable, Scope};
 use anathema_widgets::components::deferred::{CommandKind, DeferredComponents};
 use anathema_widgets::components::events::{Event, EventType};
@@ -63,6 +63,11 @@ impl Runtime<()> {
     /// Create a runtime builder
     pub fn builder<B: Backend>(doc: Document, backend: &B) -> Builder<()> {
         Builder::new(doc, backend.size(), ())
+    }
+
+    pub fn register_global(&mut self, key: impl Into<String>, value: impl Into<Expression>) -> Result<()> {
+        self.variables.define_global(key, value).map_err(|e| e.to_error(None))?;
+        Ok(())
     }
 
     /// Create a runtime builder using an existing emitter
@@ -267,9 +272,8 @@ impl<G: GlobalEventHandler> Runtime<G> {
         // Reload templates
         self.document.reload_templates()?;
 
-        let (blueprint, variables) = self.document.compile()?;
+        let blueprint = self.document.compile(&mut self.variables)?;
         self.blueprint = blueprint;
-        self.variables = variables;
 
         Ok(())
     }

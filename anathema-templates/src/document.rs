@@ -21,7 +21,6 @@ use crate::{ComponentBlueprintId, Lexer, Variables};
 pub struct Document {
     template: TemplateSource,
     pub strings: Strings,
-    globals: Variables,
     components: ComponentTemplates,
     pub hot_reload: bool,
 }
@@ -32,7 +31,6 @@ impl Document {
         Self {
             template,
             strings: Strings::new(),
-            globals: Variables::default(),
             components: ComponentTemplates::new(),
             hot_reload: true,
         }
@@ -58,9 +56,7 @@ impl Document {
         Ok(id)
     }
 
-    pub fn compile(&mut self) -> Result<(Blueprint, Variables)> {
-        self.globals = Variables::default();
-
+    pub fn compile(&mut self, globals: &mut Variables) -> Result<Blueprint> {
         let tokens = Lexer::new(&self.template, &mut self.strings).collect::<Result<Vec<_>>>()?;
         let tokens = Tokens::new(tokens, self.template.len());
         let parser = Parser::new(tokens, &mut self.strings, &self.template, &mut self.components);
@@ -69,7 +65,7 @@ impl Document {
 
         let mut context = Context {
             template: &self.template,
-            variables: &mut self.globals,
+            variables: globals,
             strings: &mut self.strings,
             components: &mut self.components,
             slots: SmallMap::empty(),
@@ -79,7 +75,7 @@ impl Document {
         let mut blueprints = Scope::new(statements).eval(&mut context)?;
         match blueprints.is_empty() {
             true => Err(Error::no_template(ErrorKind::EmptyTemplate)),
-            false => Ok((blueprints.remove(0), self.globals.take())),
+            false => Ok(blueprints.remove(0)),
         }
     }
 

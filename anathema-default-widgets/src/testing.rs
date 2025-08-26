@@ -159,7 +159,8 @@ impl TestRunner {
         let main = doc.add_component("main", src.to_template()).unwrap();
         component_registry.add_component(main, (), TestState::new());
 
-        let (blueprint, globals) = doc.compile().unwrap();
+        let mut variables = Default::default();
+        let blueprint = doc.compile(&mut variables).unwrap();
 
         Self {
             factory,
@@ -167,7 +168,7 @@ impl TestRunner {
             states,
             component_registry,
             blueprint,
-            variables: globals,
+            variables,
             components: Components::new(),
             function_table: FunctionTable::new(),
         }

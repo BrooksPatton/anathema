@@ -1,3 +1,6 @@
+* 0.2.12
+    * Clamping is now true by default on overflow
+    * Globals can now be registered with the runtime
 * 0.2.11
     * FEATURE: ranges 
     * `padding` function

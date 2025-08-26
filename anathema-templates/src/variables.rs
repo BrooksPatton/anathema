@@ -7,7 +7,7 @@ use crate::error::ErrorKind;
 use crate::expressions::Expression;
 
 #[derive(Debug, Default, Clone)]
-pub(crate) struct Globals(HashMap<String, Expression>);
+pub struct Globals(HashMap<String, Expression>);
 
 impl Globals {
     pub fn empty() -> Self {
@@ -22,7 +22,7 @@ impl Globals {
         self.0.get(ident)
     }
 
-    pub(crate) fn set(&mut self, ident: String, value: Expression) {
+    pub fn set(&mut self, ident: String, value: Expression) {
         if self.0.contains_key(&ident) {
             return;
         }
@@ -229,6 +229,12 @@ pub struct Variables {
 
 impl Default for Variables {
     fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Variables {
+    pub fn new() -> Self {
         let root = RootScope::default();
         Self {
             globals: Globals::empty(),
@@ -238,16 +244,6 @@ impl Default for Variables {
             store: Slab::empty(),
             declarations: Declarations::new(),
         }
-    }
-}
-
-impl Variables {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn take(&mut self) -> Self {
-        std::mem::take(self)
     }
 
     fn declare_at(&mut self, ident: impl Into<String>, var_id: VarId, id: ScopeId) -> VarId {
@@ -262,8 +258,7 @@ impl Variables {
             return Err(ErrorKind::GlobalAlreadyAssigned(ident));
         }
 
-        let value = value.into();
-        self.globals.set(ident, value);
+        self.globals.set(ident, value.into());
         Ok(())
     }
 

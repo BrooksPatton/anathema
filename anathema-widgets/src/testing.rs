@@ -19,8 +19,9 @@ where
 {
     let mut tree = WidgetTree::empty();
     let mut doc = Document::new(tpl);
-    let (blueprint, globals) = doc.compile().unwrap();
-    let globals = Box::leak(Box::new(globals));
+    let mut variables = Default::default();
+    let blueprint = doc.compile(&mut variables).unwrap();
+    let variables = Box::leak(Box::new(variables));
     let blueprint = Box::leak(Box::new(blueprint));
     let function_table = Box::leak(Box::new(FunctionTable::new()));
 
@@ -41,7 +42,7 @@ where
     let mut glyph_map = GlyphMap::empty();
 
     let mut layout_ctx = LayoutCtx::new(
-        globals,
+        variables,
         &factory,
         &mut states,
         &mut attribute_storage,
