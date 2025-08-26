@@ -163,7 +163,7 @@ impl Widget for Overflow {
         let mut pos = ctx.pos;
 
         // If the value is clamped, update the offset
-        match attributes.get_as::<bool>(CLAMP).unwrap_or_default() {
+        match attributes.get_as::<bool>(CLAMP).unwrap_or(true) {
             false => (),
             true => self.clamp(self.inner_size, ctx.inner_size),
         }
