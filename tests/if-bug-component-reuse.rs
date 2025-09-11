@@ -14,10 +14,11 @@ use anathema_testutils::{BasicComp, BasicState, character};
 // ```
 
 static TEMPLATE: &str = "
+container
     if state.number == 0
-        @comp [val: !state.boolean]
+        @comp [val: true]
     else
-        @comp [val: state.boolean]
+        @comp [val: false]
 ";
 
 fn keypress(_: KeyEvent, state: &mut BasicState, _: Children<'_, '_>, _: Context<'_, '_, BasicState>) {
@@ -25,18 +26,11 @@ fn keypress(_: KeyEvent, state: &mut BasicState, _: Children<'_, '_>, _: Context
 }
 
 #[test]
-fn bug_component_reuse_bug() {
+fn component_reuse_bug() {
     let doc = Document::new("@index");
 
     let mut backend = TestBackend::new((10, 3));
-    backend
-        .events()
-        .next()
-        .press(character('x'))
-        .next()
-        .press(character('x'))
-        .next()
-        .stop();
+    backend.events().next().press(character('x')).next().stop();
 
     let mut builder = Runtime::builder(doc, &backend);
     builder

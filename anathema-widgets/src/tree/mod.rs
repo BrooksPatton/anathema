@@ -15,6 +15,7 @@ use anathema_value_resolver::{AttributeStorage, Scope};
 
 use crate::error::Result;
 use crate::layout::{LayoutCtx, LayoutFilter};
+use crate::nodes::controlflow::Else;
 use crate::nodes::loops::Iteration;
 use crate::nodes::{controlflow, eval_blueprint};
 use crate::widget::WidgetTreeView;
@@ -100,21 +101,18 @@ pub struct LayoutForEach<'a, 'bp> {
     scope: &'a Scope<'a, 'bp>,
     generator: Option<Generator<'a, 'bp>>,
     parent_component: Option<WidgetId>,
+    pub parent_element: Option<WidgetId>,
     filter: LayoutFilter,
 }
 
 impl<'a, 'bp> LayoutForEach<'a, 'bp> {
-    pub fn new(
-        tree: WidgetTreeView<'a, 'bp>,
-        scope: &'a Scope<'a, 'bp>,
-        filter: LayoutFilter,
-        parent_component: Option<WidgetId>,
-    ) -> Self {
+    pub fn new(tree: WidgetTreeView<'a, 'bp>, scope: &'a Scope<'a, 'bp>, filter: LayoutFilter) -> Self {
         Self {
             tree,
             scope,
             generator: None,
-            parent_component,
+            parent_component: None,
+            parent_element: None,
             filter,
         }
     }
@@ -125,6 +123,7 @@ impl<'a, 'bp> LayoutForEach<'a, 'bp> {
         generator: Generator<'a, 'bp>,
         filter: LayoutFilter,
         parent_component: Option<WidgetId>,
+        parent_element: Option<WidgetId>,
     ) -> Self {
         Self {
             tree,
@@ -132,15 +131,9 @@ impl<'a, 'bp> LayoutForEach<'a, 'bp> {
             generator: Some(generator),
             filter,
             parent_component,
+            parent_element,
         }
     }
-
-    // pub fn first<F>(&mut self, ctx: &mut LayoutCtx<'_, 'bp>, mut f: F) -> Result<ControlFlow<()>>
-    // where
-    //     F: FnMut(&mut LayoutCtx<'_, 'bp>, &mut Element<'bp>, LayoutForEach<'_, 'bp>) -> Result<ControlFlow<()>>,
-    // {
-    //     self.inner_each(ctx, &mut f)
-    // }
 
     pub fn each<F>(&mut self, ctx: &mut LayoutCtx<'_, 'bp>, mut f: F) -> Result<ControlFlow<()>>
     where
@@ -167,7 +160,14 @@ impl<'a, 'bp> LayoutForEach<'a, 'bp> {
         //       Therefore there is no need to worry about excessive creation of `Iter`s for loops.
         loop {
             let index = self.tree.layout_len();
-            if !generate(parent, &mut self.tree, ctx, self.scope, self.parent_component)? {
+            if !generate(
+                parent,
+                &mut self.tree,
+                ctx,
+                self.scope,
+                self.parent_component,
+                self.parent_element,
+            )? {
                 break;
             }
             match self.process(index, ctx, f)? {
@@ -210,6 +210,7 @@ impl<'a, 'bp> LayoutForEach<'a, 'bp> {
                             },
                             self.filter,
                             self.parent_component,
+                            Some(el.id()),
                         );
                         f(ctx, el, children)
                     }
@@ -221,6 +222,7 @@ impl<'a, 'bp> LayoutForEach<'a, 'bp> {
                             generator,
                             self.filter,
                             self.parent_component,
+                            self.parent_element,
                         );
                         children.inner_each(ctx, f)
                     }
@@ -237,6 +239,7 @@ impl<'a, 'bp> LayoutForEach<'a, 'bp> {
                             Generator::from_loop(widget.children, for_loop.binding, len),
                             self.filter,
                             self.parent_component,
+                            self.parent_element,
                         );
 
                         children.inner_each(ctx, f)
@@ -255,6 +258,7 @@ impl<'a, 'bp> LayoutForEach<'a, 'bp> {
                             Generator::from(&*widget),
                             self.filter,
                             self.parent_component,
+                            self.parent_element,
                         );
                         children.inner_each(ctx, f)
                     }
@@ -266,6 +270,7 @@ impl<'a, 'bp> LayoutForEach<'a, 'bp> {
                             Generator::from_with(widget.children, with.binding),
                             self.filter,
                             self.parent_component,
+                            self.parent_element,
                         );
 
                         children.inner_each(ctx, f)
@@ -280,6 +285,7 @@ impl<'a, 'bp> LayoutForEach<'a, 'bp> {
                             Generator::from(&*widget),
                             self.filter,
                             Some(parent_component),
+                            self.parent_element,
                         );
                         children.inner_each(ctx, f)
                     }
@@ -290,6 +296,7 @@ impl<'a, 'bp> LayoutForEach<'a, 'bp> {
                             Generator::from(&*widget),
                             self.filter,
                             self.parent_component,
+                            self.parent_element,
                         );
                         children.inner_each(ctx, f)
                     }
@@ -300,16 +307,13 @@ impl<'a, 'bp> LayoutForEach<'a, 'bp> {
                             Generator::from(&*widget),
                             self.filter,
                             self.parent_component,
+                            self.parent_element,
                         );
                         children.inner_each(ctx, f)
                     }
                 }
             })
             .unwrap_or(Ok(ControlFlow::Continue(())))
-    }
-
-    pub(crate) fn len(&self) -> usize {
-        self.tree.layout_len()
     }
 }
 
@@ -322,11 +326,13 @@ fn generate<'bp>(
     ctx: &mut LayoutCtx<'_, 'bp>,
     scope: &Scope<'_, 'bp>,
     parent_component: Option<WidgetId>,
+    parent_widget: Option<WidgetId>,
 ) -> Result<bool> {
     match parent {
         Generator::Single { body: blueprints, .. }
         | Generator::Iteration { body: blueprints, .. }
         | Generator::With { body: blueprints, .. }
+        | Generator::Slot(blueprints)
         | Generator::ControlFlowContainer(blueprints) => {
             if blueprints.is_empty() {
                 return Ok(false);
@@ -337,25 +343,8 @@ fn generate<'bp>(
                 return Ok(false);
             }
 
-            let mut ctx = ctx.eval_ctx(parent_component);
-            // TODO: unwrap.
-            // this should propagate somewhere useful
+            let mut ctx = ctx.eval_ctx(parent_component, parent_widget);
             eval_blueprint(&blueprints[index], &mut ctx, scope, tree.offset, tree)?;
-            Ok(true)
-        }
-
-        Generator::Slot(blueprints) => {
-            if blueprints.is_empty() {
-                return Ok(false);
-            }
-
-            let index = tree.layout_len();
-            if index >= blueprints.len() {
-                return Ok(false);
-            }
-
-            let mut ctx = ctx.eval_ctx(parent_component);
-            eval_blueprint(&blueprints[index], &mut ctx, scope, tree.offset, tree).unwrap();
             Ok(true)
         }
         Generator::Loop { len, .. } if len == tree.layout_len() => Ok(false),
@@ -367,7 +356,7 @@ fn generate<'bp>(
                 loop_index: StateValue::new(loop_index as i64),
                 binding,
             });
-            let widget = WidgetContainer::new(widget, body);
+            let widget = WidgetContainer::new(widget, body, parent_widget);
             // NOTE: for this to fail one of the values along the path would have to
             // have been removed
             transaction.commit_child(widget).unwrap();
@@ -376,9 +365,6 @@ fn generate<'bp>(
         Generator::ControlFlow(controlflow) => {
             let child_count = tree.layout_len();
             assert_eq!(child_count.saturating_sub(1), 0, "too many branches have been created");
-
-            // TODO: this could probably be replaced with the functionality in
-            // ControlFlow::has_changed
 
             let should_create = {
                 if child_count == 0 {
@@ -408,34 +394,29 @@ fn generate<'bp>(
                 return Ok(false);
             }
 
-            let thing = controlflow
-                .elses
-                .iter()
-                .enumerate()
-                .filter_map(|(id, node)| {
-                    // If there is a condition but it's not a bool, then it's false
-                    // If there is no condition then it's true (a conditionless else)
-                    // Everything else is down to the value
-                    let cond = match node.cond.as_ref() {
-                        Some(val) => val.truthiness(),
-                        None => true,
-                    };
-                    match cond {
-                        true => Some((id, node.body)),
-                        false => None,
-                    }
-                })
-                .next();
-
-            match thing {
-                Some((id, body)) => {
-                    let kind = WidgetKind::ControlFlowContainer(id as u16);
-                    let widget = WidgetContainer::new(kind, body);
-                    let transaction = tree.insert(tree.offset);
-                    transaction.commit_child(widget);
+            let cond = |(id, node): (usize, &Else<'bp>)| {
+                // If there is a condition but it's not a bool, then it's false
+                // If there is no condition then it's true (a conditionless else)
+                // Everything else is down to the value
+                let cond = match node.cond.as_ref() {
+                    Some(val) => val.truthiness(),
+                    None => true,
+                };
+                match cond {
+                    true => Some((id, node.body)),
+                    false => None,
                 }
+            };
+
+            let (id, body) = match controlflow.elses.iter().enumerate().filter_map(cond).next() {
+                Some(val) => val,
                 None => return Ok(false),
-            }
+            };
+
+            let kind = WidgetKind::ControlFlowContainer(id as u16);
+            let widget = WidgetContainer::new(kind, body, parent_widget);
+            let transaction = tree.insert(tree.offset);
+            transaction.commit_child(widget);
 
             Ok(true)
         }

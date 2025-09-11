@@ -118,7 +118,6 @@ impl<'parent, 'bp> Scope<'parent, 'bp> {
                         }
                         &ValueKind::Range(from, to) => (from..to)
                             .skip(index)
-                            .take(1)
                             .map(|num| ValueExpr::Int(Kind::Static(num as i64)))
                             .next(),
                         _ => unreachable!("none of the other values can be a collection"),

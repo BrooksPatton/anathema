@@ -49,10 +49,17 @@ impl Region {
     }
 
     /// Check if a region contains a position.
-    /// Regions are exclusive, so a region from 0,0 to 10, 10 contains `Pos::ZERO`
+    /// The check is exclusive, so a region from 0,0 to 10, 10 contains `Pos::ZERO`
     /// but not `Pos::New(10, 10)`
     pub const fn contains(&self, pos: Pos) -> bool {
         pos.x >= self.from.x && pos.x < self.to.x && pos.y >= self.from.y && pos.y < self.to.y
+    }
+
+    /// Check if a region contains a position.
+    /// The check is inclusive, so a region from 0,0 to 10, 10 contains `Pos::ZERO`
+    /// as well as `Pos::New(10, 10)`
+    pub const fn icontains(&self, pos: Pos) -> bool {
+        pos.x >= self.from.x && pos.x <= self.to.x && pos.y >= self.from.y && pos.y <= self.to.y
     }
 
     /// Constrain a region to fit within another region

@@ -5,6 +5,7 @@ use eval::SlotEval;
 pub use self::element::Element;
 use self::eval::{ComponentEval, ControlFlowEval, Evaluator, ForLoopEval, SingleEval};
 pub use self::update::update_widget;
+use crate::WidgetId;
 use crate::error::Result;
 use crate::layout::EvalCtx;
 use crate::nodes::eval::WithEval;
@@ -46,13 +47,15 @@ pub enum WidgetKind<'bp> {
 pub struct WidgetContainer<'bp> {
     pub kind: WidgetKind<'bp>,
     pub(crate) children: &'bp [Blueprint],
+    pub parent_widget: Option<WidgetId>,
 }
 
 impl<'bp> WidgetContainer<'bp> {
-    pub fn new(kind: WidgetKind<'bp>, blueprints: &'bp [Blueprint]) -> Self {
+    pub fn new(kind: WidgetKind<'bp>, blueprints: &'bp [Blueprint], parent_widget: Option<WidgetId>) -> Self {
         Self {
             kind,
             children: blueprints,
+            parent_widget,
         }
     }
 }

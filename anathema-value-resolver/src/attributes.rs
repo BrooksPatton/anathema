@@ -120,17 +120,38 @@ impl<'bp> Attributes<'bp> {
     /// ```
     pub fn set(&mut self, key: &'bp str, value: impl Into<ValueKind<'bp>>) {
         let key = ValueKey::Attribute(key);
-        let value = value.into();
-        let value = Value {
-            expr: ValueExpr::Null,
-            kind: value,
-            sub: anathema_state::Subscriber::MAX,
-            sub_to: anathema_state::SubTo::Zero,
-        };
-
+        let value = Value::static_val(value);
         self.attribs.set(key, value);
     }
 
+    /// Set an attribute value.
+    /// ```
+    /// # use anathema_value_resolver::{Attributes, ValueKind};
+    ///
+    /// let mut attributes = Attributes::empty();
+    /// attributes.set_value("Nonsense");
+    /// attributes.value_as::<&str>().unwrap();
+    /// ```
+    pub fn set_value(&mut self, value: impl Into<ValueKind<'bp>>) {
+        let value = Value::static_val(value);
+
+        match self.value {
+            Some(index) => match self.attribs.get_mut_with_index(index) {
+                Some(current) => *current = value,
+                None => {
+                    let index = self.attribs.insert_with(ValueKey::Value, |_| value);
+                    self.value = Some(index);
+                }
+            },
+            None => {
+                let index = self.attribs.insert_with(ValueKey::Value, |_| value);
+                self.value = Some(index);
+            }
+        }
+    }
+
+    // This is only used for inserting values during widget creation where values originate from
+    // expressions.
     #[doc(hidden)]
     pub fn insert_with<F>(&mut self, key: ValueKey<'bp>, f: F) -> SmallIndex
     where
@@ -150,6 +171,17 @@ impl<'bp> Attributes<'bp> {
     pub fn value(&self) -> Option<&ValueKind<'bp>> {
         let idx = self.value?;
         self.attribs.get_with_index(idx).map(|val| &val.kind)
+    }
+
+    /// Get a value as a specific type
+    pub fn value_as<'a, T>(&'a self) -> Option<T>
+    where
+        T: TryFrom<&'a ValueKind<'bp>>,
+    {
+        let idx = self.value?;
+        self.attribs
+            .get_with_index(idx)
+            .and_then(|val| (&val.kind).try_into().ok())
     }
 
     pub fn get(&self, key: &str) -> Option<&ValueKind<'bp>> {
@@ -246,6 +278,7 @@ mod test {
         attributes.set("float", 1.23);
         attributes.set("bool", true);
         attributes.set("char", 'a');
+        attributes.set_value(123u8);
 
         attributes
     }
@@ -311,5 +344,12 @@ mod test {
     fn get_as_char() {
         let attributes = attribs();
         assert_eq!('a', attributes.get_as::<char>("char").unwrap());
+    }
+
+    #[test]
+    fn get_value_as() {
+        let attributes = attribs();
+        let value = attributes.value_as::<u8>().unwrap();
+        assert_eq!(value, 123);
     }
 }

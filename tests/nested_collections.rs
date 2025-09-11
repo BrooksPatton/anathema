@@ -33,8 +33,9 @@ fn keypress(_: KeyEvent, state: &mut Outer, _: Children<'_, '_>, _: Context<'_, 
 #[test]
 fn nested_collections() {
     let tpl = "
-    for i in state.inner.list
-        text i
+    container
+        for i in state.inner.list
+            text i
     ";
     let doc = Document::new("@index");
 

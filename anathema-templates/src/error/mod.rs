@@ -58,7 +58,7 @@ pub enum ErrorKind {
 }
 
 impl ErrorKind {
-    pub(crate) fn to_error(self, template: Option<PathBuf>) -> Error {
+    pub fn to_error(self, template: Option<PathBuf>) -> Error {
         Error::new(template, self)
     }
 }

@@ -93,8 +93,8 @@ impl<'tree, T> TreeView<'tree, T> {
         self.path_ref(id).into()
     }
 
-    // Find the value id by the path
-    fn id(&self, path: &[u16]) -> Option<ValueId> {
+    /// Find the value id by the path
+    pub fn id(&self, path: &[u16]) -> Option<ValueId> {
         self.layout.with(path, |nodes| nodes.value())
     }
 

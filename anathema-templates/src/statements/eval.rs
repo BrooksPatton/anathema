@@ -261,12 +261,12 @@ impl Scope {
 mod test {
     use super::*;
     use crate::document::Document;
-    use crate::{ToSourceKind, single};
+    use crate::{ToSourceKind, Variables, single};
 
     #[test]
     fn eval_node() {
         let mut doc = Document::new("node");
-        let (bp, _) = doc.compile().unwrap();
+        let bp = doc.compile(&mut Variables::new()).unwrap();
         assert_eq!(bp, single!("node"));
     }
 
@@ -277,7 +277,7 @@ mod test {
             b
         ";
         let mut doc = Document::new(src);
-        let (blueprint, _) = doc.compile().unwrap();
+        let blueprint = doc.compile(&mut Variables::new()).unwrap();
         assert_eq!(blueprint, single!(children @ "a", vec![single!("b")]));
     }
 
@@ -289,7 +289,7 @@ mod test {
         ";
 
         let mut doc = Document::new(src);
-        let (blueprint, _) = doc.compile().unwrap();
+        let blueprint = doc.compile(&mut Variables::new()).unwrap();
         assert!(matches!(blueprint, Blueprint::Single(Single { value: Some(_), .. })));
     }
 
@@ -298,7 +298,7 @@ mod test {
         let src = "let state = 1";
 
         let mut doc = Document::new(src);
-        let response = doc.compile();
+        let response = doc.compile(&mut Variables::new());
         assert_eq!(
             response.err().unwrap().to_string(),
             "invalid statement: state is a reserved identifier"
@@ -313,7 +313,7 @@ mod test {
         ";
 
         let mut doc = Document::new(src);
-        let response = doc.compile();
+        let response = doc.compile(&mut Variables::new());
         assert_eq!(
             response.err().unwrap().to_string(),
             "invalid statement: state is a reserved identifier"
@@ -327,7 +327,7 @@ mod test {
                 node
         ";
         let mut doc = Document::new(src);
-        let (blueprint, _) = doc.compile().unwrap();
+        let blueprint = doc.compile(&mut Variables::new()).unwrap();
         assert!(matches!(blueprint, Blueprint::For(For { .. })));
     }
 
@@ -341,7 +341,7 @@ mod test {
         ";
 
         let mut doc = Document::new(src);
-        let (blueprint, _) = doc.compile().unwrap();
+        let blueprint = doc.compile(&mut Variables::new()).unwrap();
         let Blueprint::ControlFlow(controlflow) = blueprint else { panic!() };
         assert!(matches!(controlflow.elses[0], Else { .. }));
         assert!(!controlflow.elses.is_empty());
@@ -356,7 +356,7 @@ mod test {
         ";
 
         let mut doc = Document::new(src);
-        let (blueprint, _) = doc.compile().unwrap();
+        let blueprint = doc.compile(&mut Variables::new()).unwrap();
         let Blueprint::ControlFlow(controlflow) = blueprint else { panic!() };
         assert!(matches!(controlflow.elses[0], Else { .. }));
         assert!(!controlflow.elses.is_empty());
@@ -374,7 +374,7 @@ mod test {
         ";
 
         let mut doc = Document::new(src);
-        let (blueprint, _) = doc.compile().unwrap();
+        let blueprint = doc.compile(&mut Variables::new()).unwrap();
         let Blueprint::ControlFlow(controlflow) = blueprint else { panic!() };
         assert!(matches!(controlflow.elses[0], Else { .. }));
         assert!(!controlflow.elses.is_empty());
@@ -387,7 +387,7 @@ mod test {
 
         let mut doc = Document::new(src);
         doc.add_component("comp", comp_src.to_template()).unwrap();
-        let (blueprint, _) = doc.compile().unwrap();
+        let blueprint = doc.compile(&mut Variables::new()).unwrap();
         assert!(matches!(blueprint, Blueprint::Component(Component { .. })));
     }
 
@@ -412,7 +412,7 @@ mod test {
 
         let mut doc = Document::new(src);
         doc.add_component("comp", comp_src.to_template()).unwrap();
-        let (blueprint, _) = doc.compile().unwrap();
+        let blueprint = doc.compile(&mut Variables::new()).unwrap();
         assert!(matches!(blueprint, Blueprint::Component(Component { .. })));
     }
 
@@ -426,7 +426,7 @@ mod test {
 
         let mut doc = Document::new(src);
         doc.add_component("comp", "node a".to_template()).unwrap();
-        let _ = doc.compile().unwrap();
+        let _ = doc.compile(&mut Variables::new()).unwrap();
     }
 
     #[test]
@@ -437,7 +437,7 @@ mod test {
 
         let mut doc = Document::new(src);
         doc.add_component("comp", "node a".to_template()).unwrap();
-        let _ = doc.compile().unwrap();
+        let _ = doc.compile(&mut Variables::new()).unwrap();
     }
 
     #[test]
@@ -449,7 +449,7 @@ mod test {
 
         let mut doc = Document::new(src);
         doc.add_component("comp", "node a".to_template()).unwrap();
-        let (blueprint, _) = doc.compile().unwrap();
+        let blueprint = doc.compile(&mut Variables::new()).unwrap();
         assert!(matches!(blueprint, Blueprint::With(With { .. })));
     }
 }

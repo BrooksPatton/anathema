@@ -130,20 +130,3 @@ pub(crate) fn drop_value(key: ValueKey) -> OwnedValue {
 
     value
 }
-
-// /// This should only be used for debugging.
-// pub fn dump_state() -> String {
-//     use std::fmt::Write;
-//     let mut string = String::new();
-//     let _ = writeln!(
-//         &mut string,
-//         "\n\n=== SHARED ===\n{}\n",
-//         SHARED.with(|s| s.dump_state())
-//     );
-//     let _ = writeln!(
-//         &mut string,
-//         "=== OWNED ===\n{}\n",
-//         OWNED.with(|s| s.dump_state())
-//     );
-//     string
-// }

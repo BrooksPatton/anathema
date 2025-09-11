@@ -7,7 +7,7 @@ use anathema_geometry::Size;
 use anathema_state::{Changes, StateId, States, clear_all_changes, clear_all_subs, drain_changes};
 use anathema_store::tree::root_node;
 use anathema_templates::blueprints::Blueprint;
-use anathema_templates::{Document, Variables};
+use anathema_templates::{Document, Expression, Variables};
 use anathema_value_resolver::{AttributeStorage, FunctionTable, Scope};
 use anathema_widgets::components::deferred::{CommandKind, DeferredComponents};
 use anathema_widgets::components::events::{Event, EventType};
@@ -19,8 +19,8 @@ use anathema_widgets::layout::{LayoutCtx, Viewport};
 use anathema_widgets::query::Children;
 use anathema_widgets::tabindex::{Index, TabIndex};
 use anathema_widgets::{
-    Component, Components, Factory, FloatingWidgets, GlyphMap, WidgetContainer, WidgetId, WidgetKind, WidgetTree,
-    eval_blueprint, update_widget,
+    Component, Components, DirtyWidgets, Factory, FloatingWidgets, GlyphMap, WidgetContainer, WidgetId, WidgetKind,
+    WidgetTree, eval_blueprint, update_widget,
 };
 use flume::Receiver;
 use notify::RecommendedWatcher;
@@ -63,6 +63,11 @@ impl Runtime<()> {
     /// Create a runtime builder
     pub fn builder<B: Backend>(doc: Document, backend: &B) -> Builder<()> {
         Builder::new(doc, backend.size(), ())
+    }
+
+    pub fn register_global(&mut self, key: impl Into<String>, value: impl Into<Expression>) -> Result<()> {
+        self.variables.define_global(key, value).map_err(|e| e.to_error(None))?;
+        Ok(())
     }
 
     /// Create a runtime builder using an existing emitter
@@ -178,7 +183,11 @@ impl<G: GlobalEventHandler> Runtime<G> {
                         return Err(Error::Stop);
                     }
 
-                    frame.present(backend);
+                    if frame.needs_paint {
+                        frame.present(backend);
+                        frame.needs_paint = false;
+                    }
+
                     frame.cleanup();
                     std::thread::sleep(Duration::from_micros(sleep_micros));
                 }
@@ -247,11 +256,13 @@ impl<G: GlobalEventHandler> Runtime<G> {
             message_receiver: &self.message_receiver,
 
             dt: &mut self.dt,
-            needs_layout: true,
+            force_layout: true,
+            needs_paint: true,
             post_cycle_events: VecDeque::new(),
 
             global_event_handler: &self.global_event_handler,
             tabindex: None,
+            dirty_widgets: DirtyWidgets::empty(),
         };
 
         Ok(inst)
@@ -267,9 +278,8 @@ impl<G: GlobalEventHandler> Runtime<G> {
         // Reload templates
         self.document.reload_templates()?;
 
-        let (blueprint, variables) = self.document.compile()?;
+        let blueprint = self.document.compile(&mut self.variables)?;
         self.blueprint = blueprint;
-        self.variables = variables;
 
         Ok(())
     }
@@ -287,8 +297,10 @@ pub struct Frame<'rt, 'bp, G> {
     emitter: &'rt Emitter,
     message_receiver: &'rt flume::Receiver<ViewMessage>,
     dt: &'rt mut Instant,
-    needs_layout: bool,
+    force_layout: bool,
+    needs_paint: bool,
     post_cycle_events: VecDeque<Event>,
+    dirty_widgets: DirtyWidgets,
 
     global_event_handler: &'rt G,
     pub tabindex: Option<Index>,
@@ -368,7 +380,7 @@ impl<'rt, 'bp, G: GlobalEventHandler> Frame<'rt, 'bp, G> {
 
     // Should be called only once to initialise the node tree.
     pub fn init_tree(&mut self) -> Result<()> {
-        let mut ctx = self.layout_ctx.eval_ctx(None);
+        let mut ctx = self.layout_ctx.eval_ctx(None, None);
         eval_blueprint(
             self.blueprint,
             &mut ctx,
@@ -410,14 +422,12 @@ impl<'rt, 'bp, G: GlobalEventHandler> Frame<'rt, 'bp, G> {
         }
     }
 
-    pub fn present<B: Backend>(&mut self, backend: &mut B) -> Duration {
+    pub fn present<B: Backend>(&mut self, backend: &mut B) {
         #[cfg(feature = "profile")]
         puffin::profile_function!();
 
-        let now = Instant::now();
         backend.render(self.layout_ctx.glyph_map);
         backend.clear();
-        now.elapsed()
     }
 
     pub fn cleanup(&mut self) {
@@ -474,7 +484,7 @@ impl<'rt, 'bp, G: GlobalEventHandler> Frame<'rt, 'bp, G> {
         while let Some(event) = backend.next_event(remaining) {
             if let Event::Resize(size) = event {
                 self.layout_ctx.viewport.resize(size);
-                self.needs_layout = true;
+                self.force_layout = true;
                 backend.resize(size, self.layout_ctx.glyph_map);
             }
 
@@ -626,10 +636,16 @@ impl<'rt, 'bp, G: GlobalEventHandler> Frame<'rt, 'bp, G> {
         #[cfg(feature = "profile")]
         puffin::profile_function!();
 
-        let mut cycle = WidgetCycle::new(backend, self.tree.view(), self.layout_ctx.viewport.constraints());
-        cycle.run(&mut self.layout_ctx, self.needs_layout)?;
+        if !self.force_layout && self.dirty_widgets.is_empty() {
+            return Ok(());
+        }
 
-        self.needs_layout = false;
+        let mut cycle = WidgetCycle::new(backend, self.tree.view(), self.layout_ctx.viewport.constraints());
+        cycle.run(&mut self.layout_ctx, self.force_layout, &mut self.dirty_widgets)?;
+
+        self.force_layout = false;
+        self.needs_paint = true;
+
         Ok(())
     }
 
@@ -643,18 +659,12 @@ impl<'rt, 'bp, G: GlobalEventHandler> Frame<'rt, 'bp, G> {
             return Ok(());
         }
 
-        self.needs_layout = true;
+        // self.needs_layout = true;
         let mut tree = self.tree.view();
 
         self.changes.iter().try_for_each(|(sub, change)| {
             sub.iter().try_for_each(|value_id| {
                 let widget_id = value_id.key();
-
-                if let Some(widget) = tree.get_mut(widget_id) {
-                    if let WidgetKind::Element(element) = &mut widget.kind {
-                        element.invalidate_cache();
-                    }
-                }
 
                 // check that the node hasn't already been removed
                 if !tree.contains(widget_id) {
@@ -662,11 +672,18 @@ impl<'rt, 'bp, G: GlobalEventHandler> Frame<'rt, 'bp, G> {
                 }
 
                 tree.with_value_mut(widget_id, |_path, widget, tree| {
-                    update_widget(widget, value_id, change, tree, &mut self.layout_ctx)
+                    update_widget(
+                        widget,
+                        value_id,
+                        change,
+                        tree,
+                        &mut self.layout_ctx,
+                        &mut self.dirty_widgets,
+                    )
                 })
                 .unwrap_or(Ok(()))?;
 
-                Ok(())
+                Result::Ok(())
             })?;
 
             Result::Ok(())
@@ -701,7 +718,7 @@ impl<'rt, 'bp, G: GlobalEventHandler> Frame<'rt, 'bp, G> {
             self.layout_ctx
                 .attribute_storage
                 .with_mut(widget_id, |attributes, storage| {
-                    let elements = Children::new(children, storage, &mut self.needs_layout);
+                    let elements = Children::new(children, storage, &mut self.dirty_widgets);
 
                     let ctx = AnyComponentContext::new(
                         component.parent.map(Into::into),

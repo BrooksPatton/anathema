@@ -97,8 +97,8 @@ impl Widget for Text {
             let Some(_span) = child.try_to_ref::<Span>() else {
                 return Ok(ControlFlow::Continue(()));
             };
-            self.strings.set_style(child.id());
 
+            self.strings.set_style(child.id());
             let attributes = ctx.attributes(child.id());
             if let Some(text) = attributes.value() {
                 text.strings(|s| match self.strings.add_str(s) {

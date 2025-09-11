@@ -7,7 +7,9 @@ use anathema_widgets::components::events::Event;
 use anathema_widgets::error::Result;
 use anathema_widgets::layout::{Constraints, LayoutCtx, LayoutFilter, PositionFilter, Viewport};
 use anathema_widgets::paint::PaintFilter;
-use anathema_widgets::{GlyphMap, LayoutForEach, PaintChildren, PositionChildren, WidgetTreeView};
+use anathema_widgets::{
+    DirtyWidgets, GlyphMap, Layout, LayoutForEach, PaintChildren, PositionChildren, WidgetTreeView,
+};
 
 pub mod testing;
 pub mod tui;
@@ -55,14 +57,7 @@ impl<'rt, 'bp, T: Backend> WidgetCycle<'rt, 'bp, T> {
         }
     }
 
-    fn fixed(&mut self, ctx: &mut LayoutCtx<'_, 'bp>, needs_layout: bool) -> Result<()> {
-        // -----------------------------------------------------------------------------
-        //   - Layout -
-        // -----------------------------------------------------------------------------
-        if needs_layout {
-            self.layout(ctx, LayoutFilter)?;
-        }
-
+    fn fixed(&mut self, ctx: &mut LayoutCtx<'_, 'bp>) -> Result<()> {
         // -----------------------------------------------------------------------------
         //   - Position -
         // -----------------------------------------------------------------------------
@@ -90,24 +85,107 @@ impl<'rt, 'bp, T: Backend> WidgetCycle<'rt, 'bp, T> {
         Ok(())
     }
 
-    pub fn run(&mut self, ctx: &mut LayoutCtx<'_, 'bp>, needs_layout: bool) -> Result<()> {
-        self.fixed(ctx, needs_layout)?;
+    pub fn run(
+        &mut self,
+        ctx: &mut LayoutCtx<'_, 'bp>,
+        force_layout: bool,
+        dirty_widgets: &mut DirtyWidgets,
+    ) -> Result<()> {
+        // -----------------------------------------------------------------------------
+        //   - Layout -
+        // -----------------------------------------------------------------------------
+        self.layout(ctx, LayoutFilter, dirty_widgets, force_layout)?;
+
+        // -----------------------------------------------------------------------------
+        //   - Position and paint -
+        // -----------------------------------------------------------------------------
+        self.fixed(ctx)?;
         self.floating(ctx)?;
         Ok(())
     }
 
-    fn layout(&mut self, ctx: &mut LayoutCtx<'_, 'bp>, filter: LayoutFilter) -> Result<()> {
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx<'_, 'bp>,
+        filter: LayoutFilter,
+        dirty_widgets: &mut DirtyWidgets,
+        force_layout: bool,
+    ) -> Result<()> {
         #[cfg(feature = "profile")]
         puffin::profile_function!();
-        let tree = self.tree.view();
 
-        let scope = Scope::root();
-        let mut for_each = LayoutForEach::new(tree, &scope, filter, None);
-        let constraints = self.constraints;
-        _ = for_each.each(ctx, |ctx, widget, children| {
-            _ = widget.layout(children, constraints, ctx)?;
-            Ok(ControlFlow::Break(()))
-        })?;
+        let mut tree = self.tree.view();
+
+        if force_layout {
+            // Perform a layout across the entire tree
+            let scope = Scope::root();
+            let mut for_each = LayoutForEach::new(tree, &scope, filter);
+            let constraints = self.constraints;
+            _ = for_each.each(ctx, |ctx, widget, children| {
+                _ = widget.layout(children, constraints, ctx)?;
+                Ok(ControlFlow::Break(()))
+            })?;
+            return Ok(());
+        }
+
+        // If a widget has changed, mark the parent as dirty
+
+        // Layout only changed widgets.
+        // These are the parents of changed widgets.
+        //
+        // Investigate the possibility of attaching an offset as existing widgets don't need
+        // to reflow unless the constraint has changed.
+        //
+        // This means `additional_widgets` needs to store (key, offset) where offset can be None
+        //
+        // If this is going to work we need to consider `expand` and `spacer`
+        //
+        // Since widgets can be made by anyone and they are always guaranteed to give
+        // access to all their children this might not be a possibility.
+        //
+        // parent
+        //     widget 0
+        //     widget 1
+        //     widget 2 |  <- if this changes, only reflow this, three and four
+        //     widget 3 |-- reflow
+        //     widget 4 |
+
+        // TODO: make `additional_widgets` a scratch buffer part of `DirtyWidgets`.
+        //       Also ensure that it tracks last id as well
+        //       ... and removes it when done!
+        let mut additional_widgets = vec![];
+
+        loop {
+            for widget_id in dirty_widgets.drain() {
+                if !tree.contains(widget_id) {
+                    continue;
+                }
+                tree.with_value_mut(widget_id, |_, widget, children| {
+                    let scope = Scope::root();
+                    let mut children = LayoutForEach::new(children, &scope, filter);
+                    children.parent_element = Some(widget_id);
+                    let parent_id = widget.parent_widget;
+                    let anathema_widgets::WidgetKind::Element(widget) = &mut widget.kind else { return };
+
+                    let constraints = widget.constraints();
+                    if let Ok(Layout::Changed(_)) = widget.layout(children, constraints, ctx) {
+                        // write into scratch buffer
+                        if let Some(id) = parent_id {
+                            additional_widgets.push(id);
+                        }
+                    }
+                });
+            }
+
+            // merge the scratch if it's not empty
+
+            if additional_widgets.is_empty() {
+                break;
+            }
+
+            dirty_widgets.inner.append(&mut additional_widgets);
+        }
+
         Ok(())
     }
 

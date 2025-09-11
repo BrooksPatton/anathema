@@ -40,6 +40,10 @@ pub struct CompEntry {
     component_id: ComponentBlueprintId,
 }
 
+// -----------------------------------------------------------------------------
+//   - Components -
+// -----------------------------------------------------------------------------
+
 /// Store a list of components currently in the tree
 pub struct Components {
     inner: Vec<CompEntry>,
@@ -160,6 +164,10 @@ impl ComponentParents {
         self.0.get(child).copied()
     }
 }
+
+// -----------------------------------------------------------------------------
+//   - Any widget -
+// -----------------------------------------------------------------------------
 
 /// Any widget should never be implemented directly
 /// as it's implemented for any type that implements `Widget`
@@ -303,5 +311,46 @@ pub trait Widget {
 impl Debug for dyn Widget {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "<dyn Widget>")
+    }
+}
+
+// -----------------------------------------------------------------------------
+//   - Dirty widgets collection -
+// -----------------------------------------------------------------------------
+pub struct DirtyWidgets {
+    pub inner: Vec<WidgetId>,
+    last_id: Option<WidgetId>,
+}
+
+impl DirtyWidgets {
+    pub fn empty() -> Self {
+        Self {
+            inner: vec![],
+            last_id: None,
+        }
+    }
+
+    pub fn push(&mut self, widget_id: WidgetId) {
+        if let Some(last) = self.last_id
+            && last == widget_id
+        {
+            return;
+        }
+
+        self.last_id.replace(widget_id);
+        self.inner.push(widget_id);
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    pub fn clear(&mut self) {
+        self.inner.clear();
+    }
+
+    pub fn drain(&mut self) -> impl Iterator<Item = WidgetId> {
+        _ = self.last_id.take();
+        self.inner.drain(..)
     }
 }

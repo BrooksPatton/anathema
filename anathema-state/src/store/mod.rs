@@ -8,8 +8,8 @@ use watchers::{Watcher, Watchers};
 
 pub(crate) use self::change::changed;
 pub use self::change::{Change, Changes, clear_all_changes, drain_changes};
+pub use self::subscriber::Subscriber;
 use self::subscriber::{SubKey, SubscriberMap};
-pub use self::subscriber::{SubTo, Subscriber};
 use crate::Type;
 
 mod change;

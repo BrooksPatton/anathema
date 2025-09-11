@@ -19,18 +19,72 @@ macro_rules! or_null {
     };
 }
 
+#[derive(Debug, Default, Copy, Clone)]
+pub(crate) enum ResolvedState {
+    Resolved,
+    PartiallyResolved,
+    #[default]
+    Unresolved,
+}
+
 pub struct ValueResolutionContext<'a, 'bp> {
     pub(crate) sub: Subscriber,
-    pub(crate) sub_to: &'a mut SubTo,
     attribute_storage: &'a AttributeStorage<'bp>,
+    pub(crate) resolved_state: ResolvedState,
+    pub(crate) sub_keys: SubTo,
 }
 
 impl<'a, 'bp> ValueResolutionContext<'a, 'bp> {
-    pub fn new(attribute_storage: &'a AttributeStorage<'bp>, sub: Subscriber, sub_to: &'a mut SubTo) -> Self {
+    pub fn new(attribute_storage: &'a AttributeStorage<'bp>, sub: Subscriber, resolved_state: ResolvedState) -> Self {
         Self {
             attribute_storage,
             sub,
-            sub_to,
+            resolved_state,
+            sub_keys: SubTo::empty(),
+        }
+    }
+
+    pub(crate) fn force_sub(&mut self, pending: &PendingValue) {
+        pending.subscribe(self.sub);
+        self.sub_keys.push(pending.sub_key());
+    }
+
+    fn maybe_subscribe(&mut self, pending: &PendingValue) {
+        match self.resolved_state {
+            ResolvedState::Resolved => (),
+            ResolvedState::PartiallyResolved => (),
+            ResolvedState::Unresolved => {
+                pending.subscribe(self.sub);
+                self.sub_keys.push(pending.sub_key());
+            }
+        }
+    }
+
+    fn resolved(&mut self, pending: &PendingValue) {
+        match self.resolved_state {
+            ResolvedState::Resolved => (),
+            ResolvedState::PartiallyResolved | ResolvedState::Unresolved => pending.subscribe(self.sub),
+        }
+
+        self.resolved_state = ResolvedState::Resolved;
+    }
+
+    fn partially_resolved(&mut self, pending: &PendingValue) {
+        self.resolved_state = ResolvedState::PartiallyResolved;
+        self.sub_keys.push(pending.sub_key());
+        pending.subscribe(self.sub);
+    }
+
+    fn is_partially_resolved(&self) -> bool {
+        match self.resolved_state {
+            ResolvedState::PartiallyResolved => true,
+            ResolvedState::Resolved | ResolvedState::Unresolved => false,
+        }
+    }
+
+    pub(crate) fn done(&mut self) {
+        if let ResolvedState::Unresolved = self.resolved_state {
+            self.resolved_state = ResolvedState::Resolved;
         }
     }
 }
@@ -120,8 +174,7 @@ pub(crate) fn resolve_value<'a, 'bp>(
         // -----------------------------------------------------------------------------
         ValueExpr::Bool(Kind::Static(b)) => ValueKind::Bool(*b),
         ValueExpr::Bool(Kind::Dyn(pending)) => {
-            pending.subscribe(ctx.sub);
-            ctx.sub_to.push(pending.sub_key());
+            ctx.maybe_subscribe(pending);
             let Some(state) = pending.as_state() else { return ValueKind::Null };
             match state.as_bool() {
                 Some(b) => ValueKind::Bool(b),
@@ -130,8 +183,7 @@ pub(crate) fn resolve_value<'a, 'bp>(
         }
         ValueExpr::Char(Kind::Static(c)) => ValueKind::Char(*c),
         ValueExpr::Char(Kind::Dyn(pending)) => {
-            pending.subscribe(ctx.sub);
-            ctx.sub_to.push(pending.sub_key());
+            ctx.maybe_subscribe(pending);
             let Some(state) = pending.as_state() else { return ValueKind::Null };
             match state.as_char() {
                 Some(c) => ValueKind::Char(c),
@@ -140,8 +192,7 @@ pub(crate) fn resolve_value<'a, 'bp>(
         }
         ValueExpr::Int(Kind::Static(i)) => ValueKind::Int(*i),
         ValueExpr::Int(Kind::Dyn(pending)) => {
-            pending.subscribe(ctx.sub);
-            ctx.sub_to.push(pending.sub_key());
+            ctx.maybe_subscribe(pending);
             let Some(state) = pending.as_state() else { return ValueKind::Null };
             match state.as_int() {
                 Some(i) => ValueKind::Int(i),
@@ -150,8 +201,7 @@ pub(crate) fn resolve_value<'a, 'bp>(
         }
         ValueExpr::Float(Kind::Static(f)) => ValueKind::Float(*f),
         ValueExpr::Float(Kind::Dyn(pending)) => {
-            pending.subscribe(ctx.sub);
-            ctx.sub_to.push(pending.sub_key());
+            ctx.maybe_subscribe(pending);
             let Some(state) = pending.as_state() else { return ValueKind::Null };
             match state.as_float() {
                 Some(f) => ValueKind::Float(f),
@@ -160,8 +210,7 @@ pub(crate) fn resolve_value<'a, 'bp>(
         }
         ValueExpr::Hex(Kind::Static(h)) => ValueKind::Hex(*h),
         ValueExpr::Hex(Kind::Dyn(pending)) => {
-            pending.subscribe(ctx.sub);
-            ctx.sub_to.push(pending.sub_key());
+            ctx.maybe_subscribe(pending);
             let Some(state) = pending.as_state() else { return ValueKind::Null };
             match state.as_hex() {
                 Some(h) => ValueKind::Hex(h),
@@ -170,8 +219,7 @@ pub(crate) fn resolve_value<'a, 'bp>(
         }
         ValueExpr::Color(Kind::Static(h)) => ValueKind::Color(*h),
         ValueExpr::Color(Kind::Dyn(pending)) => {
-            pending.subscribe(ctx.sub);
-            ctx.sub_to.push(pending.sub_key());
+            ctx.maybe_subscribe(pending);
             let Some(state) = pending.as_state() else { return ValueKind::Null };
             match state.as_color() {
                 Some(h) => ValueKind::Color(h),
@@ -180,8 +228,7 @@ pub(crate) fn resolve_value<'a, 'bp>(
         }
         ValueExpr::Str(Kind::Static(s)) => ValueKind::Str(Cow::Borrowed(s)),
         ValueExpr::Str(Kind::Dyn(pending)) => {
-            pending.subscribe(ctx.sub);
-            ctx.sub_to.push(pending.sub_key());
+            ctx.maybe_subscribe(pending);
             let Some(state) = pending.as_state() else { return ValueKind::Null };
             match state.as_str() {
                 Some(s) => ValueKind::Str(Cow::Owned(s.to_owned())),
@@ -257,8 +304,7 @@ pub(crate) fn resolve_value<'a, 'bp>(
         ValueExpr::DynMap(map) => ValueKind::DynMap(*map),
         ValueExpr::Attributes(_) => ValueKind::Attributes,
         ValueExpr::DynList(value) => {
-            value.subscribe(ctx.sub);
-            ctx.sub_to.push(value.sub_key());
+            ctx.maybe_subscribe(value);
             ValueKind::DynList(*value)
         }
         ValueExpr::List(l) => {
@@ -305,8 +351,7 @@ fn resolve_pending<'bp>(val: PendingValue, ctx: &mut ValueResolutionContext<'_, 
             let inner = match maybe.get() {
                 Some(inner) => inner,
                 None => {
-                    val.subscribe(ctx.sub);
-                    ctx.sub_to.push(val.sub_key());
+                    ctx.maybe_subscribe(&val);
                     return ValueExpr::Null;
                 }
             };
@@ -325,41 +370,35 @@ fn resolve_index<'bp>(
             let state = or_null!(value.as_state());
             let map = match state.as_any_map() {
                 Some(map) => map,
-                None => {
-                    // This will happen in the event of an `Option<DynMap>`
-                    // where the `Option` is `None`
-                    value.subscribe(ctx.sub);
-                    ctx.sub_to.push(value.sub_key());
-                    return ValueExpr::Null;
-                }
+                None => return ValueExpr::Null,
             };
 
             let key = or_null!(resolve_str(index, ctx));
             let val = map.lookup(&key);
 
             let val = match val {
-                Some(key) => key,
+                Some(key) => {
+                    if ctx.is_partially_resolved() {
+                        value.unsubscribe(ctx.sub);
+                    }
+                    key
+                }
                 None => {
-                    value.subscribe(ctx.sub);
-                    ctx.sub_to.push(value.sub_key());
+                    ctx.partially_resolved(value);
                     return ValueExpr::Null;
                 }
             };
 
+            ctx.resolved(&val);
             resolve_pending(val, ctx)
         }
         ValueExpr::DynList(value) => {
-            value.subscribe(ctx.sub);
-            ctx.sub_to.push(value.sub_key());
             let state = or_null!(value.as_state());
             let list = match state.as_any_list() {
                 Some(list) => list,
-                None => {
-                    value.subscribe(ctx.sub);
-                    ctx.sub_to.push(value.sub_key());
-                    return ValueExpr::Null;
-                }
+                None => return ValueExpr::Null,
             };
+
             let index = or_null!(resolve_int(index, ctx));
             let val = list.lookup(index);
 
@@ -368,10 +407,14 @@ fn resolve_index<'bp>(
             //
             // If the value does exist unsubscribe from the underlying map / state
             let val = match val {
-                Some(val) => val,
+                Some(val) => {
+                    if ctx.is_partially_resolved() {
+                        value.unsubscribe(ctx.sub);
+                    }
+                    val
+                }
                 None => {
-                    value.subscribe(ctx.sub);
-                    ctx.sub_to.push(value.sub_key());
+                    ctx.partially_resolved(value);
                     return ValueExpr::Null;
                 }
             };
@@ -516,9 +559,10 @@ mod test {
     #[test]
     fn list_preceding_value_removed() {
         let mut changes = Changes::empty();
-
         let mut states = States::new();
+
         setup(&mut states, Default::default(), |test| {
+            // state.list[1]
             let expr = index(index(ident("state"), strlit("list")), num(1));
 
             test.with_state(|state| {

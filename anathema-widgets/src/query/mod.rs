@@ -3,7 +3,7 @@ use anathema_value_resolver::{AttributeStorage, ValueKind};
 
 pub use self::components::Components;
 pub use self::elements::Elements;
-use crate::WidgetTreeView;
+use crate::{DirtyWidgets, WidgetTreeView};
 
 mod components;
 mod elements;
@@ -14,9 +14,9 @@ impl<'tree, 'bp> Children<'tree, 'bp> {
     pub fn new(
         children: WidgetTreeView<'tree, 'bp>,
         attribute_storage: &'tree mut AttributeStorage<'bp>,
-        needs_layout: &'tree mut bool,
+        dirty_widgets: &'tree mut DirtyWidgets,
     ) -> Self {
-        Self(Nodes::new(children, attribute_storage, needs_layout))
+        Self(Nodes::new(children, attribute_storage, dirty_widgets))
     }
 
     pub fn elements(&mut self) -> Elements<'_, 'tree, 'bp> {
@@ -117,19 +117,19 @@ impl PartialEq<ValueKind<'_>> for QueryValue<'_> {
 pub struct Nodes<'tree, 'bp> {
     children: WidgetTreeView<'tree, 'bp>,
     attributes: &'tree mut AttributeStorage<'bp>,
-    needs_layout: &'tree mut bool,
+    dirty_widgets: &'tree mut DirtyWidgets,
 }
 
 impl<'tree, 'bp> Nodes<'tree, 'bp> {
     pub fn new(
         children: WidgetTreeView<'tree, 'bp>,
         attribute_storage: &'tree mut AttributeStorage<'bp>,
-        needs_layout: &'tree mut bool,
+        dirty_widgets: &'tree mut DirtyWidgets,
     ) -> Self {
         Self {
             children,
             attributes: attribute_storage,
-            needs_layout,
+            dirty_widgets,
         }
     }
 }
@@ -209,8 +209,8 @@ mod test {
         ";
 
         crate::testing::with_template(tpl, |tree, attributes| {
-            let mut changed = false;
-            let mut children = Children::new(tree, attributes, &mut changed);
+            let mut dirty = DirtyWidgets::empty();
+            let mut children = Children::new(tree, attributes, &mut dirty);
             let mut cntr = 0;
             children.elements().by_tag("text").each(|el, _| {
                 assert_eq!(el.ident, "text");
@@ -234,8 +234,8 @@ mod test {
         ";
 
         crate::testing::with_template(tpl, |tree, attributes| {
-            let mut changed = false;
-            let mut children = Children::new(tree, attributes, &mut changed);
+            let mut dirty = DirtyWidgets::empty();
+            let mut children = Children::new(tree, attributes, &mut dirty);
             let mut cntr = 0;
 
             children.elements().by_tag("text").by_attribute("a", 1).each(|el, _| {

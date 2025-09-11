@@ -50,15 +50,15 @@ impl From<Wrap> for ValueKind<'_> {
 }
 
 #[derive(Debug)]
-pub(crate) struct LineWidth(usize);
+pub(crate) struct LineWidth(u16);
 
 impl LineWidth {
     pub(crate) const ZERO: Self = Self(0);
 
     // update the current value and return the old value
-    pub(crate) fn swap(&mut self, mut new_value: usize) -> u16 {
+    pub(crate) fn swap(&mut self, mut new_value: u16) -> u16 {
         std::mem::swap(&mut self.0, &mut new_value);
-        new_value as u16
+        new_value
     }
 }
 
@@ -69,15 +69,15 @@ impl Default for LineWidth {
 }
 
 impl Deref for LineWidth {
-    type Target = usize;
+    type Target = u16;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl AddAssign<usize> for LineWidth {
-    fn add_assign(&mut self, rhs: usize) {
+impl AddAssign<u16> for LineWidth {
+    fn add_assign(&mut self, rhs: u16) {
         self.0 += rhs;
     }
 }
@@ -275,22 +275,22 @@ impl Strings {
         self.update_width();
         self.line = match self.chomper {
             Chomper::Continuous(idx) => {
-                self.layout
-                    .push((idx as u32, Entry::LineWidth(self.current_width.swap(0))));
-                self.layout.push((idx as u32, Entry::Newline));
-                idx
+                self.layout.push((idx, Entry::LineWidth(self.current_width.swap(0))));
+                self.layout.push((idx, Entry::Newline));
+                idx as usize
             }
             Chomper::WordBoundary {
                 word_boundary,
                 current_index,
             } => {
-                let diff = self.line(current_index).width() - self.line(word_boundary).width();
+                let diff =
+                    (self.line(current_index as usize).width() - self.line(word_boundary as usize).width()) as u16;
                 let width = *self.current_width - diff;
-                self.layout.push((word_boundary as u32, Entry::LineWidth(width as u16)));
-                self.layout.push((word_boundary as u32, Entry::Newline));
+                self.layout.push((word_boundary, Entry::LineWidth(width)));
+                self.layout.push((word_boundary, Entry::Newline));
                 let _ = self.current_width.swap(diff);
                 self.chomper = Chomper::Continuous(current_index);
-                word_boundary
+                word_boundary as usize
             }
         };
     }
@@ -304,7 +304,7 @@ impl Strings {
     }
 
     fn update_width(&mut self) {
-        self.size.width = self.size.width.max(*self.current_width as u16);
+        self.size.width = self.size.width.max(*self.current_width);
     }
 
     fn chomp(&mut self, c: char) -> ProcessResult {
@@ -336,7 +336,7 @@ impl Strings {
 
         // NOTE
         // If the trailing whitespace should be removed, do so here
-        while width + *self.current_width as u16 > self.max.width {
+        while width + *self.current_width > self.max.width {
             if c.is_whitespace() {
                 // 1. Make this the next word boundary
                 // 2. Insert a newline here
@@ -360,7 +360,7 @@ impl Strings {
         }
 
         self.chomper.chomp(c, self.wrap);
-        self.current_width += width as usize;
+        self.current_width += width;
 
         ProcessResult::Continue
     }
@@ -372,17 +372,16 @@ impl Default for Strings {
     }
 }
 
-// TODO: move this into string2
 #[derive(Debug)]
 pub(crate) enum Chomper {
-    Continuous(usize),
-    WordBoundary { word_boundary: usize, current_index: usize },
+    Continuous(u32),
+    WordBoundary { word_boundary: u32, current_index: u32 },
 }
 
 impl Chomper {
     pub(crate) fn index(&self) -> usize {
         match self {
-            Chomper::Continuous(current_index) | Chomper::WordBoundary { current_index, .. } => *current_index,
+            Chomper::Continuous(current_index) | Chomper::WordBoundary { current_index, .. } => *current_index as usize,
         }
     }
 
@@ -397,7 +396,7 @@ impl Chomper {
     }
 
     pub(crate) fn chomp(&mut self, c: char, wrap: Wrap) {
-        let c_len = c.len_utf8();
+        let c_len = c.len_utf8() as u32;
 
         if c.is_whitespace() && wrap.is_word_wrap() {
             match self {

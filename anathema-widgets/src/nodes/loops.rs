@@ -6,6 +6,7 @@ use super::{WidgetContainer, WidgetKind};
 use crate::error::{Error, Result};
 use crate::layout::LayoutCtx;
 use crate::widget::WidgetTreeView;
+use crate::{DirtyWidgets, WidgetId};
 
 #[derive(Debug)]
 pub struct For<'bp> {
@@ -24,6 +25,8 @@ impl<'bp> For<'bp> {
         change: &Change,
         mut tree: WidgetTreeView<'_, 'bp>,
         ctx: &mut LayoutCtx<'_, 'bp>,
+        parent_widget: Option<WidgetId>,
+        dirty_widgets: &mut DirtyWidgets,
     ) -> Result<()> {
         match change {
             Change::Inserted(index) => {
@@ -41,7 +44,7 @@ impl<'bp> For<'bp> {
                     loop_index: anathema_state::Value::new(*index as i64),
                     binding: self.binding,
                 });
-                let widget = WidgetContainer::new(widget, self.body);
+                let widget = WidgetContainer::new(widget, self.body, parent_widget);
                 let _ = transaction.commit_at(widget).ok_or_else(Error::transaction_failed)?;
 
                 for child in &tree.layout[*index as usize + 1..] {
@@ -60,6 +63,10 @@ impl<'bp> For<'bp> {
                 }
             }
             Change::Removed(index) => {
+                if let Some(widget) = parent_widget {
+                    dirty_widgets.push(widget);
+                }
+
                 for child in &tree.layout[*index as usize + 1..] {
                     let iter_widget = tree.values.get_mut(child.value());
                     let Some((
@@ -82,6 +89,9 @@ impl<'bp> For<'bp> {
                 // then truncate the tree
                 self.collection.reload(ctx.attribute_storage);
                 ctx.truncate_children(&mut tree);
+                if let Some(widget) = parent_widget {
+                    dirty_widgets.push(widget);
+                }
             }
         }
 

@@ -97,6 +97,33 @@ impl<T: Into<Primitive>> From<T> for Expression {
     }
 }
 
+impl<T: Into<Expression>> From<HashMap<String, T>> for Expression {
+    fn from(map: HashMap<String, T>) -> Self {
+        let map = map.into_iter().map(|(key, val)| (key, val.into())).collect();
+        Self::Map(map)
+    }
+}
+
+impl<T: Into<Expression>> From<Vec<T>> for Expression {
+    fn from(list: Vec<T>) -> Self {
+        let inner = list.into_iter().map(|i| i.into()).collect();
+        Self::List(inner)
+    }
+}
+
+impl<const N: usize, T: Into<Expression>> From<[T; N]> for Expression {
+    fn from(list: [T; N]) -> Self {
+        let inner = list.map(|i| i.into());
+        Self::List(inner.to_vec())
+    }
+}
+
+impl From<String> for Expression {
+    fn from(value: String) -> Self {
+        Self::Str(value)
+    }
+}
+
 impl From<&str> for Expression {
     fn from(value: &str) -> Self {
         Self::Str(value.into())

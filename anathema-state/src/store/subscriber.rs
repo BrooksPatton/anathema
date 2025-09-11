@@ -4,113 +4,6 @@ use anathema_store::smallmap::SmallIndex;
 use super::SUBSCRIBERS;
 use crate::Key;
 
-/// Store sub keys.
-/// This is used by any type that needs to track any or all the
-/// values that it subscribes to.
-#[derive(Debug, Default)]
-pub enum SubTo {
-    #[default]
-    Zero,
-    One(SubKey),
-    Two(SubKey, SubKey),
-    Three(SubKey, SubKey, SubKey),
-    Four(SubKey, SubKey, SubKey, SubKey),
-    Many(Vec<SubKey>),
-}
-
-impl SubTo {
-    pub fn empty() -> Self {
-        Self::Zero
-    }
-
-    pub fn push(&mut self, key: SubKey) {
-        let this = std::mem::take(self);
-        *self = match this {
-            Self::Zero => Self::One(key),
-            Self::One(key1) => Self::Two(key1, key),
-            Self::Two(key1, key2) => Self::Three(key1, key2, key),
-            Self::Three(key1, key2, key3) => Self::Four(key1, key2, key3, key),
-            Self::Four(key1, key2, key3, key4) => Self::Many(vec![key1, key2, key3, key4]),
-            Self::Many(mut keys) => {
-                keys.push(key);
-                Self::Many(keys)
-            }
-        }
-    }
-
-    pub fn unsubscribe(&mut self, sub: Subscriber) {
-        match std::mem::take(self) {
-            SubTo::Zero => (),
-            SubTo::One(key) => {
-                unsubscribe(key, sub);
-            }
-            SubTo::Two(key1, key2) => {
-                unsubscribe(key1, sub);
-                unsubscribe(key2, sub);
-            }
-            SubTo::Three(key1, key2, key3) => {
-                unsubscribe(key1, sub);
-                unsubscribe(key2, sub);
-                unsubscribe(key3, sub);
-            }
-            SubTo::Four(key1, key2, key3, key4) => {
-                unsubscribe(key1, sub);
-                unsubscribe(key2, sub);
-                unsubscribe(key3, sub);
-                unsubscribe(key4, sub);
-            }
-            SubTo::Many(vec) => vec.into_iter().for_each(|key| unsubscribe(key, sub)),
-        }
-    }
-
-    // TODO: clean this up, it's gross
-    pub fn remove(&mut self, sub_key: SubKey) {
-        match self {
-            SubTo::Zero => (),
-            SubTo::One(key) if *key == sub_key => *self = SubTo::Zero,
-            SubTo::Two(key1, key2) if *key1 == sub_key => *self = SubTo::One(*key2),
-            SubTo::Two(key1, key2) if *key2 == sub_key => *self = SubTo::One(*key1),
-            SubTo::Three(key1, key2, key3) => {
-                if sub_key == *key1 {
-                    *self = SubTo::Two(*key2, *key3);
-                    return;
-                }
-
-                if sub_key == *key2 {
-                    *self = SubTo::Two(*key1, *key3);
-                    return;
-                }
-
-                if sub_key == *key3 {
-                    *self = SubTo::Two(*key1, *key2);
-                }
-            }
-            SubTo::Four(key1, key2, key3, key4) => {
-                if sub_key == *key1 {
-                    *self = SubTo::Three(*key2, *key3, *key4);
-                    return;
-                }
-
-                if sub_key == *key2 {
-                    *self = SubTo::Three(*key1, *key3, *key4);
-                    return;
-                }
-
-                if sub_key == *key3 {
-                    *self = SubTo::Three(*key1, *key2, *key4);
-                    return;
-                }
-
-                if sub_key == *key4 {
-                    *self = SubTo::Three(*key1, *key2, *key3);
-                }
-            }
-            SubTo::Many(vec) => vec.retain(|key| *key != sub_key),
-            _ => {}
-        }
-    }
-}
-
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 #[repr(transparent)]
 pub struct KeyIndex(u8);
@@ -215,20 +108,18 @@ impl Subscribers {
         match self {
             Self::Empty => *self = Self::One(sub),
             Self::One(key) if *key != sub => *self = Self::Arr([*key, sub, Subscriber::MAX], KeyIndex::TWO),
+            Self::One(key) => *self = Self::Arr([*key, sub, Subscriber::MAX], KeyIndex::TWO),
             Self::Arr(arr_keys, index) if *index == KeyIndex::MAX => {
                 let mut keys = Vec::with_capacity(KeyIndex::max() + 1);
                 keys.extend_from_slice(arr_keys);
                 keys.push(sub);
                 *self = Self::Heap(keys);
             }
-            Self::Arr(keys, index) if !keys.contains(&sub) => {
+            Self::Arr(keys, index) => {
                 keys[index.0 as usize] = sub;
                 index.add();
             }
-            Self::Heap(keys) if !keys.contains(&sub) => keys.push(sub),
-
-            // The sub is already registered
-            Self::Arr(..) | Self::One(_) | Self::Heap(_) => (),
+            Self::Heap(keys) => keys.push(sub),
         }
     }
 
@@ -351,6 +242,140 @@ pub(crate) fn subscribe(sub_key: SubKey, subscriber: Subscriber) {
 // Unsubscribe from a key
 pub(crate) fn unsubscribe(sub_key: SubKey, subscriber: Subscriber) {
     SUBSCRIBERS.with_borrow_mut(|subs| subs.unsubscribe(sub_key, subscriber));
+}
+
+// -----------------------------------------------------------------------------
+//   - Track what values something is subscribed to -
+// -----------------------------------------------------------------------------
+
+/// Store sub keys.
+/// This is used by any type that needs to track any or all the
+/// values that it subscribes to.
+#[derive(Debug, Default)]
+pub enum SubTo {
+    #[default]
+    Zero,
+    One(SubKey),
+    Two(SubKey, SubKey),
+    Three(SubKey, SubKey, SubKey),
+    Four(SubKey, SubKey, SubKey, SubKey),
+    Many(Vec<SubKey>),
+}
+
+impl SubTo {
+    pub fn empty() -> Self {
+        Self::Zero
+    }
+
+    pub fn push(&mut self, key: SubKey) {
+        let this = std::mem::take(self);
+        *self = match this {
+            Self::Zero => Self::One(key),
+            Self::One(key1) => Self::Two(key1, key),
+            Self::Two(key1, key2) => Self::Three(key1, key2, key),
+            Self::Three(key1, key2, key3) => Self::Four(key1, key2, key3, key),
+            Self::Four(key1, key2, key3, key4) => Self::Many(vec![key1, key2, key3, key4]),
+            Self::Many(mut keys) => {
+                keys.push(key);
+                Self::Many(keys)
+            }
+        }
+    }
+
+    // TODO: another gross function impl
+    // - TB 2025-09-11
+    pub fn merge(&mut self, other: Self) {
+        match other {
+            SubTo::Zero => (),
+            SubTo::One(key) => self.push(key),
+            SubTo::Two(key1, key2) => {
+                self.push(key1);
+                self.push(key2);
+            }
+            SubTo::Three(key1, key2, key3) => {
+                self.push(key1);
+                self.push(key2);
+                self.push(key3);
+            }
+            SubTo::Four(key1, key2, key3, key4) => {
+                self.push(key1);
+                self.push(key2);
+                self.push(key3);
+                self.push(key4);
+            }
+            SubTo::Many(items) => items.into_iter().for_each(|key| self.push(key)),
+        }
+    }
+
+    pub fn unsubscribe(&mut self, sub: Subscriber) {
+        match std::mem::take(self) {
+            SubTo::Zero => (),
+            SubTo::One(key) => unsubscribe(key, sub),
+            SubTo::Two(key1, key2) => {
+                unsubscribe(key1, sub);
+                unsubscribe(key2, sub);
+            }
+            SubTo::Three(key1, key2, key3) => {
+                unsubscribe(key1, sub);
+                unsubscribe(key2, sub);
+                unsubscribe(key3, sub);
+            }
+            SubTo::Four(key1, key2, key3, key4) => {
+                unsubscribe(key1, sub);
+                unsubscribe(key2, sub);
+                unsubscribe(key3, sub);
+                unsubscribe(key4, sub);
+            }
+            SubTo::Many(vec) => vec.into_iter().for_each(|key| unsubscribe(key, sub)),
+        }
+    }
+
+    // TODO: clean this up, it's gross
+    pub fn remove(&mut self, sub_key: SubKey) {
+        match self {
+            SubTo::Zero => (),
+            SubTo::One(key) if *key == sub_key => *self = SubTo::Zero,
+            SubTo::Two(key1, key2) if *key1 == sub_key => *self = SubTo::One(*key2),
+            SubTo::Two(key1, key2) if *key2 == sub_key => *self = SubTo::One(*key1),
+            SubTo::Three(key1, key2, key3) => {
+                if sub_key == *key1 {
+                    *self = SubTo::Two(*key2, *key3);
+                    return;
+                }
+
+                if sub_key == *key2 {
+                    *self = SubTo::Two(*key1, *key3);
+                    return;
+                }
+
+                if sub_key == *key3 {
+                    *self = SubTo::Two(*key1, *key2);
+                }
+            }
+            SubTo::Four(key1, key2, key3, key4) => {
+                if sub_key == *key1 {
+                    *self = SubTo::Three(*key2, *key3, *key4);
+                    return;
+                }
+
+                if sub_key == *key2 {
+                    *self = SubTo::Three(*key1, *key3, *key4);
+                    return;
+                }
+
+                if sub_key == *key3 {
+                    *self = SubTo::Three(*key1, *key2, *key4);
+                    return;
+                }
+
+                if sub_key == *key4 {
+                    *self = SubTo::Three(*key1, *key2, *key3);
+                }
+            }
+            SubTo::Many(vec) => vec.retain(|key| *key != sub_key),
+            _ => {}
+        }
+    }
 }
 
 #[cfg(test)]

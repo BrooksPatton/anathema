@@ -4,6 +4,7 @@ use anathema_value_resolver::Value;
 
 use crate::layout::LayoutCtx;
 use crate::widget::WidgetTreeView;
+use crate::{DirtyWidgets, WidgetId};
 
 #[derive(Debug)]
 pub struct ControlFlow<'bp> {
@@ -17,6 +18,8 @@ impl<'bp> ControlFlow<'bp> {
         branch_id: u16,
         mut tree: WidgetTreeView<'_, 'bp>,
         ctx: &mut LayoutCtx<'_, 'bp>,
+        parent_widget: Option<WidgetId>,
+        dirty_widgets: &mut DirtyWidgets,
     ) {
         match change {
             Change::Changed | Change::Dropped => {
@@ -26,6 +29,10 @@ impl<'bp> ControlFlow<'bp> {
                 cond.reload(ctx.attribute_storage);
                 if cond.truthiness() != current {
                     ctx.truncate_children(&mut tree);
+
+                    if let Some(widget) = parent_widget {
+                        dirty_widgets.push(widget);
+                    }
                 }
             }
             // TODO:

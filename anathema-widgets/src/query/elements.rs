@@ -124,8 +124,7 @@ where
                 if self.query.filter.filter(element, self.query.elements.attributes) {
                     let attributes = self.query.elements.attributes.get_mut(element.id());
                     let ret_val = f(element, attributes);
-                    element.invalidate_cache();
-                    *self.query.elements.needs_layout = true;
+                    self.query.elements.dirty_widgets.push(element.id());
 
                     if !continuous {
                         return ControlFlow::Break(ret_val);
@@ -136,7 +135,7 @@ where
             let mut elements = Nodes::new(
                 children,
                 self.query.elements.attributes,
-                self.query.elements.needs_layout,
+                self.query.elements.dirty_widgets,
             );
 
             let query = ElementQuery {
@@ -180,7 +179,7 @@ impl<'bp, 'a> Filter<'bp> for Kind<'a> {
                 attribs.get(key).map(|attribute| value.eq(attribute)).unwrap_or(false)
             }
             Kind::AtPosition(pos) => {
-                let region = Region::from((el.get_pos(), el.size()));
+                let region = Region::from((el.pos(), el.size()));
                 region.contains(*pos)
             }
             Kind::ById(id) => el.id() == *id,
