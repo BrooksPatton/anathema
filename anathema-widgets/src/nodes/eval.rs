@@ -98,7 +98,7 @@ impl Evaluator for SingleEval {
 
         // Widget
         let widget = WidgetKind::Element(Element::new(&single.ident, container));
-        let widget = WidgetContainer::new(widget, &single.children);
+        let widget = WidgetContainer::new(widget, &single.children, ctx.parent_widget);
 
         transaction
             .commit_child(widget)
@@ -141,7 +141,7 @@ impl Evaluator for ForLoopEval {
 
         let body = for_loop.body;
         let widget = WidgetKind::For(for_loop);
-        let widget = WidgetContainer::new(widget, body);
+        let widget = WidgetContainer::new(widget, body, ctx.parent_widget);
         transaction
             .commit_child(widget)
             .ok_or_else(|| ctx.error(ErrorKind::TreeTransactionFailed))?;
@@ -182,7 +182,7 @@ impl Evaluator for WithEval {
 
         let body = with.body;
         let widget = WidgetKind::With(with);
-        let widget = WidgetContainer::new(widget, body);
+        let widget = WidgetContainer::new(widget, body, ctx.parent_widget);
         transaction
             .commit_child(widget)
             .ok_or_else(|| ctx.error(ErrorKind::TreeTransactionFailed))?;
@@ -231,7 +231,7 @@ impl Evaluator for ControlFlowEval {
                 })
                 .collect(),
         });
-        let widget = WidgetContainer::new(widget, &[]);
+        let widget = WidgetContainer::new(widget, &[], ctx.parent_widget);
         transaction
             .commit_child(widget)
             .ok_or_else(|| ctx.error(ErrorKind::TreeTransactionFailed))?;
@@ -297,7 +297,7 @@ impl Evaluator for ComponentEval {
         );
 
         let widget = WidgetKind::Component(comp_widget);
-        let widget = WidgetContainer::new(widget, &input.body);
+        let widget = WidgetContainer::new(widget, &input.body, ctx.parent_widget);
         let widget_id = transaction
             .commit_child(widget)
             .ok_or_else(|| ctx.error(ErrorKind::TreeTransactionFailed))?;
@@ -323,7 +323,7 @@ impl Evaluator for SlotEval {
         tree: &mut WidgetTreeView<'_, 'bp>,
     ) -> Result<()> {
         let transaction = tree.insert(parent);
-        let widget = WidgetContainer::new(WidgetKind::Slot, input);
+        let widget = WidgetContainer::new(WidgetKind::Slot, input, ctx.parent_widget);
         transaction
             .commit_child(widget)
             .ok_or_else(|| ctx.error(ErrorKind::TreeTransactionFailed))?;

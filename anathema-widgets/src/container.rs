@@ -12,7 +12,7 @@ use crate::{LayoutForEach, PaintChildren, Style, WidgetId};
 pub struct Cache {
     pub(super) size: Size,
     pub(super) pos: Option<Pos>,
-    constraints: Option<Constraints>,
+    constraints: Constraints,
     pub(super) child_count: usize,
     valid: bool,
 }
@@ -22,7 +22,7 @@ impl Cache {
         size: Size::ZERO,
         pos: None,
         // Constraints are `None` for the root node
-        constraints: None,
+        constraints: Constraints::ZERO,
         child_count: 0,
         valid: false,
     };
@@ -31,7 +31,7 @@ impl Cache {
         Self {
             size,
             pos: None,
-            constraints: Some(constraints),
+            constraints,
             child_count: 0,
             valid: true,
         }
@@ -43,11 +43,6 @@ impl Cache {
         self.valid.then_some(self.size)
     }
 
-    pub(super) fn invalidate(&mut self) {
-        self.valid = false;
-        self.pos = None;
-    }
-
     fn changed(&mut self, mut cache: Cache) -> bool {
         let changed = self.size != cache.size;
         cache.child_count = self.child_count;
@@ -55,14 +50,8 @@ impl Cache {
         changed
     }
 
-    pub(crate) fn constraints(&self) -> Option<Constraints> {
+    pub fn constraints(&self) -> Constraints {
         self.constraints
-    }
-
-    pub(crate) fn count_check(&mut self, count: usize) -> bool {
-        let c = self.child_count;
-        self.child_count = count;
-        c != count
     }
 }
 
@@ -82,8 +71,6 @@ impl Container {
         constraints: Constraints,
         ctx: &mut LayoutCtx<'_, 'bp>,
     ) -> Result<Layout> {
-        // NOTE: The layout is possibly skipped in the Element::layout call
-
         let size = self.inner.any_layout(children, constraints, self.id, ctx)?;
         let cache = Cache::new(size, constraints);
 
@@ -104,6 +91,7 @@ impl Container {
             },
             false => Layout::Unchanged(self.cache.size),
         };
+
         Ok(layout)
     }
 

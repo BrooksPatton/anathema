@@ -6,7 +6,7 @@ use anathema_store::smallmap::SmallMap;
 use anathema_templates::Expression;
 
 use crate::attributes::ValueKey;
-use crate::expression::{ValueExpr, ValueResolutionContext, resolve_value};
+use crate::expression::{ResolvedState, ValueExpr, ValueResolutionContext, resolve_value};
 use crate::immediate::Resolver;
 use crate::{AttributeStorage, ResolverCtx};
 
@@ -15,7 +15,7 @@ pub type Values<'bp> = SmallMap<ValueKey<'bp>, Value<'bp>>;
 pub fn resolve<'bp>(expr: &'bp Expression, ctx: &ResolverCtx<'_, 'bp>, sub: impl Into<Subscriber>) -> Value<'bp> {
     let resolver = Resolver::new(ctx);
     let value_expr = resolver.resolve(expr);
-    Value::new(value_expr, sub.into(), ctx.attribute_storage)
+    Value::resolve(value_expr, sub.into(), ctx.attribute_storage)
 }
 
 pub fn resolve_collection<'bp>(
@@ -67,13 +67,23 @@ pub struct Value<'bp> {
     pub(crate) expr: ValueExpr<'bp>,
     pub(crate) sub: Subscriber,
     pub(crate) kind: ValueKind<'bp>,
-    pub(crate) sub_to: SubTo,
+    pub(crate) resolved: ResolvedState,
+    sub_keys: SubTo,
 }
 
 impl<'bp> Value<'bp> {
-    pub fn new(expr: ValueExpr<'bp>, sub: Subscriber, attribute_storage: &AttributeStorage<'bp>) -> Self {
-        let mut sub_to = SubTo::Zero;
-        let mut ctx = ValueResolutionContext::new(attribute_storage, sub, &mut sub_to);
+    pub(crate) fn static_val(value: impl Into<ValueKind<'bp>>) -> Self {
+        Self {
+            expr: ValueExpr::Null,
+            kind: value.into(),
+            sub: anathema_state::Subscriber::MAX,
+            resolved: ResolvedState::Resolved,
+            sub_keys: SubTo::empty(),
+        }
+    }
+
+    pub fn resolve(expr: ValueExpr<'bp>, sub: Subscriber, attribute_storage: &AttributeStorage<'bp>) -> Self {
+        let mut ctx = ValueResolutionContext::new(attribute_storage, sub, ResolvedState::Unresolved);
         let kind = resolve_value(&expr, &mut ctx);
 
         // NOTE
@@ -87,28 +97,32 @@ impl<'bp> Value<'bp> {
         // ```
         match kind {
             ValueKind::DynMap(pending) | ValueKind::Composite(pending) => {
-                pending.subscribe(ctx.sub);
-                ctx.sub_to.push(pending.sub_key());
+                ctx.force_sub(&pending);
             }
             _ => {}
         }
+
+        ctx.done();
         Self {
             expr,
             sub,
             kind,
-            sub_to,
+            resolved: ctx.resolved_state,
+            sub_keys: ctx.sub_keys,
         }
     }
 
+    /// ```text
+    /// None         = false
+    /// 0            = false
+    /// Some("")     = false
+    /// Some(0)      = false
+    /// []           = false
+    /// {}           = false
+    /// Some(bool)   = bool
+    /// _            = true
+    /// ```
     pub fn truthiness(&self) -> bool {
-        // None         = false
-        // 0            = false
-        // Some("")     = false
-        // Some(0)      = false
-        // []           = false
-        // {}           = false
-        // Some(bool)   = bool
-        // _            = true
         self.kind.truthiness()
     }
 
@@ -118,9 +132,15 @@ impl<'bp> Value<'bp> {
     }
 
     pub fn reload(&mut self, attribute_storage: &AttributeStorage<'bp>) {
-        self.sub_to.unsubscribe(self.sub);
-        let mut ctx = ValueResolutionContext::new(attribute_storage, self.sub, &mut self.sub_to);
-        self.kind = resolve_value(&self.expr, &mut ctx);
+        #[cfg(feature = "profile")]
+        puffin::profile_function!();
+
+        let mut ctx = ValueResolutionContext::new(attribute_storage, self.sub, self.resolved);
+        let kind = resolve_value(&self.expr, &mut ctx);
+        ctx.done();
+        self.sub_keys.merge(ctx.sub_keys);
+        self.kind = kind;
+        self.resolved = ctx.resolved_state;
     }
 
     pub fn try_as<T>(&self) -> Option<T>
@@ -140,7 +160,7 @@ impl<'bp> Value<'bp> {
 
 impl Drop for Value<'_> {
     fn drop(&mut self) {
-        self.sub_to.unsubscribe(self.sub);
+        self.sub_keys.unsubscribe(self.sub);
     }
 }
 
@@ -285,7 +305,6 @@ impl ValueKind<'_> {
                 let Some(state) = state.as_any_map() else { return false };
                 !state.is_empty()
             }
-            // ValueKind::Map => ??,
             _ => true,
         }
     }

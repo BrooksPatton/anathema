@@ -31,6 +31,28 @@ pub(super) fn contains<'bp>(args: &[ValueKind<'bp>]) -> ValueKind<'bp> {
     }
 }
 
+pub(super) fn len<'bp>(args: &[ValueKind<'bp>]) -> ValueKind<'bp> {
+    if args.len() != 1 {
+        return ValueKind::Null;
+    }
+
+    let len = match &args[0] {
+        ValueKind::Str(string) => string.len(),
+        ValueKind::List(list) => list.len(),
+        ValueKind::Range(from, to) => to - from,
+        ValueKind::DynList(pending) => match pending.as_state() {
+            None => return ValueKind::Null,
+            Some(state) => match state.as_any_list() {
+                None => return ValueKind::Null,
+                Some(list) => list.len(),
+            },
+        },
+        _ => return ValueKind::Null,
+    };
+
+    ValueKind::Int(len as i64)
+}
+
 #[cfg(test)]
 mod test {
     use anathema_state::{List, Value};
@@ -83,5 +105,39 @@ mod test {
         let args = [haystack, needle];
         let result = contains(&args);
         assert!(matches!(result, ValueKind::Bool(true)));
+    }
+
+    #[test]
+    fn list_len() {
+        let list = value(vec![1, 2, 3]);
+        let args = [list];
+        let result = len(&args);
+        assert!(matches!(result, ValueKind::Int(3)));
+    }
+
+    #[test]
+    fn dyn_list_len() {
+        let list = List::from_iter([1, 2, 3]);
+        let list = Value::new(list);
+        let list = ValueKind::DynList(list.reference());
+        let args = [list];
+        let result = len(&args);
+        assert!(matches!(result, ValueKind::Int(3)));
+    }
+
+    #[test]
+    fn string_len() {
+        let value = value("hello");
+        let args = [value];
+        let result = len(&args);
+        assert!(matches!(result, ValueKind::Int(5)));
+    }
+
+    #[test]
+    fn int_len() {
+        let value = value(123);
+        let args = [value];
+        let result = len(&args);
+        assert!(matches!(result, ValueKind::Null));
     }
 }

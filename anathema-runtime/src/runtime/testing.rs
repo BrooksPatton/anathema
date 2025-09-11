@@ -3,7 +3,6 @@ use std::time::{Duration, Instant};
 use anathema_backend::Backend;
 use anathema_state::{Watched, Watcher, drain_watchers};
 use anathema_store::stack::Stack;
-use anathema_widgets::query::Children;
 
 use crate::Frame;
 use crate::error::Result;
@@ -17,13 +16,14 @@ impl<'bp, G> Frame<'_, 'bp, G>
 where
     G: GlobalEventHandler,
 {
-    pub fn elements(&mut self) -> Children<'_, 'bp> {
-        Children::new(
-            self.tree.view(),
-            self.layout_ctx.attribute_storage,
-            &mut self.needs_layout,
-        )
-    }
+    // TODO: Do we need this for anything? - TB 2025-08-27
+    // pub fn elements(&mut self) -> Children<'_, 'bp> {
+    //     Children::new(
+    //         self.tree.view(),
+    //         self.layout_ctx.attribute_storage,
+    //         &mut self.needs_layout,
+    //     )
+    // }
 
     // TODO: this can't really be called a frame if we can tick it multiple
     // times. Maybe RuntimeMut or something less mental

@@ -54,13 +54,13 @@ where
         function_table,
     );
 
-    let mut ctx = layout_ctx.eval_ctx(None);
+    let mut ctx = layout_ctx.eval_ctx(None, None);
     let scope = Scope::root();
 
     eval_blueprint(blueprint, &mut ctx, &scope, root_node(), &mut tree.view()).unwrap();
 
     let filter = crate::layout::LayoutFilter;
-    let mut for_each = LayoutForEach::new(tree.view(), &scope, filter, None);
+    let mut for_each = LayoutForEach::new(tree.view(), &scope, filter);
     _ = for_each
         .each(&mut layout_ctx, |ctx, widget, children| {
             _ = widget.layout(children, ctx.viewport.constraints(), ctx)?;

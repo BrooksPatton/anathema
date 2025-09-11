@@ -13,6 +13,12 @@ anathema-state = { workspace = true }
 anathema-templates = { workspace = true }
 anathema-store = { workspace = true }
 unicode-width = { workspace = true }
+puffin = { version = "0.19.1", features = ["web"], optional = true }
+puffin_http = { version = "0.16.1", optional = true }
+
+[features]
+default = []
+profile = ["puffin", "puffin_http"]
 
 [lints]
 workspace = true

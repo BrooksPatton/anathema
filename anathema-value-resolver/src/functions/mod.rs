@@ -65,6 +65,7 @@ impl FunctionTable {
         inner.insert("to_float".into(), Function::from(number::to_float));
         inner.insert("round".into(), Function::from(number::round));
         inner.insert("contains".into(), Function::from(list::contains));
+        inner.insert("len".into(), Function::from(list::len));
         Self { inner }
     }
 

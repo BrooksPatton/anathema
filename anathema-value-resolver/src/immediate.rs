@@ -21,6 +21,7 @@ impl<'a, 'frame, 'bp> Resolver<'a, 'frame, 'bp> {
                 value.into()
             }
             "attributes" => {
+                // TODO: unwrap? Why is this okay?
                 let component = self.ctx.scope.get_attributes().unwrap();
                 ValueExpr::Attributes(component)
             }

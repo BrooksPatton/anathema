@@ -6,9 +6,10 @@ use anathema_store::slab::Key;
 pub use crate::colors::{Color, FromColor};
 pub use crate::numbers::Number;
 pub use crate::states::{AnyList, AnyMap, State, StateId, States, TypeId};
+pub use crate::store::subscriber::SubTo;
 pub use crate::store::watchers::Watcher;
 pub use crate::store::{
-    Change, Changes, SubTo, Subscriber, Watched, clear_all_changes, clear_all_subs, drain_changes, drain_watchers,
+    Change, Changes, Subscriber, Watched, clear_all_changes, clear_all_subs, drain_changes, drain_watchers,
 };
 pub use crate::value::{List, Map, Maybe, Nullable, PendingValue, SharedState, Type, Value, ValueRef};
 

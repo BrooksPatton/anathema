@@ -112,7 +112,7 @@ where
             let mut elements = Nodes::new(
                 children,
                 self.query.elements.attributes,
-                self.query.elements.needs_layout,
+                self.query.elements.dirty_widgets,
             );
 
             let query = ComponentQuery {

@@ -11,7 +11,7 @@ use anathema_widgets::layout::{Constraints, LayoutCtx, Viewport};
 use anathema_widgets::paint::{Glyph, paint};
 use anathema_widgets::query::{Children, Elements};
 use anathema_widgets::{
-    Components, Factory, FloatingWidgets, GlyphMap, Style, WidgetKind, WidgetRenderer, WidgetTree, eval_blueprint,
+    Components, DirtyWidgets, Factory, FloatingWidgets, GlyphMap, Style, WidgetRenderer, WidgetTree, eval_blueprint,
     update_widget,
 };
 
@@ -235,7 +235,7 @@ impl<'bp> TestInstance<'bp> {
             function_table,
         );
 
-        let mut ctx = ctx.eval_ctx(None);
+        let mut ctx = ctx.eval_ctx(None, None);
         let mut view = tree.view();
 
         eval_blueprint(blueprint, &mut ctx, &scope, &[], &mut view).unwrap();
@@ -291,11 +291,12 @@ impl<'bp> TestInstance<'bp> {
             sub.iter().for_each(|value_id| {
                 let widget_id = value_id.key();
 
-                if let Some(widget) = tree.get_mut(widget_id) {
-                    if let WidgetKind::Element(element) = &mut widget.kind {
-                        element.invalidate_cache();
-                    }
-                }
+                // TODO: review if this is still needed: - TB 2025-08-27
+                // if let Some(widget) = tree.get_mut(widget_id) {
+                //     if let WidgetKind::Element(element) = &mut widget.kind {
+                //         element.invalidate_cache();
+                //     }
+                // }
 
                 // check that the node hasn't already been removed
                 if !tree.contains(widget_id) {
@@ -304,7 +305,7 @@ impl<'bp> TestInstance<'bp> {
 
                 _ = tree
                     .with_value_mut(value_id.key(), |_path, widget, tree| {
-                        update_widget(widget, value_id, change, tree, &mut ctx)
+                        update_widget(widget, value_id, change, tree, &mut ctx, &mut DirtyWidgets::empty())
                     })
                     .unwrap();
             })
@@ -333,7 +334,7 @@ impl<'bp> TestInstance<'bp> {
         );
 
         let mut cycle = WidgetCycle::new(self.backend, self.tree.view(), constraints);
-        _ = cycle.run(&mut ctx, true);
+        _ = cycle.run(&mut ctx, true, &mut DirtyWidgets::empty());
 
         self.backend.render(&mut self.glyph_map);
 
@@ -355,8 +356,8 @@ impl<'bp> TestInstance<'bp> {
         // let path = &[0, 0, 0];
 
         let tree = self.tree.view();
-        let mut update = true;
-        let mut children = Children::new(tree, &mut self.attribute_storage, &mut update);
+        let mut dirty_widgets = DirtyWidgets::empty();
+        let mut children = Children::new(tree, &mut self.attribute_storage, &mut dirty_widgets);
         let elements = children.elements();
         f(elements);
         self

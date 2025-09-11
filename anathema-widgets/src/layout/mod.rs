@@ -67,7 +67,11 @@ impl<'frame, 'bp> LayoutCtx<'frame, 'bp> {
         self.attribute_storage.get(node_id)
     }
 
-    pub fn eval_ctx(&mut self, parent_component: Option<WidgetId>) -> EvalCtx<'_, 'bp> {
+    pub fn eval_ctx(
+        &mut self,
+        parent_component: Option<WidgetId>,
+        parent_element: Option<WidgetId>,
+    ) -> EvalCtx<'_, 'bp> {
         EvalCtx {
             floating_widgets: self.floating_widgets,
             attribute_storage: self.attribute_storage,
@@ -77,6 +81,7 @@ impl<'frame, 'bp> LayoutCtx<'frame, 'bp> {
             globals: self.globals,
             factory: self.factory,
             parent_component,
+            parent_widget: parent_element,
             new_components: &mut self.new_components,
             function_table: self.function_table,
         }
@@ -114,6 +119,7 @@ pub struct EvalCtx<'frame, 'bp> {
     pub(super) factory: &'frame Factory,
     pub(super) function_table: &'bp FunctionTable,
     pub(super) parent_component: Option<WidgetId>,
+    pub(super) parent_widget: Option<WidgetId>,
 }
 
 impl<'frame, 'bp> EvalCtx<'frame, 'bp> {
