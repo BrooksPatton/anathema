@@ -3,6 +3,7 @@
     * Globals can now be registered with the runtime
     * `attributes.value_as::<T>` is now available on `Attributes`
     * Performance improvements
+    * New template function: `len`
 * 0.2.11
     * FEATURE: ranges 
     * `padding` function
