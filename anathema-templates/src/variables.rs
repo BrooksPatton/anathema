@@ -6,8 +6,16 @@ use anathema_store::slab::{Slab, SlabIndex};
 use crate::error::ErrorKind;
 use crate::expressions::Expression;
 
+#[derive(Debug, Clone)]
+enum Global {
+    // The global value was set from the runtime
+    Runtime(Expression),
+    // The global value originates from a template
+    Template(Expression),
+}
+
 #[derive(Debug, Default, Clone)]
-pub struct Globals(HashMap<String, Expression>);
+pub struct Globals(HashMap<String, Global>);
 
 impl Globals {
     pub fn empty() -> Self {
@@ -19,14 +27,30 @@ impl Globals {
     }
 
     pub fn get(&self, ident: &str) -> Option<&Expression> {
-        self.0.get(ident)
+        match self.0.get(ident)? {
+            Global::Runtime(expression) | Global::Template(expression) => Some(expression),
+        }
     }
 
-    pub fn set(&mut self, ident: String, value: Expression) {
+    fn set(&mut self, ident: String, value: Global) {
         if self.0.contains_key(&ident) {
             return;
         }
         _ = self.0.insert(ident, value);
+    }
+
+    fn clear_template_globals(&mut self) {
+        let mut clear = vec![];
+        for (key, glob) in &self.0 {
+            match glob {
+                Global::Runtime(_) => continue,
+                Global::Template(_) => clear.push(key.to_owned()),
+            }
+        }
+
+        for key in clear {
+            _ = self.0.remove(&key);
+        }
     }
 }
 
@@ -252,14 +276,32 @@ impl Variables {
         var_id
     }
 
-    pub fn define_global(&mut self, ident: impl Into<String>, value: impl Into<Expression>) -> Result<(), ErrorKind> {
+    fn set_global(&mut self, ident: impl Into<String>, global: Global) -> Result<(), ErrorKind> {
         let ident = ident.into();
         if self.globals.contains(&ident) {
             return Err(ErrorKind::GlobalAlreadyAssigned(ident));
         }
 
-        self.globals.set(ident, value.into());
+        self.globals.set(ident, global);
         Ok(())
+    }
+
+    /// Reset the globals defined in the template.
+    /// This keeps any globals registered through Rust
+    pub fn reset_globals(&mut self) {
+        self.globals.clear_template_globals();
+    }
+
+    pub fn register_global(&mut self, ident: impl Into<String>, value: impl Into<Expression>) -> Result<(), ErrorKind> {
+        let expression = value.into();
+        let global = Global::Runtime(expression);
+        self.set_global(ident, global)
+    }
+
+    pub fn define_global(&mut self, ident: impl Into<String>, value: impl Into<Expression>) -> Result<(), ErrorKind> {
+        let expression = value.into();
+        let global = Global::Template(expression);
+        self.set_global(ident, global)
     }
 
     pub fn define_local(&mut self, ident: impl Into<String>, value: impl Into<Expression>) -> VarId {

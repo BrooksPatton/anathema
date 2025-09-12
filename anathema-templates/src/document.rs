@@ -57,6 +57,7 @@ impl Document {
     }
 
     pub fn compile(&mut self, globals: &mut Variables) -> Result<Blueprint> {
+        globals.reset_globals();
         let tokens = Lexer::new(&self.template, &mut self.strings).collect::<Result<Vec<_>>>()?;
         let tokens = Tokens::new(tokens, self.template.len());
         let parser = Parser::new(tokens, &mut self.strings, &self.template, &mut self.components);

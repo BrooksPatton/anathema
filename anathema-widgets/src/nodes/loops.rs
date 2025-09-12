@@ -28,6 +28,10 @@ impl<'bp> For<'bp> {
         parent_widget: Option<WidgetId>,
         dirty_widgets: &mut DirtyWidgets,
     ) -> Result<()> {
+        if let Some(widget) = parent_widget {
+            dirty_widgets.push(widget);
+        }
+
         match change {
             Change::Inserted(index) => {
                 // 1. Declare insert path
@@ -89,9 +93,6 @@ impl<'bp> For<'bp> {
                 // then truncate the tree
                 self.collection.reload(ctx.attribute_storage);
                 ctx.truncate_children(&mut tree);
-                if let Some(widget) = parent_widget {
-                    dirty_widgets.push(widget);
-                }
             }
         }
 
