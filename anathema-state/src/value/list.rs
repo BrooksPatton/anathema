@@ -58,6 +58,8 @@ impl<T: State> Default for List<T> {
 /// list.push(123);
 /// ```
 impl<T: State> Value<List<T>> {
+    // This does not trigger a change but still gives mutable access
+    // to the underlying list.
     fn with_mut<F, U>(&mut self, f: F) -> U
     where
         F: FnOnce(&mut List<T>) -> U,
@@ -75,11 +77,37 @@ impl<T: State> Value<List<T>> {
         ret_val
     }
 
+    /// Create an empty list
     pub fn empty() -> Self {
         let list = List { inner: VecDeque::new() };
         Value::new(list)
     }
 
+    /// Clear the list
+    pub fn clear(&mut self) {
+        self.set(List::empty());
+    }
+
+    /// Retain all values that matches the predicate
+    pub fn retain<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&Value<T>) -> bool,
+    {
+        let key = self.key;
+        let mut index = 0;
+        self.with_mut(|list| {
+            list.inner.retain(|value| {
+                let retain = f(value);
+                if !retain {
+                    changed(key, Change::Removed(index));
+                }
+                index += 1;
+                retain
+            });
+        });
+    }
+
+    /// Get a reference to a value
     pub fn get<'a>(&'a self, index: usize) -> Option<Shared<'a, T>> {
         let list = &*self.to_ref();
         let value = list.get(index)?;
@@ -90,6 +118,7 @@ impl<T: State> Value<List<T>> {
         Some(shared)
     }
 
+    /// Get a mutable reference to a value
     pub fn get_mut<'a>(&'a mut self, index: usize) -> Option<Unique<'a, T>> {
         let list = &*self.to_ref();
         let value = list.get(index)?;
@@ -184,10 +213,7 @@ impl<T: State> Value<List<T>> {
         });
     }
 
-    pub fn len(&self) -> usize {
-        self.to_ref().len()
-    }
-
+    /// Merge the list with another list.
     pub fn merge(&mut self, other: &mut Self) {
         while let Some(value) = other.pop_front() {
             let index = self.with_mut(|list| {
@@ -200,6 +226,12 @@ impl<T: State> Value<List<T>> {
         }
     }
 
+    /// Return the length of the list
+    pub fn len(&self) -> usize {
+        self.to_ref().len()
+    }
+
+    /// Returns true if the list is empty
     pub fn is_empty(&self) -> bool {
         self.to_ref().is_empty()
     }
@@ -301,6 +333,32 @@ mod test {
         let change = drain_changes().remove(0);
         assert!(matches!(change, (_, Change::Removed(0))));
         assert_eq!(*front.unwrap().to_ref(), 1);
+    }
+
+    #[test]
+    fn notify_clear() {
+        let mut list = Value::new(List::<u32>::empty());
+        list.reference().subscribe(Subscriber::ZERO);
+        list.clear();
+
+        let change = drain_changes().remove(0);
+        assert!(matches!(change, (_, Change::Changed)));
+    }
+
+    #[test]
+    fn notify_retain() {
+        let mut list = Value::new(List::<u32>::empty());
+        list.push_back(1);
+        list.push_back(2);
+        list.push_back(3);
+
+        list.reference().subscribe(Subscriber::ZERO);
+
+        list.retain(|val| *val.to_ref() == 1);
+
+        let mut changes = drain_changes();
+        assert!(matches!(changes.remove(0), (_, Change::Removed(2))));
+        assert!(matches!(changes.remove(0), (_, Change::Removed(1))));
     }
 
     #[test]
