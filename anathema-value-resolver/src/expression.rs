@@ -349,7 +349,10 @@ fn resolve_pending<'bp>(val: PendingValue, ctx: &mut ValueResolutionContext<'_, 
             let maybe = or_null!(state.as_maybe());
             // If there is no value, subscribe to the `Maybe`
             let inner = match maybe.get() {
-                Some(inner) => inner,
+                Some(inner) => {
+                    ctx.maybe_subscribe(&val);
+                    inner
+                }
                 None => {
                     ctx.maybe_subscribe(&val);
                     return ValueExpr::Null;
@@ -377,11 +380,11 @@ fn resolve_index<'bp>(
             let val = map.lookup(&key);
 
             let val = match val {
-                Some(key) => {
+                Some(val) => {
                     if ctx.is_partially_resolved() {
                         value.unsubscribe(ctx.sub);
                     }
-                    key
+                    val
                 }
                 None => {
                     ctx.partially_resolved(value);

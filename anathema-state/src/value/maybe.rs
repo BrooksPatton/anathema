@@ -141,6 +141,8 @@ impl<T: State + TypeId> Value<Maybe<T>> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::store::testing::drain_changes;
+    use crate::{Change, Subscriber};
 
     #[test]
     fn nullable_int() {
@@ -154,5 +156,14 @@ mod test {
         let value = Maybe::some(Maybe::some(1));
         let one = value.and_then_ref(|inner_map| inner_map.map_ref(|m| *m)).unwrap();
         assert_eq!(one, 1);
+    }
+
+    #[test]
+    fn changing_value() {
+        let mut value = Value::new(Maybe::<u32>::none());
+        value.reference().subscribe(Subscriber::ZERO);
+        value.to_mut().update(Some(1));
+        let mut changes = drain_changes();
+        assert!(matches!(changes.remove(0), (_, Change::Changed)));
     }
 }

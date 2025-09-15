@@ -107,6 +107,33 @@ impl<T: State> Value<List<T>> {
         });
     }
 
+    /// Return all values matching the predicate.
+    ///
+    /// Note that unlike `Vec::extract_if`, this will allocate a vector for the result
+    pub fn extract_if<F>(&mut self, mut f: F) -> Vec<Value<T>>
+    where
+        F: FnMut(&Value<T>) -> bool,
+    {
+        let key = self.key;
+        self.with_mut(|List { inner: list, .. }| {
+            let mut extraction = vec![];
+
+            let mut del = 0;
+
+            for i in 0..list.len() {
+                let index = i - del;
+                if f(&list[index]) {
+                    let value = list.remove(index).expect("value is present");
+                    extraction.push(value);
+                    changed(key, Change::Removed(index as u32));
+                    del += 1;
+                }
+            }
+
+            extraction
+        })
+    }
+
     /// Get a reference to a value
     pub fn get<'a>(&'a self, index: usize) -> Option<Shared<'a, T>> {
         let list = &*self.to_ref();
@@ -359,6 +386,26 @@ mod test {
         let mut changes = drain_changes();
         assert!(matches!(changes.remove(0), (_, Change::Removed(2))));
         assert!(matches!(changes.remove(0), (_, Change::Removed(1))));
+    }
+
+    #[test]
+    fn notify_extract_if() {
+        let mut list = Value::new(List::<u32>::empty());
+        list.push_back(1);
+        list.push_back(2);
+        list.push_back(3);
+        list.push_back(4);
+
+        list.reference().subscribe(Subscriber::ZERO);
+
+        let result = list.extract_if(|val| *val.to_ref() % 2 == 0);
+
+        let mut changes = drain_changes();
+        assert!(matches!(changes.remove(0), (_, Change::Removed(2))));
+        assert!(matches!(changes.remove(0), (_, Change::Removed(1))));
+
+        assert_eq!(*result[0].to_ref(), 2);
+        assert_eq!(*result[1].to_ref(), 4);
     }
 
     #[test]
