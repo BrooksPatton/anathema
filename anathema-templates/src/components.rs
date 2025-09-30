@@ -10,6 +10,7 @@ use anathema_store::storage::Storage;
 use crate::Lexer;
 use crate::blueprints::Blueprint;
 use crate::error::{Error, ErrorKind, Result};
+use crate::expressions::Expressions;
 use crate::statements::eval::Scope;
 use crate::statements::parser::Parser;
 use crate::statements::{Context, Statements};
@@ -223,6 +224,7 @@ impl ComponentTemplates {
         variables: &mut Variables,
         slots: SmallMap<StringId, Vec<Blueprint>>,
         strings: &mut Strings,
+        expressions: &mut Expressions,
     ) -> Result<Vec<Blueprint>> {
         let ticket = self.components.checkout(component_id);
         let (_, component_src) = &*ticket;
@@ -238,7 +240,7 @@ impl ComponentTemplates {
         // NOTE
         // The ticket has to be restored to the component store,
         // this is why the error is returned rather than using `?` on `self.compile`.
-        let ret = self.compile(component_src, variables, slots, strings, component_id);
+        let ret = self.compile(component_src, variables, slots, strings, expressions, component_id);
         self.components.restore(ticket);
         self.dependencies.pop();
         ret
@@ -250,6 +252,7 @@ impl ComponentTemplates {
         variables: &mut Variables,
         slots: SmallMap<StringId, Vec<Blueprint>>,
         strings: &mut Strings,
+        expressions: &mut Expressions,
         parent: ComponentBlueprintId,
     ) -> Result<Vec<Blueprint>> {
         let tokens = Lexer::new(template, strings).collect::<Result<Vec<_>>>()?;
@@ -258,7 +261,7 @@ impl ComponentTemplates {
 
         let statements = parser.collect::<Result<Statements>>()?;
 
-        let mut context = Context::new(template, variables, self, strings, slots, Some(parent));
+        let mut context = Context::new(template, variables, self, strings, expressions, slots, Some(parent));
 
         Scope::new(statements).eval(&mut context)
     }

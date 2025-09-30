@@ -6,6 +6,7 @@ use anathema_store::smallmap::SmallMap;
 use crate::blueprints::Blueprint;
 use crate::components::{ComponentTemplates, SourceKind, TemplateSource};
 use crate::error::{Error, ErrorKind, Result};
+use crate::expressions::Expressions;
 use crate::statements::eval::Scope;
 use crate::statements::parser::Parser;
 use crate::statements::{Context, Statements};
@@ -21,6 +22,7 @@ use crate::{ComponentBlueprintId, Lexer, Variables};
 pub struct Document {
     template: TemplateSource,
     pub strings: Strings,
+    pub expressions: Expressions,
     components: ComponentTemplates,
     pub hot_reload: bool,
 }
@@ -31,6 +33,7 @@ impl Document {
         Self {
             template,
             strings: Strings::new(),
+            expressions: Expressions::empty(),
             components: ComponentTemplates::new(),
             hot_reload: true,
         }
@@ -58,6 +61,8 @@ impl Document {
 
     pub fn compile(&mut self, globals: &mut Variables) -> Result<Blueprint> {
         globals.reset_globals();
+        self.expressions.clear();
+
         let tokens = Lexer::new(&self.template, &mut self.strings).collect::<Result<Vec<_>>>()?;
         let tokens = Tokens::new(tokens, self.template.len());
         let parser = Parser::new(tokens, &mut self.strings, &self.template, &mut self.components);
@@ -68,6 +73,7 @@ impl Document {
             template: &self.template,
             variables: globals,
             strings: &mut self.strings,
+            expressions: &mut self.expressions,
             components: &mut self.components,
             slots: SmallMap::empty(),
             current_component_parent: None,

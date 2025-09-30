@@ -171,7 +171,8 @@ impl<G: GlobalEventHandler> Builder<G> {
     }
 
     pub fn register_global(&mut self, key: impl Into<String>, value: impl Into<Expression>) -> Result<()> {
-        self.variables.define_global(key, value).map_err(|e| e.to_error(None))?;
+        let id = self.document.expressions.insert_at_root(value.into());
+        self.variables.define_global(key, id).map_err(|e| e.to_error(None))?;
         Ok(())
     }
 

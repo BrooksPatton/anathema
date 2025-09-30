@@ -18,7 +18,7 @@ where
     F: for<'bp> FnMut(WidgetTreeView<'_, 'bp>, &mut AttributeStorage<'bp>),
 {
     let mut tree = WidgetTree::empty();
-    let mut doc = Document::new(tpl);
+    let doc = Box::leak(Document::new(tpl).into());
     let mut variables = Default::default();
     let blueprint = doc.compile(&mut variables).unwrap();
     let variables = Box::leak(Box::new(variables));
@@ -52,6 +52,7 @@ where
         &mut glyph_map,
         &mut viewport,
         function_table,
+        &doc.expressions,
     );
 
     let mut ctx = layout_ctx.eval_ctx(None, None);

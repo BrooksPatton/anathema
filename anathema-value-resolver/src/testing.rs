@@ -1,6 +1,7 @@
 use anathema_state::{AnyMap, List, Map, Maybe, State, StateId, States, Subscriber, Value};
 use anathema_store::slab::Key;
-use anathema_templates::{Expression, Variables};
+use anathema_templates::Variables;
+use anathema_templates::expressions::{ExpressionId, Expressions};
 
 use super::*;
 use crate::context::ResolverCtx;
@@ -61,7 +62,7 @@ impl AnyMap for TestState {
 }
 
 pub(crate) struct TestCase<'a, 'bp> {
-    variables: &'static Variables,
+    variables: &'static mut Variables,
     states: &'a mut States,
     pub attributes: AttributeStorage<'bp>,
     function_table: &'static FunctionTable,
@@ -80,25 +81,24 @@ impl<'a, 'bp> TestCase<'a, 'bp> {
         }
     }
 
-    pub(crate) fn eval(&self, expr: &'bp Expression) -> crate::value::Value<'bp> {
+    pub(crate) fn eval(&mut self, expressions: &'bp Expressions, expr: ExpressionId) -> crate::value::Value<'bp> {
         let state_id = StateId::ZERO;
         let scope = Scope::with_component(state_id, Key::ZERO, None);
-        let ctx = ResolverCtx::new(
+
+        let mut ctx = ResolverCtx::new(
             self.variables,
             &scope,
             self.states,
             &self.attributes,
             self.function_table,
+            expressions,
         );
-        resolve(expr, &ctx, Subscriber::ZERO)
+        resolve(expr, &mut ctx, Subscriber::ZERO)
     }
 
-    pub fn set_attribute(&mut self, key: &'bp str, expr: &'bp Expression) {
-        let scope = Scope::with_component(StateId::ZERO, Key::ZERO, None);
-        self.attributes.with_mut(Key::ZERO, |attributes, storage| {
-            let ctx = ResolverCtx::new(self.variables, &scope, self.states, storage, self.function_table);
-            attributes.insert_with(ValueKey::Attribute(key), |_index| resolve(expr, &ctx, Subscriber::ZERO));
-        });
+    pub fn set_attribute(&mut self, key: &'bp str, value: impl Into<ValueKind<'bp>>) {
+        self.attributes
+            .with_mut(Key::ZERO, |attributes, _| attributes.set(key, value));
     }
 
     pub(crate) fn with_state<F, U>(&mut self, f: F) -> U
@@ -108,6 +108,10 @@ impl<'a, 'bp> TestCase<'a, 'bp> {
         let state = self.states.get_mut(StateId::ZERO).unwrap();
         let mut state = state.to_mut_cast::<TestState>();
         f(&mut state)
+    }
+
+    pub(crate) fn register_global(&mut self, key: &str, id: ExpressionId) {
+        self.variables.define_global(key, id).unwrap();
     }
 }
 

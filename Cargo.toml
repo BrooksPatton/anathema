@@ -31,7 +31,12 @@ anathema-testutils = { path = "anathema-testutils" }
 
 [features]
 default = []
-profile = ["anathema-runtime/profile", "anathema-widgets/profile", "anathema-backend/profile", "anathema-value-resolver/profile"]
+profile = [
+    "anathema-runtime/profile", 
+    "anathema-widgets/profile", 
+    "anathema-backend/profile",
+    "anathema-value-resolver/profile",
+]
 serde = ["anathema-state/serde", "anathema-store/serde"]
 # filelog = ["anathema-debug/filelog", "anathema-widgets/filelog", "anathema-runtime/filelog"]
 

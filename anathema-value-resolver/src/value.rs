@@ -2,28 +2,37 @@ use std::borrow::Cow;
 use std::ops::{Deref, DerefMut};
 
 use anathema_state::{Color, Hex, PendingValue, SubTo, Subscriber, Type};
-use anathema_store::smallmap::SmallMap;
+use anathema_store::slab::Key;
+use anathema_store::smallmap::SmallIndex;
 use anathema_templates::Expression;
+use anathema_templates::expressions::ExpressionId;
 
-use crate::attributes::ValueKey;
-use crate::expression::{ResolvedState, ValueExpr, ValueResolutionContext, resolve_value};
+use crate::expression::{ResolvedExpr, ResolvedState, ValueResolutionContext, resolve_value};
 use crate::immediate::Resolver;
 use crate::{AttributeStorage, ResolverCtx};
 
-pub type Values<'bp> = SmallMap<ValueKey<'bp>, Value<'bp>>;
+pub fn resolve<'bp>(expr_id: ExpressionId, ctx: &mut ResolverCtx<'_, 'bp>, sub: impl Into<Subscriber>) -> Value<'bp> {
+    let expr = ctx.expressions.get(expr_id);
+    resolve_expr(expr, ctx, sub)
+}
 
-pub fn resolve<'bp>(expr: &'bp Expression, ctx: &ResolverCtx<'_, 'bp>, sub: impl Into<Subscriber>) -> Value<'bp> {
+pub(crate) fn resolve_expr<'bp>(
+    expr: &'bp Expression,
+    ctx: &mut ResolverCtx<'_, 'bp>,
+    sub: impl Into<Subscriber>,
+) -> Value<'bp> {
     let resolver = Resolver::new(ctx);
     let value_expr = resolver.resolve(expr);
     Value::resolve(value_expr, sub.into(), ctx.attribute_storage)
 }
 
 pub fn resolve_collection<'bp>(
-    expr: &'bp Expression,
-    ctx: &ResolverCtx<'_, 'bp>,
-    sub: impl Into<Subscriber>,
+    expr: ExpressionId,
+    ctx: &mut ResolverCtx<'_, 'bp>,
+    widget_id: Key,
+    value_index: SmallIndex,
 ) -> Collection<'bp> {
-    let value = resolve(expr, ctx, sub);
+    let value = resolve(expr, ctx, (widget_id, value_index));
     Collection(value)
 }
 
@@ -64,17 +73,19 @@ impl<'bp> Collection<'bp> {
 /// This should be evaluated fully for the `ValueKind`
 #[derive(Debug)]
 pub struct Value<'bp> {
-    pub(crate) expr: ValueExpr<'bp>,
-    pub(crate) sub: Subscriber,
     pub(crate) kind: ValueKind<'bp>,
     pub(crate) resolved: ResolvedState,
+
+    // TODO: get rid of these fields once it has been moved into `ResolvedExpressions<'_>`
+    pub(crate) expr: ResolvedExpr<'bp>,
+    pub(crate) sub: Subscriber,
     sub_keys: SubTo,
 }
 
 impl<'bp> Value<'bp> {
     pub(crate) fn static_val(value: impl Into<ValueKind<'bp>>) -> Self {
         Self {
-            expr: ValueExpr::Null,
+            expr: ResolvedExpr::Null,
             kind: value.into(),
             sub: anathema_state::Subscriber::MAX,
             resolved: ResolvedState::Resolved,
@@ -82,7 +93,7 @@ impl<'bp> Value<'bp> {
         }
     }
 
-    pub fn resolve(expr: ValueExpr<'bp>, sub: Subscriber, attribute_storage: &AttributeStorage<'bp>) -> Self {
+    fn resolve(expr: ResolvedExpr<'bp>, sub: Subscriber, attribute_storage: &AttributeStorage<'bp>) -> Self {
         let mut ctx = ValueResolutionContext::new(attribute_storage, sub, ResolvedState::Unresolved);
         let kind = resolve_value(&expr, &mut ctx);
 
@@ -90,7 +101,7 @@ impl<'bp> Value<'bp> {
         // This is a special edge case where the map or state is used
         // as a final value `Option<ValueKind>`.
         //
-        // This would only hold value in an if-statement:
+        // This would only hold a meaningful value in an if-statement:
         // ```
         // if state.opt_map
         //     text "show this if there is a map"
@@ -569,8 +580,8 @@ pub(crate) mod test {
     use anathema_state::{Hex, Map, Maybe, States};
     use anathema_templates::Variables;
     use anathema_templates::expressions::{
-        add, and, boolean, chr, div, either, eq, float, greater_than, greater_than_equal, hex, ident, index, less_than,
-        less_than_equal, list, map, modulo, mul, neg, not, num, or, strlit, sub, text_segments,
+        Expressions, add, and, boolean, chr, div, either, eq, float, greater_than, greater_than_equal, hex, ident,
+        index, less_than, less_than_equal, list, map, modulo, mul, neg, not, num, or, strlit, sub, text_segments,
     };
 
     use crate::ValueKind;
@@ -578,38 +589,43 @@ pub(crate) mod test {
 
     #[test]
     fn attribute_lookup() {
-        let expr = index(ident("attributes"), strlit("a"));
-        let int = num(123);
+        panic!("this fails because get_value_expr doesn't work for statically assigned attributes");
+        // let mut expressions = Expressions::empty();
+        // let expr = expressions.insert_at_root(index(ident("attributes"), strlit("a")));
 
-        let mut states = States::new();
-        setup(&mut states, Default::default(), |test| {
-            test.set_attribute("a", &int);
-            let value = test.eval(&expr);
-            assert_eq!(123, value.as_int().unwrap());
-        });
+        // let mut states = States::new();
+        // setup(&mut states, Default::default(), |test| {
+        //     test.set_attribute("a", 123);
+        //     let value = test.eval(&expressions, expr);
+        //     assert_eq!(123, value.as_int().unwrap());
+        // });
     }
 
     #[test]
     fn expr_list_dyn_index() {
-        let expr = index(list([1, 2, 3]), add(ident("index"), num(1)));
+        let mut expressions = Expressions::empty();
+        let expr = expressions.insert_at_root(index(list([1, 2, 3]), add(ident("index"), num(1))));
+        let glob = expressions.insert_at_root(0);
 
         let mut states = States::new();
-        let mut globals = Variables::new();
-        globals.define_global("index", 0).unwrap();
+        let globals = Variables::new();
 
         setup(&mut states, globals, |test| {
-            let value = test.eval(&expr);
+            test.register_global("index", glob);
+
+            let value = test.eval(&expressions, expr);
             assert_eq!(2, value.as_int().unwrap());
         });
     }
 
     #[test]
     fn expr_list() {
-        let expr = index(list([1, 2, 3]), num(0));
+        let mut expressions = Expressions::empty();
+        let expr = expressions.insert_at_root(index(list([1, 2, 3]), num(0)));
 
         let mut states = States::new();
         setup(&mut states, Default::default(), |test| {
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!(1, value.as_int().unwrap());
         });
     }
@@ -617,21 +633,21 @@ pub(crate) mod test {
     #[test]
     fn either_index() {
         // state[0] ? attributes[0]
+        let mut expressions = Expressions::empty();
         let expr = either(
             index(index(ident("state"), strlit("list")), num(0)),
             index(index(ident("attributes"), strlit("list")), num(0)),
         );
-
-        let list = list([strlit("from attribute")]);
+        let expr = expressions.insert_at_root(expr);
 
         let mut states = States::new();
         setup(&mut states, Default::default(), |test| {
             // Set list for attributes
-            test.set_attribute("list", &list);
+            test.set_attribute("list", vec!["from attribute"]);
 
             // Evaluate the value.
             // The state is not yet set so it will fall back to attributes
-            let mut value = test.eval(&expr);
+            let mut value = test.eval(&expressions, expr);
             assert_eq!("from attribute", value.as_str().unwrap());
 
             // Set the state value
@@ -646,49 +662,57 @@ pub(crate) mod test {
     #[test]
     fn either_then_index() {
         // (state ? attributes)[0]
+        panic!("this fails because get_value_expr doesn't work for statically assigned attributes");
 
-        let list = list([num(123)]);
-        let mut states = States::new();
-        setup(&mut states, Default::default(), |test| {
-            let expr = index(
-                either(
-                    index(ident("attributes"), strlit("list")),
-                    index(ident("state"), strlit("list")),
-                ),
-                num(0),
-            );
+        // let mut states = States::new();
 
-            test.with_state(|state| state.list.push("a string"));
-            let value = test.eval(&expr);
-            assert_eq!("a string", value.as_str().unwrap());
+        // let mut expressions = Expressions::empty();
+        // let expr = expressions.insert_at_root(index(
+        //     either(
+        //         index(ident("attributes"), strlit("list")),
+        //         index(ident("state"), strlit("list")),
+        //     ),
+        //     num(0),
+        // ));
 
-            test.set_attribute("list", &list);
-            let value = test.eval(&expr);
-            assert_eq!(123, value.as_int().unwrap());
-        });
+        // setup(&mut states, Default::default(), |test| {
+        //     test.with_state(|state| state.list.push("a string"));
+        //     let value = test.eval(&expressions, expr);
+        //     assert_eq!("a string", value.as_str().unwrap());
+
+        //     test.set_attribute("list", vec![123]);
+        //     let value = test.eval(&expressions, expr);
+        //     assert_eq!(123, value.as_int().unwrap());
+        // });
     }
 
     #[test]
     fn either_or() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+
+        // There is no num_3, so use num_2 (see state)
+        let expr_1 = either(
+            index(ident("state"), strlit("num_3")),
+            index(ident("state"), strlit("num_2")),
+        );
+        let expr_1 = expressions.insert_at_root(expr_1);
+
+        // There is num, so don't use num_2
+        let expr_2 = either(
+            index(ident("state"), strlit("num")),
+            index(ident("state"), strlit("num_2")),
+        );
+        let expr_2 = expressions.insert_at_root(expr_2);
+
         setup(&mut states, Default::default(), |test| {
             test.with_state(|state| state.num.set(1));
             test.with_state(|state| state.num_2.set(2));
 
-            // There is no c, so use b
-            let expr = either(
-                index(ident("state"), strlit("num_3")),
-                index(ident("state"), strlit("num_2")),
-            );
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr_1);
             assert_eq!(2, value.as_int().unwrap());
 
-            // There is a, so don't use b
-            let expr = either(
-                index(ident("state"), strlit("num")),
-                index(ident("state"), strlit("num_2")),
-            );
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr_2);
             assert_eq!(1, value.as_int().unwrap());
         });
     }
@@ -696,11 +720,12 @@ pub(crate) mod test {
     #[test]
     fn mods() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let lookup = index(ident("state"), strlit("num"));
+        let expr = expressions.insert_at_root(modulo(lookup, num(3)));
         setup(&mut states, Default::default(), |test| {
             test.with_state(|state| state.num.set(5));
-            let lookup = index(ident("state"), strlit("num"));
-            let expr = modulo(lookup, num(3));
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!(2, value.as_int().unwrap());
         });
     }
@@ -708,11 +733,12 @@ pub(crate) mod test {
     #[test]
     fn division() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let lookup = index(ident("state"), strlit("num"));
+        let expr = expressions.insert_at_root(div(lookup, num(2)));
         setup(&mut states, Default::default(), |test| {
             test.with_state(|state| state.num.set(6));
-            let lookup = index(ident("state"), strlit("num"));
-            let expr = div(lookup, num(2));
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!(3, value.as_int().unwrap());
         });
     }
@@ -720,11 +746,12 @@ pub(crate) mod test {
     #[test]
     fn multiplication() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let lookup = index(ident("state"), strlit("num"));
+        let expr = expressions.insert_at_root(mul(lookup, num(2)));
         setup(&mut states, Default::default(), |test| {
             test.with_state(|state| state.num.set(2));
-            let lookup = index(ident("state"), strlit("num"));
-            let expr = mul(lookup, num(2));
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!(4, value.as_int().unwrap());
         });
     }
@@ -732,11 +759,12 @@ pub(crate) mod test {
     #[test]
     fn subtraction() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let lookup = index(ident("state"), strlit("num"));
+        let expr = expressions.insert_at_root(sub(lookup, num(2)));
         setup(&mut states, Default::default(), |test| {
             test.with_state(|state| state.num.set(1));
-            let lookup = index(ident("state"), strlit("num"));
-            let expr = sub(lookup, num(2));
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!(-1, value.as_int().unwrap());
         });
     }
@@ -744,11 +772,12 @@ pub(crate) mod test {
     #[test]
     fn addition() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let lookup = index(ident("state"), strlit("num"));
+        let expr = expressions.insert_at_root(add(lookup, num(2)));
         setup(&mut states, Default::default(), |test| {
             test.with_state(|state| state.num.set(1));
-            let lookup = index(ident("state"), strlit("num"));
-            let expr = add(lookup, num(2));
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!(3, value.as_int().unwrap());
         });
     }
@@ -756,9 +785,10 @@ pub(crate) mod test {
     #[test]
     fn test_or() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let is_true = expressions.insert_at_root(or(boolean(false), boolean(true)));
         setup(&mut states, Default::default(), |test| {
-            let is_true = or(boolean(false), boolean(true));
-            let is_true = test.eval(&is_true);
+            let is_true = test.eval(&expressions, is_true);
             assert!(is_true.as_bool().unwrap());
         });
     }
@@ -766,9 +796,10 @@ pub(crate) mod test {
     #[test]
     fn test_and() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let is_true = expressions.insert_at_root(and(boolean(true), boolean(true)));
         setup(&mut states, Default::default(), |test| {
-            let is_true = and(boolean(true), boolean(true));
-            let is_true = test.eval(&is_true);
+            let is_true = test.eval(&expressions, is_true);
             assert!(is_true.as_bool().unwrap());
         });
     }
@@ -776,11 +807,12 @@ pub(crate) mod test {
     #[test]
     fn lte() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let is_true = expressions.insert_at_root(less_than_equal(num(1), num(2)));
+        let is_also_true = expressions.insert_at_root(less_than_equal(num(1), num(1)));
         setup(&mut states, Default::default(), |test| {
-            let is_true = less_than_equal(num(1), num(2));
-            let is_also_true = less_than_equal(num(1), num(1));
-            let is_true = test.eval(&is_true);
-            let is_also_true = test.eval(&is_also_true);
+            let is_true = test.eval(&expressions, is_true);
+            let is_also_true = test.eval(&expressions, is_also_true);
             assert!(is_true.as_bool().unwrap());
             assert!(is_also_true.as_bool().unwrap());
         });
@@ -789,11 +821,12 @@ pub(crate) mod test {
     #[test]
     fn lt() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let is_true = expressions.insert_at_root(less_than(num(1), num(2)));
+        let is_false = expressions.insert_at_root(less_than(num(1), num(1)));
         setup(&mut states, Default::default(), |test| {
-            let is_true = less_than(num(1), num(2));
-            let is_false = less_than(num(1), num(1));
-            let is_true = test.eval(&is_true);
-            let is_false = test.eval(&is_false);
+            let is_true = test.eval(&expressions, is_true);
+            let is_false = test.eval(&expressions, is_false);
             assert!(is_true.as_bool().unwrap());
             assert!(!is_false.as_bool().unwrap());
         });
@@ -802,11 +835,12 @@ pub(crate) mod test {
     #[test]
     fn gte() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let is_true = expressions.insert_at_root(greater_than_equal(num(2), num(1)));
+        let is_also_true = expressions.insert_at_root(greater_than_equal(num(2), num(2)));
         setup(&mut states, Default::default(), |test| {
-            let is_true = greater_than_equal(num(2), num(1));
-            let is_also_true = greater_than_equal(num(2), num(2));
-            let is_true = test.eval(&is_true);
-            let is_also_true = test.eval(&is_also_true);
+            let is_true = test.eval(&expressions, is_true);
+            let is_also_true = test.eval(&expressions, is_also_true);
             assert!(is_true.as_bool().unwrap());
             assert!(is_also_true.as_bool().unwrap());
         });
@@ -815,11 +849,12 @@ pub(crate) mod test {
     #[test]
     fn gt() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let is_true = expressions.insert_at_root(greater_than(num(2), num(1)));
+        let is_false = expressions.insert_at_root(greater_than(num(2), num(2)));
         setup(&mut states, Default::default(), |test| {
-            let is_true = greater_than(num(2), num(1));
-            let is_false = greater_than(num(2), num(2));
-            let is_true = test.eval(&is_true);
-            let is_false = test.eval(&is_false);
+            let is_true = test.eval(&expressions, is_true);
+            let is_false = test.eval(&expressions, is_false);
             assert!(is_true.as_bool().unwrap());
             assert!(!is_false.as_bool().unwrap());
         });
@@ -828,11 +863,12 @@ pub(crate) mod test {
     #[test]
     fn equality() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let is_true = expressions.insert_at_root(eq(num(1), num(1)));
+        let is_false = expressions.insert_at_root(not(eq(num(1), num(1))));
         setup(&mut states, Default::default(), |test| {
-            let is_true = eq(num(1), num(1));
-            let is_true = test.eval(&is_true);
-            let is_false = &not(eq(num(1), num(1)));
-            let is_false = test.eval(is_false);
+            let is_true = test.eval(&expressions, is_true);
+            let is_false = test.eval(&expressions, is_false);
             assert!(is_true.as_bool().unwrap());
             assert!(!is_false.as_bool().unwrap());
         });
@@ -841,9 +877,10 @@ pub(crate) mod test {
     #[test]
     fn neg_float() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let expr = expressions.insert_at_root(neg(float(123.1)));
         setup(&mut states, Default::default(), |test| {
-            let expr = neg(float(123.1));
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!(-123.1, value.as_float().unwrap());
         });
     }
@@ -851,9 +888,10 @@ pub(crate) mod test {
     #[test]
     fn neg_num() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let expr = expressions.insert_at_root(neg(num(123)));
         setup(&mut states, Default::default(), |test| {
-            let expr = neg(num(123));
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!(-123, value.as_int().unwrap());
         });
     }
@@ -861,9 +899,10 @@ pub(crate) mod test {
     #[test]
     fn not_true() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let expr = expressions.insert_at_root(not(boolean(false)));
         setup(&mut states, Default::default(), |test| {
-            let expr = not(boolean(false));
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert!(value.as_bool().unwrap());
         });
     }
@@ -871,9 +910,10 @@ pub(crate) mod test {
     #[test]
     fn map_resolve() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let expr = expressions.insert_at_root(map([("a", 123), ("b", 456)]));
         setup(&mut states, Default::default(), |test| {
-            let expr = map([("a", 123), ("b", 456)]);
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!(ValueKind::Map, value.kind);
         });
     }
@@ -881,10 +921,11 @@ pub(crate) mod test {
     #[test]
     fn optional_map_resolve() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let expr = expressions.insert_at_root(index(ident("state"), strlit("opt_map")));
         setup(&mut states, Default::default(), |test| {
             // At first there is no map...
-            let expr = index(ident("state"), strlit("opt_map"));
-            let mut value = test.eval(&expr);
+            let mut value = test.eval(&expressions, expr);
             assert!(matches!(value.kind, ValueKind::Null));
 
             // ... then we insert a map
@@ -903,11 +944,16 @@ pub(crate) mod test {
         // state[empty|full]
         let mut states = States::new();
         let mut globals = Variables::new();
-        globals.define_global("full", "string").unwrap();
+        let mut expressions = Expressions::empty();
+
+        let id = expressions.insert_at_root("string");
+        globals.define_global("full", id).unwrap();
+
+        let expr = index(ident("state"), either(ident("empty"), ident("full")));
+        let expr = expressions.insert_at_root(expr);
         setup(&mut states, globals, |test| {
-            let expr = index(ident("state"), either(ident("empty"), ident("full")));
             test.with_state(|state| state.string.set("a string"));
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!("a string", value.as_str().unwrap());
         });
     }
@@ -915,10 +961,11 @@ pub(crate) mod test {
     #[test]
     fn state_string() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let expr = expressions.insert_at_root(index(ident("state"), strlit("string")));
         setup(&mut states, Default::default(), |test| {
             test.with_state(|state| state.string.set("a string"));
-            let expr = index(ident("state"), strlit("string"));
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!("a string", value.as_str().unwrap());
         });
     }
@@ -926,10 +973,11 @@ pub(crate) mod test {
     #[test]
     fn state_float() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let expr = expressions.insert_at_root(index(ident("state"), strlit("float")));
         setup(&mut states, Default::default(), |test| {
-            let expr = index(ident("state"), strlit("float"));
             test.with_state(|state| state.float.set(1.2));
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!(1.2, value.as_float().unwrap());
         });
     }
@@ -937,17 +985,18 @@ pub(crate) mod test {
     #[test]
     fn test_either_with_state() {
         let mut states = States::new();
-        let expr = either(index(ident("state"), strlit("num")), num(2));
+        let mut expressions = Expressions::empty();
+        let expr = expressions.insert_at_root(either(index(ident("state"), strlit("num")), num(2)));
 
         setup(&mut states, Variables::new(), |test| {
             test.with_state(|state| state.num.set(0));
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!(2, value.as_int().unwrap());
         });
 
         setup(&mut states, Variables::new(), |test| {
             test.with_state(|state| state.num.set(1));
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!(1, value.as_int().unwrap());
         });
     }
@@ -956,10 +1005,13 @@ pub(crate) mod test {
     fn test_either() {
         let mut states = States::new();
         let mut globals = Variables::new();
-        globals.define_global("missing", 111).unwrap();
+        let mut expressions = Expressions::empty();
+        let id = expressions.insert_at_root(111);
+        globals.define_global("missing", id).unwrap();
+        let expr = expressions.insert_at_root(either(ident("missings"), num(2)));
+
         setup(&mut states, globals, |test| {
-            let expr = either(ident("missings"), num(2));
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!(2, value.as_int().unwrap());
         });
     }
@@ -967,9 +1019,11 @@ pub(crate) mod test {
     #[test]
     fn test_hex() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let expr = expressions.insert_at_root(hex((1, 2, 3)));
+
         setup(&mut states, Default::default(), |test| {
-            let expr = hex((1, 2, 3));
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!(Hex::from((1, 2, 3)), value.as_hex().unwrap());
         });
     }
@@ -977,9 +1031,10 @@ pub(crate) mod test {
     #[test]
     fn test_char() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let expr = expressions.insert_at_root(chr('x'));
         setup(&mut states, Default::default(), |test| {
-            let expr = chr('x');
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!('x', value.as_char().unwrap());
         });
     }
@@ -987,9 +1042,10 @@ pub(crate) mod test {
     #[test]
     fn test_float() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let expr = expressions.insert_at_root(float(123.123));
         setup(&mut states, Default::default(), |test| {
-            let expr = float(123.123);
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!(123.123, value.as_float().unwrap());
         });
     }
@@ -997,9 +1053,10 @@ pub(crate) mod test {
     #[test]
     fn test_int() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let expr = expressions.insert_at_root(num(123));
         setup(&mut states, Default::default(), |test| {
-            let expr = num(123);
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!(123, value.as_int().unwrap());
         });
     }
@@ -1007,9 +1064,11 @@ pub(crate) mod test {
     #[test]
     fn test_bool() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let expr = expressions.insert_at_root(boolean(true));
+
         setup(&mut states, Default::default(), |test| {
-            let expr = boolean(true);
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert!(value.as_bool().unwrap());
         });
     }
@@ -1017,13 +1076,15 @@ pub(crate) mod test {
     #[test]
     fn test_dyn_list() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let expr = expressions.insert_at_root(index(index(ident("state"), strlit("list")), num(1)));
+
         setup(&mut states, Default::default(), |test| {
             test.with_state(|state| {
                 state.list.push("abc");
                 state.list.push("def");
             });
-            let expr = index(index(ident("state"), strlit("list")), num(1));
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!("def", value.as_str().unwrap());
         });
     }
@@ -1031,10 +1092,11 @@ pub(crate) mod test {
     #[test]
     fn test_expression_map_state_key() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let expr = expressions.insert_at_root(index(map([("value", 123)]), index(ident("state"), strlit("string"))));
         setup(&mut states, Default::default(), |test| {
-            let expr = index(map([("value", 123)]), index(ident("state"), strlit("string")));
             test.with_state(|state| state.string.set("value"));
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!(123, value.as_int().unwrap());
         });
     }
@@ -1042,9 +1104,10 @@ pub(crate) mod test {
     #[test]
     fn test_expression_map() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let expr = expressions.insert_at_root(index(map([("value", 123)]), strlit("value")));
         setup(&mut states, Default::default(), |test| {
-            let expr = index(map([("value", 123)]), strlit("value"));
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!(123, value.as_int().unwrap());
         });
     }
@@ -1052,9 +1115,11 @@ pub(crate) mod test {
     #[test]
     fn test_state_lookup() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let expr = expressions.insert_at_root(index(ident("state"), strlit("num")));
+
         setup(&mut states, Default::default(), |test| {
-            let expr = index(ident("state"), strlit("num"));
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!(0, value.as_int().unwrap());
         });
     }
@@ -1062,10 +1127,11 @@ pub(crate) mod test {
     #[test]
     fn test_nested_map() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let expr = expressions.insert_at_root(index(index(ident("state"), strlit("map")), strlit("value")));
         setup(&mut states, Default::default(), |test| {
-            let expr = index(index(ident("state"), strlit("map")), strlit("value"));
             test.with_state(|state| state.map.to_mut().insert("value", 123));
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             assert_eq!(123, value.as_int().unwrap());
         });
     }
@@ -1073,9 +1139,11 @@ pub(crate) mod test {
     #[test]
     fn stringify() {
         let mut states = States::new();
+        let mut expressions = Expressions::empty();
+        let expr = expressions.insert_at_root(text_segments([strlit("hello"), strlit(" "), strlit("world")]));
+
         setup(&mut states, Default::default(), |test| {
-            let expr = text_segments([strlit("hello"), strlit(" "), strlit("world")]);
-            let value = test.eval(&expr);
+            let value = test.eval(&expressions, expr);
             let mut actual = String::new();
             value.strings(|st| {
                 actual.push_str(st);
