@@ -134,6 +134,7 @@ pub struct TestRunner {
     variables: Variables,
     components: Components,
     function_table: FunctionTable,
+    doc: Document,
 }
 
 impl TestRunner {
@@ -171,6 +172,7 @@ impl TestRunner {
             variables,
             components: Components::new(),
             function_table: FunctionTable::new(),
+            doc,
         }
     }
 
@@ -184,6 +186,7 @@ impl TestRunner {
             &mut self.component_registry,
             &mut self.components,
             &self.function_table,
+            &self.doc,
         )
     }
 }
@@ -202,6 +205,7 @@ pub struct TestInstance<'bp> {
     changes: Changes,
     glyph_map: GlyphMap,
     function_table: &'bp FunctionTable,
+    doc: &'bp Document,
 }
 
 impl<'bp> TestInstance<'bp> {
@@ -214,6 +218,7 @@ impl<'bp> TestInstance<'bp> {
         component_registry: &'bp mut ComponentRegistry,
         components: &'bp mut Components,
         function_table: &'bp FunctionTable,
+        doc: &'bp Document,
     ) -> Self {
         let mut tree = WidgetTree::empty();
         let mut attribute_storage = AttributeStorage::empty();
@@ -233,6 +238,7 @@ impl<'bp> TestInstance<'bp> {
             &mut glyph_map,
             &mut viewport,
             function_table,
+            &doc.expressions,
         );
 
         let mut ctx = ctx.eval_ctx(None, None);
@@ -254,6 +260,7 @@ impl<'bp> TestInstance<'bp> {
             changes: Changes::empty(),
             glyph_map,
             function_table,
+            doc,
         }
     }
 
@@ -285,6 +292,7 @@ impl<'bp> TestInstance<'bp> {
             &mut self.glyph_map,
             &mut self.viewport,
             self.function_table,
+            &self.doc.expressions,
         );
 
         self.changes.iter().for_each(|(sub, change)| {
@@ -331,6 +339,7 @@ impl<'bp> TestInstance<'bp> {
             &mut self.glyph_map,
             &mut self.viewport,
             self.function_table,
+            &self.doc.expressions,
         );
 
         let mut cycle = WidgetCycle::new(self.backend, self.tree.view(), constraints);

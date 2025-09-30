@@ -5,7 +5,7 @@ use super::const_eval::const_eval;
 use super::{Context, Statement, Statements};
 use crate::blueprints::{Blueprint, Component, ControlFlow, Else, For, Single, With};
 use crate::error::{ErrorKind, Result};
-use crate::expressions::{Equality, Expression};
+use crate::expressions::{Equality, Expression, ExpressionId};
 use crate::{ComponentBlueprintId, Primitive};
 
 pub(crate) struct Scope {
@@ -52,7 +52,9 @@ impl Scope {
                     is_global,
                 } => {
                     let Some(value) = const_eval(value, ctx) else { continue };
+                    let expr_id = ctx.insert_expression(value);
                     let binding = ctx.strings.get_unchecked(binding);
+                    // TODO: have a list of keywords here that we fail on
                     if binding == "state" {
                         return Err(
                             ErrorKind::InvalidStatement(format!("{binding} is a reserved identifier"))
@@ -60,8 +62,8 @@ impl Scope {
                         );
                     }
                     match is_global {
-                        false => _ = ctx.variables.define_local(binding, value),
-                        true => match ctx.variables.define_global(binding, value) {
+                        false => _ = ctx.variables.define_local(binding, expr_id),
+                        true => match ctx.variables.define_global(binding, expr_id) {
                             Ok(()) => (),
                             Err(kind) => return Err(kind.to_error(ctx.template.path())),
                         },
@@ -91,7 +93,11 @@ impl Scope {
     fn eval_node(&mut self, ident: StringId, ctx: &mut Context<'_>) -> Result<Blueprint> {
         let ident = ctx.strings.get_unchecked(ident);
         let attributes = self.eval_attributes(ctx)?;
-        let value = self.statements.take_value().and_then(|v| const_eval(v, ctx));
+        let value = self
+            .statements
+            .take_value()
+            .and_then(|v| const_eval(v, ctx))
+            .map(|expr| ctx.insert_expression(expr));
 
         ctx.variables.push();
         let children = self.consume_scope(ctx)?;
@@ -109,21 +115,33 @@ impl Scope {
 
     fn eval_for(&mut self, binding: StringId, data: Expression, ctx: &mut Context<'_>) -> Result<Option<Blueprint>> {
         let Some(data) = const_eval(data, ctx) else { return Ok(None) };
+        let expr_id = ctx.insert_expression(data);
+
         let binding = ctx.strings.get_unchecked(binding);
         // add binding to globals so nothing can resolve past the binding outside of the loop
-        ctx.variables.declare_local(binding.clone());
+        ctx.variables.declare_local(binding.clone(), ctx.expressions);
         let body = self.consume_scope(ctx)?;
-        let node = Blueprint::For(For { binding, data, body });
+        let node = Blueprint::For(For {
+            binding,
+            data: expr_id,
+            body,
+        });
         Ok(Some(node))
     }
 
     fn eval_with(&mut self, binding: StringId, data: Expression, ctx: &mut Context<'_>) -> Result<Option<Blueprint>> {
         let Some(data) = const_eval(data, ctx) else { return Ok(None) };
+        let expr_id = ctx.insert_expression(data);
+
         let binding = ctx.strings.get_unchecked(binding);
         // add binding to globals so nothing can resolve past the binding outside of the loop
-        ctx.variables.declare_local(binding.clone());
+        ctx.variables.declare_local(binding.clone(), ctx.expressions);
         let body = self.consume_scope(ctx)?;
-        let node = Blueprint::With(With { binding, data, body });
+        let node = Blueprint::With(With {
+            binding,
+            data: expr_id,
+            body,
+        });
         Ok(Some(node))
     }
 
@@ -132,13 +150,14 @@ impl Scope {
         scope.eval(ctx)
     }
 
-    fn eval_attributes(&mut self, ctx: &mut Context<'_>) -> Result<SmallMap<String, Expression>> {
+    fn eval_attributes(&mut self, ctx: &mut Context<'_>) -> Result<SmallMap<String, ExpressionId>> {
         let mut hm = SmallMap::empty();
 
         for (key, value) in self.statements.take_attributes() {
             let Some(value) = const_eval(value, ctx) else { continue };
+            let expr_id = ctx.insert_expression(value);
             let key = ctx.strings.get_unchecked(key);
-            hm.set(key, value);
+            hm.set(key, expr_id);
         }
 
         Ok(hm)
@@ -147,16 +166,22 @@ impl Scope {
     fn eval_if(&mut self, cond: Expression, ctx: &mut Context<'_>) -> Result<Blueprint> {
         // Const eval fail = static false
         let cond = const_eval(cond, ctx).unwrap_or(Expression::Primitive(Primitive::Bool(false)));
+        let expr_id = ctx.insert_expression(cond);
         let body = self.consume_scope(ctx)?;
         if body.is_empty() {
             return Err(ErrorKind::EmptyBody.to_error(ctx.template.path()));
         }
 
-        let mut elses = vec![Else { cond: Some(cond), body }];
+        let mut elses = vec![Else {
+            cond: Some(expr_id),
+            body,
+        }];
 
         while let Some(cond) = self.statements.next_else() {
             let body = self.consume_scope(ctx)?;
-            let cond = cond.and_then(|v| const_eval(v, ctx));
+            let cond = cond
+                .and_then(|v| const_eval(v, ctx))
+                .map(|expr| ctx.insert_expression(expr));
 
             if body.is_empty() {
                 return Err(ErrorKind::EmptyBody.to_error(ctx.template.path()));
@@ -179,6 +204,7 @@ impl Scope {
                 Some(ref switch) => Expression::Equality(switch.clone().into(), case.into(), Equality::Eq),
                 None => Expression::Primitive(Primitive::Bool(false)),
             };
+            let expr_id = ctx.insert_expression(cond);
 
             let body = match body.is_next_scope() {
                 true => body.take_scope(),
@@ -186,7 +212,10 @@ impl Scope {
             };
             let body = Scope::new(body).eval(ctx)?;
 
-            elses.push(Else { cond: Some(cond), body });
+            elses.push(Else {
+                cond: Some(expr_id),
+                body,
+            });
         }
 
         if body.next_default() {
@@ -266,8 +295,8 @@ mod test {
     #[test]
     fn eval_node() {
         let mut doc = Document::new("node");
-        let bp = doc.compile(&mut Variables::new()).unwrap();
-        assert_eq!(bp, single!("node"));
+        let blueprint = doc.compile(&mut Variables::new()).unwrap();
+        assert_eq!(blueprint, single!("node"));
     }
 
     #[test]
